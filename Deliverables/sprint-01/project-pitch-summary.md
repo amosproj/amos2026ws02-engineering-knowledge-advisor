@@ -13,7 +13,7 @@ Source: Bosch presentation by Tobias Kober and the subsequent discussion.
 
 Bosch’s Special Purpose Machinery department in Nuremberg builds fully automated machines, including systems with robots, and delivers them to customers worldwide. Its work spans mechanical design, electrical design, and PLC software controlling machine logic. Customers come from several industries, including automotive, chemicals, and aerospace.
 
-Tobias emphasized that this department approaches the project from the **hardware and industrial engineering side**, rather than as a software company. Bosch brings the machines, construction data, and engineering expertise; the student team needs to translate that domain problem into software requirements. [[1]](https://app.notion.com/p/Project-Pitches-3f28b1de4bd880cea040ca1cebb3742a?pvs=21)
+Tobias emphasized that this department approaches the project from the **hardware and industrial engineering side**, rather than as a software company. Bosch brings the machines, construction data, and engineering expertise; the student team needs to translate that domain problem into software requirements.
 
 ## 2. The problem: designs exist, but the reasoning remains in people’s heads
 
@@ -21,7 +21,7 @@ The department has built machines for decades and holds many existing modules, s
 
 Experienced designers know why a particular solution was chosen, which alternatives worked poorly, and how a machine actually behaves. Tobias specifically distinguished the information in the model from knowledge about machine function, cycle times, movements, and logic, which engineers must explain.
 
-An approaching wave of retirements makes this urgent: Bosch risks losing the knowledge behind its accumulated designs. Tobias described this as a wider industrial problem, not something unique to Bosch. The aim is to retain that knowledge and make it available to subsequent generations of engineers. [[1]](https://app.notion.com/p/Project-Pitches-3f28b1de4bd880cea040ca1cebb3742a?pvs=21)
+An approaching wave of retirements makes this urgent: Bosch risks losing the knowledge behind its accumulated designs. Tobias described this as a wider industrial problem, not something unique to Bosch. The aim is to retain that knowledge and make it available to subsequent generations of engineers.
 
 ## 3. Project objective
 
