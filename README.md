@@ -1,2 +1,2 @@
-# Fabulous Project (AMOS SS 20xx)
+# Engineering Knowledge Advisor Project (AMOS WS 2026)
 Something something something
