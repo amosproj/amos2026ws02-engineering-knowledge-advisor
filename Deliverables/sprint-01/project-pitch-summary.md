@@ -7,7 +7,7 @@ Session-based description from the project pitch and Q&A on October 7, 2026. Thi
 
 </aside>
 
-Source: [Project Pitches](https://app.notion.com/p/Project-Pitches-3f28b1de4bd880cea040ca1cebb3742a?pvs=21) — Bosch presentation by Tobias Kober and the subsequent discussion.
+Source: Bosch presentation by Tobias Kober and the subsequent discussion.
 
 ## 1. Industrial context
 
@@ -29,7 +29,7 @@ The central idea is an **engineering knowledge database that links existing mech
 
 The database should support reuse of engineering solutions by newer engineers and colleagues, including those working on the PLC side. Bosch wants a starting point that can grow over time, rather than treating knowledge preservation as a problem that will be completely solved within one semester.
 
-Tobias repeatedly emphasized that **linking human knowledge to engineering data is the main task**. A chat function was discussed as a user interface, but it was not the primary objective or necessarily the first implementation step. [[1]](https://app.notion.com/p/Project-Pitches-3f28b1de4bd880cea040ca1cebb3742a?pvs=21)
+Tobias repeatedly emphasized that **linking human knowledge to engineering data is the main task**. A chat function was discussed as a user interface, but it was not the primary objective or necessarily the first implementation step.
 
 ## 4. How this relates to Bosch’s current work
 
@@ -43,7 +43,7 @@ Bosch must ultimately deliver physical machines within cost and delivery-date co
 
 ### Internal use, not customer interviewing
 
-Yan asked whether the tool would help Bosch understand an incoming request internally or extract more information directly from customers. Tobias explained that extracting customer knowledge and optimizing the customer-request process are addressed by other Bosch initiatives. This project focuses on Bosch’s own engineering knowledge and its internal reuse. [[1]](https://app.notion.com/p/Project-Pitches-3f28b1de4bd880cea040ca1cebb3742a?pvs=21)
+Yan asked whether the tool would help Bosch understand an incoming request internally or extract more information directly from customers. Tobias explained that extracting customer knowledge and optimizing the customer-request process are addressed by other Bosch initiatives. This project focuses on Bosch’s own engineering knowledge and its internal reuse.
 
 ## 5. Functionality and output discussed
 
@@ -59,7 +59,7 @@ When asked whether the information should be represented as a graph, an image, o
 
 ### Reasons behind design changes
 
-A student asked whether the system should preserve the reasons for changes to a component—for example, changes arising from customer requirements or technical problems—so that a replacement engineer can understand earlier decisions after an experienced colleague retires. Tobias agreed that this belongs to the knowledge-preservation objective. No detailed change-history implementation was specified. [[1]](https://app.notion.com/p/Project-Pitches-3f28b1de4bd880cea040ca1cebb3742a?pvs=21)
+A student asked whether the system should preserve the reasons for changes to a component—for example, changes arising from customer requirements or technical problems—so that a replacement engineer can understand earlier decisions after an experienced colleague retires. Tobias agreed that this belongs to the knowledge-preservation objective. No detailed change-history implementation was specified.
 
 ## 6. Knowledge capture and interaction with experts
 
@@ -67,7 +67,7 @@ Bosch offered interaction with its designers and engineering colleagues, not onl
 
 The instructor clarified an important boundary: **the student team should not spend the entire project manually interviewing Bosch experts**. Interviews during the project should support initial understanding and testing. The software should help later users document interviews and get expert knowledge into the database.
 
-This makes knowledge capture part of the software challenge, not merely a one-off data-gathering activity performed by students. A specific interview interface or automated interviewing approach was not agreed during the session. [[1]](https://app.notion.com/p/Project-Pitches-3f28b1de4bd880cea040ca1cebb3742a?pvs=21)
+This makes knowledge capture part of the software challenge, not merely a one-off data-gathering activity performed by students. A specific interview interface or automated interviewing approach was not agreed during the session.
 
 ## 7. Data, formats, and system access
 
@@ -79,7 +79,7 @@ This makes knowledge capture part of the software challenge, not merely a one-of
 - **Direct CAD integration:** An API exists, but Tobias was uncertain whether direct integration would be too complicated because of licensing. Exported files were discussed as an alternative.
 - **Restricted access:** Bosch would not provide unrestricted access to its full engineering knowledge. A smaller database or selected data corpus was discussed.
 - **MCP availability:** A student asked whether the CAD/data system had an MCP server. Tobias could not confirm this and said he needed to check. The instructor noted that the student team could potentially implement a tools interface over supplied data.
-- **Production connection:** Tobias explicitly said that full connection to Bosch’s system would be needed later, but would **not be part of this student project**. [[1]](https://app.notion.com/p/Project-Pitches-3f28b1de4bd880cea040ca1cebb3742a?pvs=21)
+- **Production connection:** Tobias explicitly said that full connection to Bosch’s system would be needed later, but would **not be part of this student project**.
 
 ## 8. Technical freedom, collaboration, and validation
 
@@ -91,7 +91,7 @@ This makes knowledge capture part of the software challenge, not merely a one-of
 
 **Language:** Tobias noted that English might pose some challenges for engineering colleagues, but expected these to be manageable.
 
-**Validation:** When asked how the team would establish correctness, Tobias pointed to Bosch engineers with around 25 years of experience. They can judge whether a proposed machine solution would work. No formal benchmark or numerical acceptance threshold was defined during the pitch. [[1]](https://app.notion.com/p/Project-Pitches-3f28b1de4bd880cea040ca1cebb3742a?pvs=21)
+**Validation:** When asked how the team would establish correctness, Tobias pointed to Bosch engineers with around 25 years of experience. They can judge whether a proposed machine solution would work. No formal benchmark or numerical acceptance threshold was defined during the pitch.
 
 ## 9. Boundaries and unresolved points from the meeting
 
@@ -109,4 +109,4 @@ This makes knowledge capture part of the software challenge, not merely a one-of
 | Expert interviews | Available for understanding and testing; software should support later knowledge capture. |
 | Semester scope | To be developed through requirements and prioritization within the available course time. |
 
-The instructor reiterated that AMOS is time-based rather than tied to a fixed, fully specified deliverable, while still expecting useful software. Both Bosch and the instructor expressed interest in taking the work beyond AMOS with interested students; no concrete continuation arrangement was announced. [[1]](https://app.notion.com/p/Project-Pitches-3f28b1de4bd880cea040ca1cebb3742a?pvs=21)
+The instructor reiterated that AMOS is time-based rather than tied to a fixed, fully specified deliverable, while still expecting useful software. Both Bosch and the instructor expressed interest in taking the work beyond AMOS with interested students; no concrete continuation arrangement was announced.
