@@ -1,0 +1,13 @@
+Title	URL	Assignees	Status	Estimated size	Real size
+Set up repository structure, README and CI skeleton	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/3		Product Backlog		
+Review CAD parsing needs for STEP files	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/4		Product Backlog		
+Review Knowledge Database Architecture	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/5		Product Backlog		
+Extract Assembly Structure from CAD Files	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/6		Product Backlog		
+Store Assembly Groups and Metadata	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/7		Product Backlog		
+Display Available Assembly Groups	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/8		Product Backlog		
+Display Assembly Group Details	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/9		Product Backlog		
+Add Labels to Assembly Groups	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/10		Product Backlog		
+Add Engineering Knowledge to Assembly Groups	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/11		Product Backlog		
+Retrieve Engineering Knowledge for an Assembly Group	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/12		Product Backlog		
+Search Assembly Groups Using Natural Language	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/13		Product Backlog		
+Display Search Results with CAD File References	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/14		Product Backlog		
