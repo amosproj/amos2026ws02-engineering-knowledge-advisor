@@ -343,8 +343,6 @@ If initialization and testing are successful, the query should return the test r
 
 **Note:** Run these commands from the repository root while the database container is running. PostgreSQL's automatic initialization scripts run only when the database data directory is first created. Manual execution allows you to test the SQL script against an existing database.
 
-**Future improvement:** We can later implement a first-time installation routine that automatically initializes the database when the project is set up for the first time. This could include creating the required tables, schemas, extensions, and initial data. For now, initialization is performed manually to keep the process explicit and avoid unintended execution of the test script.
-
 ### MinIO
 
 Check the MinIO service logs:
