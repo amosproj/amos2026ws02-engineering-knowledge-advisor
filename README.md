@@ -65,7 +65,8 @@ engineering-knowledge-advisor/
 ├── infra/
 │   └── nginx/
 │       └── default.conf
-├── docs/
+├── Deliverables/
+├── Documentation/
 ├── compose.yaml
 ├── .env.example
 ├── .env
