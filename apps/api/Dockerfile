@@ -3,7 +3,7 @@
 FROM python:3.13-slim
 
 # Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.13.4 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /bin/
 
 # Set the application directory
 WORKDIR /app

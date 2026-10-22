@@ -18,7 +18,7 @@ jobs:
       # the generated inventories differ between machines.
       - uses: astral-sh/setup-uv@v6
         with:
-          version: "0.13.4"
+          version: "0.13.5"
 
       - uses: actions/setup-node@v4
         with:
