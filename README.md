@@ -15,6 +15,7 @@ The project uses a containerized web application architecture with a React front
 - [Testing the Services](#testing-the-services)
 - [Stopping the Application](#stopping-the-application)
 - [Development Workflow](#development-workflow)
+- [Software Bill of Materials](#software-bill-of-materials)
 - [Troubleshooting](#troubleshooting)
 - [Security Notes](#security-notes)
 
@@ -65,12 +66,18 @@ engineering-knowledge-advisor/
 ├── infra/
 │   └── nginx/
 │       └── default.conf
+├── scripts/
+│   └── generate_sbom.py
 ├── Deliverables/
 ├── Documentation/
+│   └── sbom/
+│       ├── api.cdx.json
+│       └── web.cdx.json
 ├── compose.yaml
 ├── .env.example
 ├── .env
 ├── .gitignore
+├── .pre-commit-config.yaml
 └── README.md
 ```
 
@@ -83,6 +90,9 @@ engineering-knowledge-advisor/
 - `apps/api/src/api/main.py` — FastAPI application entry point.
 - `apps/api/pyproject.toml` — Python project metadata and dependencies.
 - `apps/api/uv.lock` — locked Python dependency versions.
+- `scripts/generate_sbom.py` — generates the CycloneDX SBOMs from the dependency lockfiles.
+- `Documentation/sbom/api.cdx.json` — SBOM for the API application dependencies.
+- `Documentation/sbom/web.cdx.json` — SBOM for the frontend application dependencies.
 - `.env.example` — template containing the configuration variables required for local development.
 - `.env` — local configuration containing developer-specific credentials. This file must not be committed to Git.
 
@@ -462,6 +472,49 @@ uv run --directory apps/api uvicorn api.main:app --reload --host 127.0.0.1 --por
 ```
 
 The local API runs at `http://127.0.0.1:8000`. Local execution requires any external services that the code actually uses to be configured and reachable.
+
+## Software Bill of Materials
+
+The API and frontend SBOMs are generated automatically from their dependency lockfiles. A pre-commit hook regenerates the inventories when dependency-related files change, and a required CI check independently verifies that the committed SBOMs are current.
+
+These are application-package inventories. They do not inventory all operating-system packages in the Docker images or the complete Nginx image.
+
+### Install the pre-commit hook
+
+Run this once after cloning the repository:
+
+```bash
+uv tool install pre-commit
+pre-commit install
+```
+
+The hook requires Python, uv, and npm on your `PATH`.
+
+### How the hook behaves
+
+The hook only runs when `apps/api/pyproject.toml`, `apps/api/uv.lock`, `apps/web/package.json`, `apps/web/package-lock.json`, the generator script, or the SBOM files themselves are staged.
+
+When the hook updates an SBOM, the commit stops so you can review the changes:
+
+```bash
+git diff -- Documentation/sbom/
+git add Documentation/sbom/
+git commit -m "Update dependencies and SBOMs"
+```
+
+### Regenerate the SBOMs manually
+
+```bash
+python scripts/generate_sbom.py
+```
+
+Verify that the committed files are current (this is what CI runs):
+
+```bash
+python scripts/generate_sbom.py --check
+```
+
+Use the same uv and npm versions locally and in CI. npm records its generator version in the SBOM, so a different npm version produces a different file.
 
 ## Troubleshooting
 
