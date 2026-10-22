@@ -17,7 +17,6 @@ import argparse
 import json
 import shutil
 import subprocess
-import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -26,10 +25,6 @@ OUTPUT = ROOT / "Documentation" / "sbom"
 
 API_DIR = ROOT / "apps" / "api"
 WEB_DIR = ROOT / "apps" / "web"
-
-SPEC_VERSION = "1.5"
-GENERATOR = {"vendor": "amos2026ws02", "name": "generate-sbom", "version": "1.0.0"}
-
 
 def run(command: list[str], cwd: Path) -> str:
     executable = shutil.which(command[0])
@@ -47,114 +42,33 @@ def run(command: list[str], cwd: Path) -> str:
     return result.stdout
 
 
-def normalize_pypi_name(name: str) -> str:
-    return name.lower().replace("_", "-")
-
-
-def sha256_entries(*artifacts: Any) -> list[dict[str, str]]:
-    entries: list[dict[str, str]] = []
-    for artifact in artifacts:
-        if not artifact:
-            continue
-        digest = artifact.get("hash", "")
-        if not digest.startswith("sha256:"):
-            continue
-        entries.append({"alg": "SHA-256", "content": digest.split(":", 1)[1]})
-    return entries
-
-
 def build_api_sbom() -> dict[str, Any]:
     """Build the API SBOM from the uv lockfile."""
-    # The inventory is only trustworthy if the lockfile matches pyproject.toml.
+    # --locked fails if uv.lock does not match pyproject.toml, so the inventory
+    # always reflects the committed dependency set.
     try:
-        run(["uv", "lock", "--check", "--project", str(API_DIR)], ROOT)
+        raw = run(
+            [
+                "uv",
+                "export",
+                "--locked",
+                "--format",
+                "cyclonedx1.5",
+                "--preview-features",
+                "sbom-export",
+                "--quiet",
+                "--directory",
+                str(API_DIR),
+            ],
+            ROOT,
+        )
     except subprocess.CalledProcessError as error:
         raise SystemExit(
-            "apps/api/uv.lock is out of date. Run: uv lock --directory apps/api"
+            f"uv export failed:\n{error.stderr}"
+            "If apps/api/uv.lock is out of date, run: uv lock --directory apps/api"
         ) from error
 
-    lock = tomllib.loads((API_DIR / "uv.lock").read_text(encoding="utf-8"))
-    packages = lock.get("package", [])
-
-    root: dict[str, Any] | None = None
-    components: list[dict[str, Any]] = []
-    depends: list[dict[str, Any]] = []
-
-    for package in packages:
-        name = package["name"]
-        version = package.get("version", "")
-        source = package.get("source", {})
-
-        if "editable" in source or "virtual" in source:
-            root = package
-            continue
-
-        purl = f"pkg:pypi/{normalize_pypi_name(name)}@{version}"
-        component: dict[str, Any] = {
-            "bom-ref": purl,
-            "type": "library",
-            "name": name,
-            "version": version,
-            "purl": purl,
-        }
-        hashes = sha256_entries(package.get("sdist"), *(package.get("wheels") or []))
-        if hashes:
-            component["hashes"] = hashes
-        components.append(component)
-
-        depends.append(
-            {
-                "ref": purl,
-                "dependsOn": [
-                    f"pkg:pypi/{normalize_pypi_name(dep['name'])}@"
-                    f"{_version_of(packages, dep['name'])}"
-                    for dep in package.get("dependencies", [])
-                ],
-            }
-        )
-
-    if root is None:
-        raise SystemExit(f"No root package found in {API_DIR / 'uv.lock'}")
-
-    root_ref = f"{root['name']}@{root.get('version', '')}"
-    root_component = {
-        "bom-ref": root_ref,
-        "type": "application",
-        "name": root["name"],
-        "version": root.get("version", ""),
-    }
-
-    components.sort(key=lambda item: (item["name"], item["version"]))
-    depends.sort(key=lambda item: item["ref"])
-
-    return {
-        "bomFormat": "CycloneDX",
-        "specVersion": SPEC_VERSION,
-        "version": 1,
-        "metadata": {
-            "tools": [GENERATOR],
-            "component": root_component,
-        },
-        "components": components,
-        "dependencies": [
-            {
-                "ref": root_ref,
-                "dependsOn": [
-                    f"pkg:pypi/{normalize_pypi_name(dep['name'])}@"
-                    f"{_version_of(packages, dep['name'])}"
-                    for dep in root.get("dependencies", [])
-                ],
-            },
-            *depends,
-        ],
-    }
-
-
-def _version_of(packages: list[dict[str, Any]], name: str) -> str:
-    for package in packages:
-        if package["name"] == name:
-            return package.get("version", "")
-    return ""
+    return normalize(json.loads(raw))
 
 
 def build_web_sbom() -> dict[str, Any]:
@@ -174,8 +88,11 @@ def build_web_sbom() -> dict[str, Any]:
         ],
         WEB_DIR,
     )
-    document = json.loads(raw)
+    return normalize(json.loads(raw))
 
+
+def normalize(document: dict[str, Any]) -> dict[str, Any]:
+    """Make a generated SBOM reproducible across runs."""
     # Generation-time metadata would change on every run.
     document.pop("serialNumber", None)
     document.get("metadata", {}).pop("timestamp", None)

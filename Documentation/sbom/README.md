@@ -21,6 +21,24 @@ A pre-commit hook runs the `--staged` variant whenever dependency inputs change:
 
 Use the same uv and npm versions locally and in CI: npm records its generator version in the SBOM, so a different npm version yields a different file.
 
+## Underlying commands
+
+The frontend inventory comes straight from npm:
+
+```bash
+cd apps/web
+npm sbom --sbom-format cyclonedx --sbom-type application --package-lock-only \
+  --include=dev --include=optional --include=peer
+```
+
+The Python inventory comes straight from uv (0.13.4, pinned via `required-version` in `apps/api/pyproject.toml`):
+
+```bash
+uv export --locked --format cyclonedx1.5 --preview-features sbom-export --directory apps/api
+```
+
+`--locked` fails if `uv.lock` does not match `pyproject.toml`, so a stale lockfile cannot produce an SBOM.
+
 ## Scope
 
 These are application-package inventories. They do not inventory the operating-system packages of the Docker images or the complete Nginx image.
