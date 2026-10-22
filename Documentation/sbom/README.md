@@ -31,7 +31,7 @@ npm sbom --sbom-format cyclonedx --sbom-type application --package-lock-only \
   --include=dev --include=optional --include=peer
 ```
 
-The Python inventory comes straight from uv (0.13.4, pinned via `required-version` in `apps/api/pyproject.toml`):
+The Python inventory comes straight from uv (0.13.5, pinned via `required-version` in `apps/api/pyproject.toml`):
 
 ```bash
 uv export --locked --format cyclonedx1.5 --preview-features sbom-export --directory apps/api
