@@ -6,7 +6,9 @@ The inventories are derived from the committed lockfiles:
 * ``apps/web/package-lock.json`` -> ``Documentation/sbom/web.cdx.json``
 
 Run without arguments to write the files, with ``--check`` to verify that the
-committed files are up to date (used by CI and by the pre-commit hook).
+committed files are up to date (used by CI), and with ``--staged`` to verify
+that the files staged for a commit are up to date (used by the pre-commit
+hook).
 """
 
 from __future__ import annotations
@@ -15,7 +17,6 @@ import argparse
 import json
 import shutil
 import subprocess
-import sys
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -197,12 +198,35 @@ TARGETS = [
 ]
 
 
+def index_content(relative: str) -> str | None:
+    """Return the content of a file as staged in the git index, if present."""
+    result = subprocess.run(
+        ["git", "show", f":{relative}"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check",
         action="store_true",
         help="Fail if the committed SBOMs differ from the generated ones.",
+    )
+    parser.add_argument(
+        "--staged",
+        action="store_true",
+        help=(
+            "Fail if the staged SBOMs differ from the generated ones. "
+            "Used by the pre-commit hook."
+        ),
     )
     args = parser.parse_args()
 
@@ -211,28 +235,44 @@ def main() -> None:
     for filename, builder in TARGETS:
         content = serialize(builder())
         destination = OUTPUT / filename
-        current = (
-            destination.read_text(encoding="utf-8") if destination.exists() else None
-        )
+        relative = str(destination.relative_to(ROOT))
+
+        if args.staged:
+            # Compare against the index: that is what the commit will contain.
+            # Files that are not tracked at all are reported as missing.
+            current = index_content(relative)
+        else:
+            current = (
+                destination.read_text(encoding="utf-8")
+                if destination.exists()
+                else None
+            )
 
         if current == content:
             continue
 
-        relative = destination.relative_to(ROOT)
-        if args.check:
-            outdated.append(str(relative))
+        if args.staged or args.check:
+            outdated.append(relative)
         else:
             OUTPUT.mkdir(parents=True, exist_ok=True)
             destination.write_text(content, encoding="utf-8")
             print(f"Updated {relative}")
 
     if outdated:
+        if args.staged:
+            raise SystemExit(
+                "SBOMs are missing or outdated in the commit:\n"
+                + "\n".join(outdated)
+                + "\nRun: python3 scripts/generate_sbom.py"
+                + "\nThen: git add Documentation/sbom/"
+                + "\nAnd commit again."
+            )
         raise SystemExit(
             "SBOMs are missing or outdated:\n"
             + "\n".join(outdated)
-            + "\nRun: python scripts/generate_sbom.py"
+            + "\nRun: python3 scripts/generate_sbom.py"
         )
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

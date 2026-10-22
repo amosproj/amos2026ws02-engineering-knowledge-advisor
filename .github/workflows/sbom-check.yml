@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - development
 
 jobs:
   sbom:
@@ -33,4 +34,4 @@ jobs:
           python-version: "3.13"
 
       - name: Check SBOM freshness
-        run: python scripts/generate_sbom.py --check
+        run: python3 scripts/generate_sbom.py --check

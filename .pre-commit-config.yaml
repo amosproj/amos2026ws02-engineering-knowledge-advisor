@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: update-sbom
         name: Update software bill of materials
-        entry: python3 scripts/generate_sbom.py
+        entry: python3 scripts/generate_sbom.py --staged
         language: system
         pass_filenames: false
         files: ^(apps/api/(pyproject\.toml|uv\.lock)|apps/web/(package\.json|package-lock\.json)|scripts/generate_sbom\.py|Documentation/sbom/.*\.json|\.pre-commit-config\.yaml)$

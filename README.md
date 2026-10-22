@@ -475,9 +475,7 @@ The local API runs at `http://127.0.0.1:8000`. Local execution requires any exte
 
 ## Software Bill of Materials
 
-The API and frontend SBOMs are generated automatically from their dependency lockfiles. A pre-commit hook regenerates the inventories when dependency-related files change, and a required CI check independently verifies that the committed SBOMs are current.
-
-These are application-package inventories. They do not inventory all operating-system packages in the Docker images or the complete Nginx image.
+The API and frontend SBOMs are generated from their dependency lockfiles. A pre-commit hook blocks commits whose SBOMs are missing or outdated, and the `sbom-check` CI workflow verifies that the committed SBOMs are current. File contents, generator options, and scope are described in [Documentation/sbom/README.md](Documentation/sbom/README.md).
 
 ### Install the pre-commit hook
 
@@ -494,27 +492,14 @@ The hook requires Python, uv, and npm on your `PATH`.
 
 The hook only runs when `apps/api/pyproject.toml`, `apps/api/uv.lock`, `apps/web/package.json`, `apps/web/package-lock.json`, the generator script, or the SBOM files themselves are staged.
 
-When the hook updates an SBOM, the commit stops so you can review the changes:
+The hook compares the SBOMs **staged for the commit** with freshly generated ones. If they are missing or outdated, the commit stops and nothing is committed. Regenerate the files, review them, stage them, and commit again:
 
 ```bash
+python3 scripts/generate_sbom.py
 git diff -- Documentation/sbom/
 git add Documentation/sbom/
 git commit -m "Update dependencies and SBOMs"
 ```
-
-### Regenerate the SBOMs manually
-
-```bash
-python scripts/generate_sbom.py
-```
-
-Verify that the committed files are current (this is what CI runs):
-
-```bash
-python scripts/generate_sbom.py --check
-```
-
-Use the same uv and npm versions locally and in CI. npm records its generator version in the SBOM, so a different npm version produces a different file.
 
 ## Troubleshooting
 

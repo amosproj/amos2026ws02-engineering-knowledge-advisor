@@ -12,11 +12,12 @@ CycloneDX 1.5 inventories for the application dependencies of this repository.
 The files are generated, not edited by hand:
 
 ```bash
-python scripts/generate_sbom.py          # write the inventories
-python scripts/generate_sbom.py --check  # fail if the committed files are stale
+python3 scripts/generate_sbom.py            # write the inventories
+python3 scripts/generate_sbom.py --check    # fail if the committed files are stale
+python3 scripts/generate_sbom.py --staged   # fail if the staged files are stale
 ```
 
-A pre-commit hook runs the generator whenever dependency inputs change. The CI workflow `sbom-check` runs the `--check` variant and fails the build on stale inventories.
+A pre-commit hook runs the `--staged` variant whenever dependency inputs change: it compares the inventories staged for the commit against freshly generated ones and blocks the commit if they differ. The CI workflow `sbom-check` runs the `--check` variant and fails the build on stale inventories.
 
 Use the same uv and npm versions locally and in CI: npm records its generator version in the SBOM, so a different npm version yields a different file.
 
