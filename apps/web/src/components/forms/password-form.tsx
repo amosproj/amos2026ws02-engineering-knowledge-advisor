@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { ViewIcon, ViewOffIcon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { getVisibleFieldErrors } from '@utils'
+import { getVisibleFieldErrors } from '@utils/field-errors'
 import {
     Field,
     FieldDescription,

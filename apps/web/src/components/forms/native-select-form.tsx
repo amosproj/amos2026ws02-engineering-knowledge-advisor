@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { getVisibleFieldErrors } from '@utils'
+import { getVisibleFieldErrors } from '@utils/field-errors'
 import { NativeSelect } from '../atomic/atoms'
 import { Field, FieldDescription, FieldError, FieldLabel } from '../atomic/molecules'
 import { useFieldContext } from './form-context'
