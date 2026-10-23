@@ -1,15 +1,14 @@
 import { MutationCache, QueryClient, type QueryKey } from '@tanstack/react-query'
-import { z } from 'zod'
-import { HttpError } from './query-maker'
+import { HttpError, NetworkError } from './query-errors'
 
 export const queryClient = new QueryClient({
     defaultOptions: {
         queries: {
-            retry: (failureCount, error) => {
-                if (error instanceof z.ZodError || error instanceof SyntaxError) return false
-                if (error instanceof HttpError && error.status < 500) return false
-                return failureCount < 1
-            },
+            // Only transient failures are worth retrying.
+            retry: (failureCount, error) =>
+                (error instanceof NetworkError ||
+                    (error instanceof HttpError && error._tag === 'ServerError')) &&
+                failureCount < 1,
             staleTime: 5_000,
             refetchOnWindowFocus: false,
         },
