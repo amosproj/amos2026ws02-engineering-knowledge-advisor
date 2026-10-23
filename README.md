@@ -225,6 +225,8 @@ S3_BUCKET=engineering-documents
 S3_REGION=us-east-1
 ```
 
+The same file holds the frontend configuration. `VITE_*` variables are public and baked in at build time: no secrets, and rebuild after changing one. A new one must also be added to the `web` build `args` in `compose.yaml`, `apps/web/Dockerfile` and `apps/web/src/utils/env.ts`.
+
 Use different, unique passwords for your local environment. Do not commit `.env` to Git or share real credentials in issues, screenshots, or messages.
 
 Keep `.env.example` updated whenever required environment variables change, but use placeholder values in that file.

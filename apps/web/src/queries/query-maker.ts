@@ -1,6 +1,7 @@
+import { env } from '@utils/env'
 import { z } from 'zod'
 
-const apiBaseUrl = import.meta.env.VITE_API_URL ?? '/api'
+const apiBaseUrl = env.VITE_API_URL
 
 type PathParams = Record<string, string | number>
 type SearchValue = string | number | boolean | null | undefined
