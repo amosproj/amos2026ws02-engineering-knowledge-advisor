@@ -1,0 +1,6 @@
+# Paths are relative to the build context (repository root)
+**/node_modules
+**/dist
+**/.git
+**/.env
+**/.env.*
