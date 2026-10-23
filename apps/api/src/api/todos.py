@@ -30,6 +30,7 @@ class TodoUpdate(BaseModel):
         return value
 
 
+MAX_TODOS = 2
 todos: dict[str, Todo] = {}
 
 router = APIRouter(prefix="/api/todos", tags=["todos"])
@@ -42,6 +43,16 @@ def list_todos() -> list[Todo]:
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_todo(payload: TodoCreate) -> Todo:
+    if len(todos) >= MAX_TODOS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "_tag": "TooManyTodos",
+                "message": f"Cannot create more than {MAX_TODOS} todos",
+                "max": MAX_TODOS,
+            },
+        )
+
     todo = Todo(id=str(uuid4()), **payload.model_dump())
     todos[todo.id] = todo
     return todo

@@ -22,6 +22,7 @@ import {
     useAppForm,
 } from '@components'
 import { cn } from 'cn'
+import { matchError } from '../../queries/query-errors'
 import { todoMutations, todoQueries } from '../../queries/todo-query'
 
 const titleSchema = z.string().min(1, 'Title is required')
@@ -87,7 +88,20 @@ export const HomePage = () => {
                 </CardContent>
             </Card>
 
-            {[createTodo, updateTodo, deleteTodo].map((mutation, index) =>
+            {createTodo.error && (
+                <Alert variant="destructive" role="alert">
+                    <AlertTitle>
+                        {matchError(createTodo.error, {
+                            TooManyTodos: (error) => `Limit of ${error.data.max} todos reached`,
+                            Network: () => 'Server unreachable',
+                            orElse: () => 'Unable to add the todo',
+                        })}
+                    </AlertTitle>
+                    <AlertDescription>{createTodo.error.message}</AlertDescription>
+                </Alert>
+            )}
+
+            {[updateTodo, deleteTodo].map((mutation, index) =>
                 mutation.error ? (
                     <Alert key={index} variant="destructive" role="alert">
                         <AlertTitle>Something went wrong</AlertTitle>

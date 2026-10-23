@@ -1,6 +1,7 @@
 import { mutationOptions, queryOptions } from '@tanstack/react-query'
 import { z } from 'zod'
-import { queryMaker } from './query-maker'
+import { defineError } from './query-errors'
+import { queryMaker, type ErrorOf, type InputOf } from './query-maker'
 
 export const todoSchema = z.object({
     id: z.string().min(1),
@@ -14,6 +15,8 @@ export const updateTodoSchema = createTodoSchema.partial()
 const todoParamsSchema = todoSchema.pick({ id: true })
 
 export type Todo = z.output<typeof todoSchema>
+
+export class TooManyTodos extends defineError('TooManyTodos', z.object({ max: z.number() })) {}
 
 export const todoKeys = {
     all: () => ['todos'] as const,
@@ -37,6 +40,7 @@ const createTodo = queryMaker({
     path: '/todos',
     body: createTodoSchema,
     response: todoSchema,
+    errors: [TooManyTodos],
 })
 
 const updateTodo = queryMaker({
@@ -56,7 +60,7 @@ const deleteTodo = queryMaker({
 
 export const todoQueries = {
     list: () =>
-        queryOptions({
+        queryOptions<Todo[], ErrorOf<typeof listTodos>>({
             queryKey: todoKeys.list(),
             queryFn: listTodos,
         }),
@@ -64,19 +68,19 @@ export const todoQueries = {
 
 export const todoMutations = {
     create: () =>
-        mutationOptions({
+        mutationOptions<Todo, ErrorOf<typeof createTodo>, InputOf<typeof createTodo>>({
             mutationKey: todoMutationKeys.create(),
             mutationFn: createTodo,
             meta: { invalidates: [todoKeys.all()] },
         }),
     update: () =>
-        mutationOptions({
+        mutationOptions<Todo, ErrorOf<typeof updateTodo>, InputOf<typeof updateTodo>>({
             mutationKey: todoMutationKeys.update(),
             mutationFn: updateTodo,
             meta: { invalidates: [todoKeys.all()] },
         }),
     delete: () =>
-        mutationOptions({
+        mutationOptions<void, ErrorOf<typeof deleteTodo>, InputOf<typeof deleteTodo>>({
             mutationKey: todoMutationKeys.delete(),
             mutationFn: deleteTodo,
             meta: { invalidates: [todoKeys.all()] },
