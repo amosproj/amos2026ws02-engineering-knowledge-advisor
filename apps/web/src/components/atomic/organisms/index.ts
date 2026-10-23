@@ -1,6 +1,7 @@
 export * from './calendar'
 export * from './carousel'
 export * from './command'
+export * from './confirmation-popup'
 export * from './drawer'
 export * from './resizable'
 export * from './sheet'

@@ -1,10 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
-import {
-    createRootRouteWithContext,
-    createRoute,
-    createRouter,
-    Outlet,
-} from '@tanstack/react-router'
+import { createRootRouteWithContext, createRoute, createRouter } from '@tanstack/react-router'
+import { DashboardLayout } from './layout'
 import { HomePage } from './home/home.page'
 import { SettingsPage } from './settings/settings.page'
 
@@ -12,7 +8,7 @@ interface RouterContext {
     queryClient: QueryClient
 }
 const rootRoute = createRootRouteWithContext<RouterContext>()({
-    component: Outlet,
+    component: DashboardLayout,
 })
 
 const homeRoute = createRoute({

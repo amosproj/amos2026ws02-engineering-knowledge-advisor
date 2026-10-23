@@ -1,1 +1,1 @@
-// Page templates ready to be added here.
+export * from './dashboard-shell'
