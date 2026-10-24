@@ -2,6 +2,7 @@ import logging
 
 from api import health_router, v1_router
 from fastapi import FastAPI
+from handler import exception_handler
 
 app = FastAPI(
     title="Engineering Knowledge Advisor API",
@@ -11,3 +12,4 @@ app = FastAPI(
 app.include_router(health_router)
 app.include_router(v1_router)
 
+exception_handler.register(app)
