@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from model.problem import ProblemException, ProblemResponse
 from starlette.exceptions import HTTPException
+
+from model.problem import ProblemException, ProblemResponse
 
 
 async def handle_problem(request: Request, e: ProblemException) -> ProblemResponse:

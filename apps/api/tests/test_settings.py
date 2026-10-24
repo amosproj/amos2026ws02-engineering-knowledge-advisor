@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import pytest
-from config import Settings, get_settings
 from pydantic import ValidationError
+
+from config import Settings, get_settings
 
 
 @pytest.fixture(autouse=True)

@@ -1,8 +1,8 @@
 from fastapi import APIRouter
-from model import TestRequest, TestResponse
-from model.problem import Problem, ProblemException
 
 from api.router_builder import ApiRouterBuilder
+from model import TestRequest, TestResponse
+from model.problem import Problem, ProblemException
 
 v1_router: APIRouter = ApiRouterBuilder().version("v1").build()
 

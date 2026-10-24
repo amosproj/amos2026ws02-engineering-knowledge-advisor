@@ -46,3 +46,6 @@ testpaths = [ "tests" ]
 include = [ "src", "tests" ]
 extraPaths = [ "src" ]
 pythonVersion = "3.13"
+
+[tool.ruff]
+src = ["src"]
