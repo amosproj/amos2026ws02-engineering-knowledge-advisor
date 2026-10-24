@@ -251,6 +251,25 @@ If the command finishes without errors, Docker Compose can parse the configurati
 
 If it reports missing variables or configuration errors, check that you created `.env` in the repository root and that its variable names match those used in `compose.yaml`.
 
+### 4. Initialize Python venv and install the pre-commit hook
+
+This will install the pre-commit Git hook and auto-init venv based on apps/api/pyproject.toml
+
+From the repository root, run:
+```sh
+uv run --directory apps/api pre-commit install  # will also run uv sync
+```
+
+(optional) manual test-run:
+```sh
+uv run --directory apps/api pre-commit
+```
+
+To uninstall the hook:
+```sh
+uv run --directory apps/api pre-commit uninstall
+```
+
 ## Starting the Application
 
 Start all services with one command:
@@ -468,7 +487,7 @@ The API can be run locally with uv installed:
 
 ```powershell
 uv sync --directory apps/api
-uv run --directory apps/api uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+uv run --directory apps/api uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 The local API runs at `http://127.0.0.1:8000`. Local execution requires any external services that the code actually uses to be configured and reachable.
