@@ -475,31 +475,7 @@ The local API runs at `http://127.0.0.1:8000`. Local execution requires any exte
 
 ## Software Bill of Materials
 
-The API and frontend SBOMs are generated from their dependency lockfiles. A pre-commit hook blocks commits whose SBOMs are missing or outdated, and the `sbom-check` CI workflow verifies that the committed SBOMs are current. File contents, generator options, and scope are described in [Documentation/sbom/README.md](Documentation/sbom/README.md).
-
-### Install the pre-commit hook
-
-Run this once after cloning the repository:
-
-```bash
-uv tool install pre-commit
-pre-commit install
-```
-
-The hook requires Python, uv, and npm on your `PATH`.
-
-### How the hook behaves
-
-The hook only runs when `apps/api/pyproject.toml`, `apps/api/uv.lock`, `apps/web/package.json`, `apps/web/package-lock.json`, the generator script, or the SBOM files themselves are staged.
-
-The hook compares the SBOMs **staged for the commit** with freshly generated ones. If they are missing or outdated, the commit stops and nothing is committed. Regenerate the files, review them, stage them, and commit again:
-
-```bash
-python3 scripts/generate_sbom.py
-git diff -- Documentation/sbom/
-git add Documentation/sbom/
-git commit -m "Update dependencies and SBOMs"
-```
+CycloneDX SBOMs for the API and frontend are generated from the lockfiles, enforced by a pre-commit hook and checked in CI. Setup, regeneration, and tool version requirements are described in [Documentation/sbom/README.md](Documentation/sbom/README.md).
 
 ## Troubleshooting
 

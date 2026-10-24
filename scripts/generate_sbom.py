@@ -20,11 +20,18 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from check_tool_versions import npm_package_manager_version
+
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "Documentation" / "sbom"
 
 API_DIR = ROOT / "apps" / "api"
 WEB_DIR = ROOT / "apps" / "web"
+
+UV_SBOM_FORMAT = "cyclonedx1.5"
+NPM_SBOM_FORMAT = "cyclonedx"
+NPM_SBOM_TYPE = "application"
+
 
 def run(command: list[str], cwd: Path) -> str:
     executable = shutil.which(command[0])
@@ -53,7 +60,7 @@ def build_api_sbom() -> dict[str, Any]:
                 "export",
                 "--locked",
                 "--format",
-                "cyclonedx1.5",
+                UV_SBOM_FORMAT,
                 "--preview-features",
                 "sbom-export",
                 "--quiet",
@@ -73,14 +80,24 @@ def build_api_sbom() -> dict[str, Any]:
 
 def build_web_sbom() -> dict[str, Any]:
     """Build the web SBOM from the npm lockfile."""
+    # npm records its own version in the SBOM, so a different local npm would
+    # produce a different file than CI.
+    expected = npm_package_manager_version()
+    actual = run(["npm", "--version"], WEB_DIR).strip()
+    if actual != expected:
+        raise SystemExit(
+            f"npm {expected} is required (packageManager in apps/web/package.json), "
+            f"found {actual}. Run: npm install -g npm@{expected}"
+        )
+
     raw = run(
         [
             "npm",
             "sbom",
             "--sbom-format",
-            "cyclonedx",
+            NPM_SBOM_FORMAT,
             "--sbom-type",
-            "application",
+            NPM_SBOM_TYPE,
             "--package-lock-only",
             "--include=dev",
             "--include=optional",

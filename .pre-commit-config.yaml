@@ -7,3 +7,9 @@ repos:
         language: system
         pass_filenames: false
         files: ^(apps/api/(pyproject\.toml|uv\.lock)|apps/web/(package\.json|package-lock\.json)|scripts/generate_sbom\.py|Documentation/sbom/.*\.json|\.pre-commit-config\.yaml)$
+      - id: check-tool-versions
+        name: Check uv, npm and Node versions are in sync
+        entry: python3 scripts/check_tool_versions.py
+        language: system
+        pass_filenames: false
+        files: ^(apps/api/(pyproject\.toml|Dockerfile)|apps/web/(package\.json|Dockerfile)|\.github/workflows/sbom-check\.yml|scripts/check_tool_versions\.py)$

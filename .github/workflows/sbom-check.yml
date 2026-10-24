@@ -25,13 +25,16 @@ jobs:
           node-version: "24.22.0"
 
       # npm writes its own version into the generated SBOM, so the version has
-      # to match the one used locally.
+      # to match packageManager in apps/web/package.json.
       - name: Pin npm version
         run: npm install -g npm@11.19.1
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+
+      - name: Check tool versions are in sync
+        run: python3 scripts/check_tool_versions.py
 
       - name: Check SBOM freshness
         run: python3 scripts/generate_sbom.py --check
