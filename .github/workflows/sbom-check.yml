@@ -12,15 +12,15 @@ jobs:
     name: Verify committed SBOMs are current
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Keep the tool versions identical to the ones used locally, otherwise
       # the generated inventories differ between machines.
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           version: "0.13.5"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24.22.0"
 
@@ -29,7 +29,7 @@ jobs:
       - name: Pin npm version
         run: npm install -g npm@11.19.1
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
