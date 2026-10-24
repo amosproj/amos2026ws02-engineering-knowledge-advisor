@@ -23,3 +23,23 @@ api = "api:main"
 [build-system]
 requires = ["uv_build>=0.13.4,<0.14.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16.0",
+    "pre-commit>=4.7.0",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "ruff>=0.17.2",
+]
+
+[tool.pytest.ini_options]
+# main, api, model are imported as top-level modules from src/
+pythonpath = [ "src" ]
+testpaths = [ "tests" ]
+
+[tool.pyright]
+include = [ "src", "tests" ]
+# main, api, model are imported as top-level modules from src/
+extraPaths = [ "src" ]
+pythonVersion = "3.13"
