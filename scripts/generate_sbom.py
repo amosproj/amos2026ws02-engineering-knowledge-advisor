@@ -32,6 +32,9 @@ UV_SBOM_FORMAT = "cyclonedx1.5"
 NPM_SBOM_FORMAT = "cyclonedx"
 NPM_SBOM_TYPE = "application"
 
+API_SBOM_FILE = "api.cdx.json"
+WEB_SBOM_FILE = "web.cdx.json"
+
 
 def run(command: list[str], cwd: Path) -> str:
     executable = shutil.which(command[0])
@@ -115,7 +118,8 @@ def normalize(document: dict[str, Any]) -> dict[str, Any]:
     document.get("metadata", {}).pop("timestamp", None)
 
     components = document.get("components", [])
-    components.sort(key=lambda item: (item.get("name", ""), item.get("version", "")))
+    components.sort(key=lambda item: (
+        item.get("name", ""), item.get("version", "")))
     dependencies = document.get("dependencies", [])
     dependencies.sort(key=lambda item: item.get("ref", ""))
 
@@ -124,12 +128,6 @@ def normalize(document: dict[str, Any]) -> dict[str, Any]:
 
 def serialize(document: dict[str, Any]) -> str:
     return json.dumps(document, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
-
-
-TARGETS = [
-    ("api.cdx.json", build_api_sbom),
-    ("web.cdx.json", build_web_sbom),
-]
 
 
 def index_content(relative: str) -> str | None:
@@ -148,6 +146,10 @@ def index_content(relative: str) -> str | None:
 
 
 def main() -> None:
+    TARGETS = [
+        (API_SBOM_FILE, build_api_sbom),
+        (WEB_SBOM_FILE, build_web_sbom),
+    ]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check",
