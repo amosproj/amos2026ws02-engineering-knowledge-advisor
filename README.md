@@ -235,6 +235,15 @@ S3_BUCKET=engineering-documents
 S3_REGION=us-east-1
 ```
 
+The same file holds the frontend configuration. [`VITE_*` variables](https://vite.dev/guide/env-and-mode):
+
+- are **PUBLIC**: they are embedded in the browser bundle and readable by anyone
+- **MUST NOT** hold secrets (e.g. passwords, API keys)
+- **MUST** be added to `.env`, the `web` build `args` in `compose.yaml`, `apps/web/Dockerfile`, `apps/web/src/vite-env.d.ts` and `apps/web/src/utils/env.ts`
+- are read at build time: rebuild the frontend after changing one
+
+Frontend variables that are not exposed to the browser use the `WEB_` prefix (e.g. `WEB_API_PROXY_TARGET`, used only by the Vite dev server).
+
 Use different, unique passwords for your local environment. Do not commit `.env` to Git or share real credentials in issues, screenshots, or messages.
 
 Keep `.env.example` updated whenever required environment variables change, but use placeholder values in that file.
@@ -481,6 +490,14 @@ The frontend can also be run independently using Node.js and npm:
 cd apps/web
 npm ci
 npm run dev
+```
+
+Frontend tests use [Vitest](https://vitest.dev) and uses (`*.test.ts`) files. CI (`.github/workflows/web-tests.yaml`) runs ESLint, Prettier, TypeScript and Vitest on every pull request:
+
+```powershell
+cd apps/web
+npm test             # run once
+npm run test:watch   # re-run on change
 ```
 
 The API can be run locally with uv installed:

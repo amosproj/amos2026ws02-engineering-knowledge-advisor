@@ -1,31 +1,56 @@
 {
-  "name": "web",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "packageManager": "npm@11.19.1",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1"
-  },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@types/node": "^24.19.2",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.1.2",
-    "eslint": "^10.13.0",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.7",
-    "globals": "^17.13.0",
-    "typescript": "~6.0.3",
-    "typescript-eslint": "^8.71.2",
-    "vite": "^8.3.4"
-  }
+    "name": "web",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "packageManager": "npm@11.19.1",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc -b && vite build",
+        "lint": "eslint .",
+        "preview": "vite preview",
+        "format": "prettier --write .",
+        "test": "vitest run",
+        "test:watch": "vitest"
+    },
+    "dependencies": {
+        "@base-ui/react": "^1.9.0",
+        "@fontsource-variable/inter": "^5.3.0",
+        "@hugeicons/core-free-icons": "^4.3.5",
+        "@hugeicons/react": "^1.1.10",
+        "@tanstack/react-form": "^1.33.5",
+        "@tanstack/react-query": "^5.104.5",
+        "@tanstack/react-router": "^1.170.45",
+        "class-variance-authority": "^0.7.1",
+        "cmdk": "^1.1.1",
+        "cn": "^0.5.0",
+        "embla-carousel-react": "^8.6.0",
+        "input-otp": "^1.5.0",
+        "react": "^19.3.1",
+        "react-day-picker": "^10.0.2",
+        "react-dom": "^19.3.1",
+        "react-resizable-panels": "^4.14.8",
+        "shadcn": "^4.22.1",
+        "tw-animate-css": "^1.4.0",
+        "zod": "^4.6.7"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@tailwindcss/vite": "^4.3.3",
+        "@types/node": "^24.19.2",
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
+        "@vitejs/plugin-react": "^6.1.2",
+        "eslint": "^10.13.0",
+        "eslint-plugin-react-hooks": "^7.1.1",
+        "eslint-plugin-react-refresh": "^0.5.7",
+        "globals": "^17.13.0",
+        "prettier": "^3.9.10",
+        "prettier-plugin-tailwindcss": "^0.8.1",
+        "tailwindcss": "^4.3.3",
+        "typescript": "~6.0.3",
+        "typescript-eslint": "^8.71.2",
+        "vite": "^8.3.4",
+        "vitest": "^5.0.5"
+    }
 }

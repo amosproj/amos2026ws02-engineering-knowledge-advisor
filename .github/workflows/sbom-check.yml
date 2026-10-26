@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "24.22.0"
+          node-version: "24.22.1"
 
       # npm writes its own version into the generated SBOM, so the version has
       # to match packageManager in apps/web/package.json.

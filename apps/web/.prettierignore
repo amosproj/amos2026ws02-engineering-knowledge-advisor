@@ -1,0 +1,7 @@
+/dist/
+dist
+build
+node_modules
+.vite
+*.css
+*.md
