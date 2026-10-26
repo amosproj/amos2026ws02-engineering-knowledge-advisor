@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException
 
+from logger import logger
 from model.problem import ProblemException, ProblemResponse
 
 
@@ -27,7 +28,13 @@ async def handle_validation(
     )
 
 
+async def handle_unexpected(request: Request, e: Exception) -> ProblemResponse:
+    logger.exception("Unhandled exception", exc_info=e)
+    return ProblemResponse.from_status(500, instance=request.url.path)
+
+
 def register(app: FastAPI) -> None:
     app.exception_handler(ProblemException)(handle_problem)
     app.exception_handler(HTTPException)(handle_http)
     app.exception_handler(RequestValidationError)(handle_validation)
+    app.exception_handler(Exception)(handle_unexpected)

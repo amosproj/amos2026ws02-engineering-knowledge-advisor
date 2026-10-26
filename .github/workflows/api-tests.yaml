@@ -2,6 +2,7 @@ name: API Tests
 
 on:
   pull_request:
+    paths: ["apps/api/**", ".github/workflows/api-tests.yaml"]
   push:
     branches: [main, development]
 

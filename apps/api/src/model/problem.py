@@ -89,13 +89,13 @@ class ProblemResponse(JSONResponse):
         elif fields:
             problem = Problem(**{**problem.model_dump(), **fields})
 
-        if problem.status is None:
-            problem.status = self.default_status
+        status = problem.status if problem.status is not None else self.default_status
+        problem = problem.model_copy(update={"status": status})
 
         self.problem = problem
         super().__init__(
             content=problem.to_response_body(),
-            status_code=problem.status,
+            status_code=status,
             headers=headers,
             media_type=self.media_type,
             background=background,

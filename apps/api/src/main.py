@@ -1,4 +1,3 @@
-import logging
 from collections.abc import AsyncGenerator
 
 from fastapi import FastAPI
@@ -7,8 +6,7 @@ from fastapi.concurrency import asynccontextmanager
 from api import health_router, v1_router
 from config.settings import Settings, get_settings
 from handler import exception_handler
-
-logger = logging.getLogger("uvicorn.error")
+from logger import logger
 
 
 @asynccontextmanager

@@ -1,7 +1,7 @@
 [project]
 name = "api"
 version = "0.1.0"
-description = "Add your description here"
+description = "The backend API of the Engineering Knowledge Advisor. Exposes endpoints to interact with knowledge databases and LLMs."
 readme = "README.md"
 authors = [
     { name = "Jost Nadwornik", email = "nadwornik@campus.tu-berlin.de" },
@@ -17,9 +17,6 @@ dependencies = [
     "sqlalchemy>=2.1.5",
     "uvicorn[standard]>=0.54.0",
 ]
-
-[project.scripts]
-api = "api:main"
 
 [build-system]
 requires = ["uv_build>=0.13.4,<0.14.0"]
