@@ -23,24 +23,20 @@ def create_todo(payload: TodoCreate) -> Todo:
 ```ts
 // todo-query.ts
 const createTodo = queryMaker({
-  method: "POST",
-  path: "/v1/todos", // relative to /api; path params look like '/v1/todos/:id'
-  body: createTodoSchema, // Zod schemas
-  response: todoSchema,
-});
+    method: 'POST',
+    path: '/v1/todos', // relative to /api; path params look like '/v1/todos/:id'
+    body: createTodoSchema, // Zod schemas
+    response: todoSchema,
+})
 
 export const todoMutations = {
-  create: () =>
-    mutationOptions<
-      Todo,
-      ErrorOf<typeof createTodo>,
-      InputOf<typeof createTodo>
-    >({
-      mutationKey: ["todos", "create"],
-      mutationFn: createTodo,
-      meta: { invalidates: [["todos"]] }, // refetch todo queries on success
-    }),
-};
+    create: () =>
+        mutationOptions<Todo, ErrorOf<typeof createTodo>, InputOf<typeof createTodo>>({
+            mutationKey: ['todos', 'create'],
+            mutationFn: createTodo,
+            meta: { invalidates: [['todos']] }, // refetch todo queries on success
+        }),
+}
 ```
 
 > Always write the `<Data, ErrorOf<…>, InputOf<…>>` generics: they are what makes `error` typed in your components.
@@ -48,11 +44,9 @@ export const todoMutations = {
 **Component:**
 
 ```tsx
-const createTodo = useMutation(todoMutations.create());
+const createTodo = useMutation(todoMutations.create())
 
-createTodo.mutate({
-  body: { title: "Write the guide", description: "", completed: false },
-});
+createTodo.mutate({ body: { title: 'Write the guide', description: '', completed: false } })
 ```
 
 ## 2. The error format: RFC 9457
@@ -61,11 +55,11 @@ Every error response from the backend is a [RFC 9457](https://www.rfc-editor.org
 
 ```json
 {
-  "type": "about:blank",
-  "title": "Not Found",
-  "status": 404,
-  "detail": "Todo not found",
-  "instance": "/api/v1/todos/12"
+    "type": "about:blank",
+    "title": "Not Found",
+    "status": 404,
+    "detail": "Todo not found",
+    "instance": "/api/v1/todos/12"
 }
 ```
 
@@ -115,12 +109,12 @@ Response:
 
 ```json
 {
-  "type": "urn:eka:problem:too-many-todos",
-  "title": "Too many todos",
-  "status": 409,
-  "detail": "Cannot create more than 2 todos",
-  "instance": "/api/v1/todos",
-  "max": 2
+    "type": "urn:eka:problem:too-many-todos",
+    "title": "Too many todos",
+    "status": 409,
+    "detail": "Cannot create more than 2 todos",
+    "instance": "/api/v1/todos",
+    "max": 2
 }
 ```
 
@@ -135,17 +129,17 @@ Declare the error with `defineProblem`, then add it to the `errors` of every end
 ```ts
 // todo-query.ts
 export class TooManyTodos extends defineProblem(
-  "urn:eka:problem:too-many-todos",
-  z.object({ max: z.number() }),
+    'urn:eka:problem:too-many-todos',
+    z.object({ max: z.number() }),
 ) {}
 
 const createTodo = queryMaker({
-  method: "POST",
-  path: "/v1/todos",
-  body: createTodoSchema,
-  response: todoSchema,
-  errors: [TooManyTodos],
-});
+    method: 'POST',
+    path: '/v1/todos',
+    body: createTodoSchema,
+    response: todoSchema,
+    errors: [TooManyTodos],
+})
 ```
 
 What to keep in mind:
@@ -160,10 +154,10 @@ What to keep in mind:
 Check `_tag` to know which error you have:
 
 ```tsx
-const createTodo = useMutation(todoMutations.create());
+const createTodo = useMutation(todoMutations.create())
 
-if (createTodo.error?._tag === "urn:eka:problem:too-many-todos") {
-  const max = createTodo.error.data.max;
+if (createTodo.error?._tag === 'urn:eka:problem:too-many-todos') {
+    const max = createTodo.error.data.max
 }
 ```
 
@@ -178,10 +172,10 @@ The same applies everywhere you get the error, for example in `onError`:
 
 ```ts
 createTodo.mutate(input, {
-  onError: (error) => {
-    if (error._tag === "Validation") showFieldErrors(error.issues);
-  },
-});
+    onError: (error) => {
+        if (error._tag === 'Validation') showFieldErrors(error.issues)
+    },
+})
 ```
 
 For any other error, just show `error.message`.
@@ -192,12 +186,11 @@ To handle several tags in one expression (handy in JSX), use `matchError`. It wo
 
 ```tsx
 <AlertTitle>
-  {matchError(createTodo.error, {
-    "urn:eka:problem:too-many-todos": (error) =>
-      `Limit of ${error.data.max} todos reached`,
-    Network: () => "Server unreachable",
-    orElse: (error) => error.message, // all other errors
-  })}
+    {matchError(createTodo.error, {
+        'urn:eka:problem:too-many-todos': (error) => `Limit of ${error.data.max} todos reached`,
+        Network: () => 'Server unreachable',
+        orElse: (error) => error.message, // all other errors
+    })}
 </AlertTitle>
 ```
 

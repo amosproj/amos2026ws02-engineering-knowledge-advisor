@@ -463,6 +463,14 @@ npm ci
 npm run dev
 ```
 
+Frontend tests use [Vitest](https://vitest.dev) and uses (`*.test.ts`) files. CI (`.github/workflows/web-tests.yaml`) runs ESLint, Prettier, TypeScript and Vitest on every pull request:
+
+```powershell
+cd apps/web
+npm test             # run once
+npm run test:watch   # re-run on change
+```
+
 The API can be run locally with uv installed:
 
 ```powershell
