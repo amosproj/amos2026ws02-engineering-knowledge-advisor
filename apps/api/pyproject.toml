@@ -23,3 +23,7 @@ api = "api:main"
 [build-system]
 requires = ["uv_build>=0.13.4,<0.14.0"]
 build-backend = "uv_build"
+
+[tool.uv]
+# Matches the Dockerfile and CI; uv export --format cyclonedx1.5 needs >=0.13.
+required-version = "==0.13.5"

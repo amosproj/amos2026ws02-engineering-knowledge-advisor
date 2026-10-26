@@ -15,6 +15,7 @@ The project uses a containerized web application architecture with a React front
 - [Testing the Services](#testing-the-services)
 - [Stopping the Application](#stopping-the-application)
 - [Development Workflow](#development-workflow)
+- [Software Bill of Materials](#software-bill-of-materials)
 - [Troubleshooting](#troubleshooting)
 - [Security Notes](#security-notes)
 
@@ -65,12 +66,18 @@ engineering-knowledge-advisor/
 ├── infra/
 │   └── nginx/
 │       └── default.conf
+├── scripts/
+│   └── generate_sbom.py
 ├── Deliverables/
 ├── Documentation/
+│   └── sbom/
+│       ├── api.cdx.json
+│       └── web.cdx.json
 ├── compose.yaml
 ├── .env.example
 ├── .env
 ├── .gitignore
+├── .pre-commit-config.yaml
 └── README.md
 ```
 
@@ -83,6 +90,9 @@ engineering-knowledge-advisor/
 - `apps/api/src/api/main.py` — FastAPI application entry point.
 - `apps/api/pyproject.toml` — Python project metadata and dependencies.
 - `apps/api/uv.lock` — locked Python dependency versions.
+- `scripts/generate_sbom.py` — generates the CycloneDX SBOMs from the dependency lockfiles.
+- `Documentation/sbom/api.cdx.json` — SBOM for the API application dependencies.
+- `Documentation/sbom/web.cdx.json` — SBOM for the frontend application dependencies.
 - `.env.example` — template containing the configuration variables required for local development.
 - `.env` — local configuration containing developer-specific credentials. This file must not be committed to Git.
 
@@ -479,6 +489,10 @@ uv run --directory apps/api uvicorn api.main:app --reload --host 127.0.0.1 --por
 ```
 
 The local API runs at `http://127.0.0.1:8000`. Local execution requires any external services that the code actually uses to be configured and reachable.
+
+## Software Bill of Materials
+
+CycloneDX SBOMs for the API and frontend are generated from the lockfiles, enforced by a pre-commit hook and checked in CI. Setup, regeneration, and tool version requirements are described in [Documentation/sbom/README.md](Documentation/sbom/README.md).
 
 ## Troubleshooting
 
