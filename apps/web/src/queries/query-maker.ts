@@ -5,7 +5,7 @@ import {
     InvalidInputError,
     NetworkError,
     toResponseError,
-    type ErrorDefinition,
+    type ProblemDefinition,
     type StandardError,
 } from './query-errors'
 
@@ -41,7 +41,7 @@ export function queryMaker<
     BodySchema extends Schema = undefined,
     ParamsSchema extends z.ZodType<PathParams> | undefined = undefined,
     SearchSchema extends z.ZodType<SearchParams> | undefined = undefined,
-    Errors extends readonly ErrorDefinition[] = [],
+    Errors extends readonly ProblemDefinition[] = [],
 >(options: {
     method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
     path: string
@@ -49,7 +49,7 @@ export function queryMaker<
     body?: BodySchema
     params?: ParamsSchema
     search?: SearchSchema
-    // Custom errors, matched on the `_tag` the backend puts in `detail`.
+    // Custom errors, matched on the RFC 9457 problem `type`.
     errors?: Errors
 }) {
     type Input = InputField<'body', BodySchema> &
@@ -90,7 +90,7 @@ export function queryMaker<
                 method: options.method,
                 signal: input.signal,
                 headers: {
-                    Accept: 'application/json',
+                    Accept: 'application/json, application/problem+json',
                     ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
                 },
                 ...(body !== undefined ? { body: JSON.stringify(body) } : {}),

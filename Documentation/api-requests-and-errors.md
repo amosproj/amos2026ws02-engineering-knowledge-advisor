@@ -11,7 +11,7 @@ Everything on the frontend side lives in `apps/web/src/queries/`, with one `<dom
 **Backend:** write a normal FastAPI route.
 
 ```python
-@router.post("", status_code=status.HTTP_201_CREATED)
+@v1_router.post("/todos", status_code=status.HTTP_201_CREATED)
 def create_todo(payload: TodoCreate) -> Todo:
     todo = Todo(id=str(uuid4()), **payload.model_dump())
     todos[todo.id] = todo
@@ -23,20 +23,24 @@ def create_todo(payload: TodoCreate) -> Todo:
 ```ts
 // todo-query.ts
 const createTodo = queryMaker({
-    method: 'POST',
-    path: '/todos', // relative to /api; path params look like '/todos/:id'
-    body: createTodoSchema, // Zod schemas
-    response: todoSchema,
-})
+  method: "POST",
+  path: "/v1/todos", // relative to /api; path params look like '/v1/todos/:id'
+  body: createTodoSchema, // Zod schemas
+  response: todoSchema,
+});
 
 export const todoMutations = {
-    create: () =>
-        mutationOptions<Todo, ErrorOf<typeof createTodo>, InputOf<typeof createTodo>>({
-            mutationKey: ['todos', 'create'],
-            mutationFn: createTodo,
-            meta: { invalidates: [['todos']] }, // refetch todo queries on success
-        }),
-}
+  create: () =>
+    mutationOptions<
+      Todo,
+      ErrorOf<typeof createTodo>,
+      InputOf<typeof createTodo>
+    >({
+      mutationKey: ["todos", "create"],
+      mutationFn: createTodo,
+      meta: { invalidates: [["todos"]] }, // refetch todo queries on success
+    }),
+};
 ```
 
 > Always write the `<Data, ErrorOf<…>, InputOf<…>>` generics: they are what makes `error` typed in your components.
@@ -44,20 +48,42 @@ export const todoMutations = {
 **Component:**
 
 ```tsx
-const createTodo = useMutation(todoMutations.create())
+const createTodo = useMutation(todoMutations.create());
 
-createTodo.mutate({ body: { title: 'Write the guide', description: '', completed: false } })
+createTodo.mutate({
+  body: { title: "Write the guide", description: "", completed: false },
+});
 ```
 
-## 2. Simple errors
+## 2. The error format: RFC 9457
 
-**Backend:** raise an `HTTPException` with a text `detail`.
+Every error response from the backend is a [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html) problem, sent as `application/problem+json`:
+
+```json
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Todo not found",
+  "instance": "/api/v1/todos/12"
+}
+```
+
+- `type` identifies the problem. `about:blank` means "nothing more specific than the HTTP status".
+- `detail` (or `title` if there is no `detail`) becomes `error.message` on the frontend.
+- Any other key is an extension member: data for the frontend.
+
+On the frontend, every error has a `_tag` to narrow on and a `message` you can show to the user.
+
+## 3. Simple errors
+
+**Backend:** raise an `HTTPException` with a text `detail`. It is sent as an `about:blank` problem.
 
 ```python
 raise HTTPException(status_code=404, detail="Todo not found")
 ```
 
-**Frontend:** nothing to declare. Every error has a `_tag` and a `message` you can show to the user. Here, `_tag` is `'NotFound'` and `message` is `"Todo not found"`.
+**Frontend:** nothing to declare. Here, `_tag` is `'NotFound'` and `message` is `"Todo not found"`.
 
 | `_tag`                                                                               | Happens when                                          |
 | ------------------------------------------------------------------------------------ | ----------------------------------------------------- |
@@ -69,58 +95,75 @@ raise HTTPException(status_code=404, detail="Todo not found")
 | `Decode`                                                                             | The response does not match the `response` schema     |
 | `InvalidInput`                                                                       | The input does not match its schema; nothing was sent |
 
-## 3. Tagged errors that carry data
+The raw problem is still available in `error.problem` (e.g. `error.problem?.instance`).
 
-When the frontend must recognise a specific error, or needs data with it, send an object as `detail` with a `_tag`:
+## 4. Specific errors that carry data
+
+When the frontend must recognise a specific error, or needs data with it, raise a `ProblemException` with its own `type`:
 
 ```python
-raise HTTPException(
-    status_code=400,
-    detail={
-        "_tag": "TooManyTodos",                            # name of the error
-        "message": f"Cannot create more than {MAX_TODOS} todos",
-        "max": MAX_TODOS,                                  # any data you need
-    },
-)
+raise ProblemException(Problem(
+    type="urn:eka:problem:too-many-todos",  # identifies the error
+    title="Too many todos",
+    status=409,
+    detail=f"Cannot create more than {MAX_TODOS} todos",
+    max=MAX_TODOS,  # extension member: any data you need
+))
 ```
 
-- `_tag` identifies the error. Several errors can share the same status code.
-- `message` is what the user sees if the frontend does nothing special. Always include it.
-- Any other key is data for the frontend.
+Response:
 
-## 4. Declaring a tagged error on the frontend
+```json
+{
+  "type": "urn:eka:problem:too-many-todos",
+  "title": "Too many todos",
+  "status": 409,
+  "detail": "Cannot create more than 2 todos",
+  "instance": "/api/v1/todos",
+  "max": 2
+}
+```
 
-Declare the error with `defineError`, then add it to the `errors` of every endpoint that can return it:
+- `type` identifies the error. Several errors can share the same status code. Any string works, as long as the frontend uses the exact same one.
+- `detail` is what the user sees if the frontend does nothing special. Always include it.
+- Declare the problem in the route's `responses` so it appears in the OpenAPI contract.
+
+## 5. Declaring a specific error on the frontend
+
+Declare the error with `defineProblem`, then add it to the `errors` of every endpoint that can return it:
 
 ```ts
 // todo-query.ts
-export class TooManyTodos extends defineError('TooManyTodos', z.object({ max: z.number() })) {}
+export class TooManyTodos extends defineProblem(
+  "urn:eka:problem:too-many-todos",
+  z.object({ max: z.number() }),
+) {}
 
 const createTodo = queryMaker({
-    method: 'POST',
-    path: '/todos',
-    body: createTodoSchema,
-    response: todoSchema,
-    errors: [TooManyTodos],
-})
+  method: "POST",
+  path: "/v1/todos",
+  body: createTodoSchema,
+  response: todoSchema,
+  errors: [TooManyTodos],
+});
 ```
 
 What to keep in mind:
 
-- **The tag must match the backend exactly** (`'TooManyTodos'`). A typo is not reported: the error is then handled like an undeclared one.
-- **The schema only describes your data** (`max`). `_tag` and `message` are handled for you.
-- **Declaring is optional.** An undeclared tagged error still arrives with the backend `message`. Declare it only when you need to react to it specifically or read its data.
+- **The `type` must match the backend exactly.** A typo is not reported: the error is then handled like an undeclared one. The `type` is also the error's `_tag`.
+- **The schema only describes the extension members** (`max`). `type`, `title`, `detail`, etc. are handled for you.
+- **Declaring is optional.** An undeclared problem still arrives as a standard error (`Conflict` here) with the backend `detail` as message. Declare it only when you need to react to it specifically or read its data.
 - **If the backend changes the shape of the data**, the error is treated as undeclared and a warning is logged in the console.
 
-## 5. Reading errors in a component
+## 6. Reading errors in a component
 
 Check `_tag` to know which error you have:
 
 ```tsx
-const createTodo = useMutation(todoMutations.create())
+const createTodo = useMutation(todoMutations.create());
 
-if (createTodo.error?._tag === 'TooManyTodos') {
-    const max = createTodo.error.data.max
+if (createTodo.error?._tag === "urn:eka:problem:too-many-todos") {
+  const max = createTodo.error.data.max;
 }
 ```
 
@@ -135,10 +178,10 @@ The same applies everywhere you get the error, for example in `onError`:
 
 ```ts
 createTodo.mutate(input, {
-    onError: (error) => {
-        if (error._tag === 'Validation') showFieldErrors(error.issues)
-    },
-})
+  onError: (error) => {
+    if (error._tag === "Validation") showFieldErrors(error.issues);
+  },
+});
 ```
 
 For any other error, just show `error.message`.
@@ -149,11 +192,12 @@ To handle several tags in one expression (handy in JSX), use `matchError`. It wo
 
 ```tsx
 <AlertTitle>
-    {matchError(createTodo.error, {
-        TooManyTodos: (error) => `Limit of ${error.data.max} todos reached`,
-        Network: () => 'Server unreachable',
-        orElse: (error) => error.message, // all other errors
-    })}
+  {matchError(createTodo.error, {
+    "urn:eka:problem:too-many-todos": (error) =>
+      `Limit of ${error.data.max} todos reached`,
+    Network: () => "Server unreachable",
+    orElse: (error) => error.message, // all other errors
+  })}
 </AlertTitle>
 ```
 

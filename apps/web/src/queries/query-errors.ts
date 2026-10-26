@@ -1,11 +1,20 @@
 import { z } from 'zod'
 
-/** Base of every error thrown by the query layer,
- * narrow on _tag
- * */
+/** Base of every error thrown by the query layer, narrow on `_tag`. */
 export abstract class QueryError extends Error {
     abstract readonly _tag: string
 }
+
+// RFC 9457 problem details, extension members are kept as-is.
+const problemSchema = z.looseObject({
+    type: z.string().catch('about:blank'),
+    title: z.string().nullish(),
+    status: z.number().nullish(),
+    detail: z.string().nullish(),
+    instance: z.string().nullish(),
+})
+
+export type Problem = z.output<typeof problemSchema>
 
 const httpTags = {
     400: 'BadRequest',
@@ -18,25 +27,23 @@ const httpTags = {
 
 export type HttpTag = (typeof httpTags)[keyof typeof httpTags] | 'ServerError' | 'UnexpectedStatus'
 
-// Non-2xx response without a declared custom error.
+// Non-2xx response without a declared problem type.
 export class HttpError<Tag extends HttpTag = HttpTag> extends QueryError {
     readonly _tag: Tag
     readonly status: number
-    readonly data: unknown
-    // _tag sent by the backend that no error definition matched.
-    readonly backendTag: string | undefined
+    // Undefined when the body is not a problem (e.g. a proxy error page).
+    readonly problem: Problem | undefined
 
-    constructor(tag: Tag, status: number, message: string, data: unknown, backendTag?: string) {
+    constructor(tag: Tag, status: number, message: string, problem?: Problem) {
         super(message)
         this.name = 'HttpError'
         this._tag = tag
         this.status = status
-        this.data = data
-        this.backendTag = backendTag
+        this.problem = problem
     }
 }
 
-const validationIssueSchema = z.object({
+const validationIssueSchema = z.looseObject({
     type: z.string(),
     loc: z.array(z.union([z.string(), z.number()])),
     msg: z.string(),
@@ -44,7 +51,7 @@ const validationIssueSchema = z.object({
 
 export type ValidationIssue = z.output<typeof validationIssueSchema>
 
-// FastAPI request validation failure (422 with a list of issues).
+// FastAPI request validation failure (422, issues in the `errors` extension).
 export class ValidationError extends QueryError {
     readonly _tag = 'Validation'
     readonly status = 422
@@ -57,7 +64,7 @@ export class ValidationError extends QueryError {
     }
 }
 
-//The server could not be reached (offline, DNS, CORS…)
+// The server could not be reached (offline, DNS, CORS…).
 export class NetworkError extends QueryError {
     readonly _tag = 'Network'
 
@@ -95,93 +102,98 @@ export type StandardError =
     | DecodeError
     | InvalidInputError
 
-export interface ErrorDefinition<E extends QueryError = QueryError> {
-    readonly tag: string
+export interface ProblemDefinition<E extends QueryError = QueryError> {
+    readonly type: string
     readonly schema: z.ZodType
-    new (status: number, message: string, data: never): E
+    new (status: number, message: string, data: never, problem: Problem): E
 }
 
 /**
- * Define a custom error matched on the `_tag` the backend puts in `detail`.
- * `message` becomes the error message, `schema` validates the other fields of `detail`.
- * If the tag is not declared or the schema fails, it falls back to a standard `HttpError`.
+ * Define a custom error matched on the RFC 9457 `type` sent by the backend.
+ * The `type` string becomes the `_tag`, `schema` validates the extension members.
+ * If the schema fails, it falls back to a standard `HttpError`.
  *
  * @example Backend (FastAPI)
  * ```python
- * raise HTTPException(
- *     status_code=400,
- *     detail={"_tag": "TooManyTodos", "message": "Cannot create more than 2 todos", "max": 2},
- * )
+ * raise ProblemException(Problem(
+ *     type="urn:eka:problem:too-many-todos",
+ *     title="Too many todos",
+ *     status=409,
+ *     detail="Cannot create more than 2 todos",
+ *     max=2,
+ * ))
  * ```
  *
  * @example Frontend
  * ```ts
- * export class TooManyTodos extends defineError('TooManyTodos', z.object({ max: z.number() })) {}
+ * export class TooManyTodos extends defineProblem(
+ *     'urn:eka:problem:too-many-todos',
+ *     z.object({ max: z.number() }),
+ * ) {}
  *
- * const createTodo = queryMaker({ method: 'POST', path: '/todos', response: todoSchema, errors: [TooManyTodos] })
+ * const createTodo = queryMaker({ method: 'POST', path: '/v1/todos', response: todoSchema, errors: [TooManyTodos] })
  *
- * if (mutation.error?._tag === 'TooManyTodos') mutation.error.data.max // correctly typed as number
+ * if (mutation.error?._tag === 'urn:eka:problem:too-many-todos') mutation.error.data.max // typed as number
  * ```
  */
-export function defineError<const Tag extends string, S extends z.ZodType>(tag: Tag, schema: S) {
+export function defineProblem<const Type extends string, S extends z.ZodType>(
+    type: Type,
+    schema: S,
+) {
     return class extends QueryError {
-        static readonly tag = tag
+        static readonly type = type
         static readonly schema = schema
-        readonly _tag: Tag = tag
+        readonly _tag: Type = type
         readonly status: number
         readonly data: z.output<S>
+        readonly problem: Problem
 
-        constructor(status: number, message: string, data: z.output<S>) {
+        constructor(status: number, message: string, data: z.output<S>, problem: Problem) {
             super(message)
-            this.name = tag
+            this.name = type
             this.status = status
             this.data = data
+            this.problem = problem
         }
     }
 }
 
-const taggedDetailSchema = z.looseObject({ _tag: z.string(), message: z.string().optional() })
-
-function httpError(status: number, message: string, data: unknown, backendTag?: string) {
+function httpError(status: number, message: string, problem?: Problem) {
     const tag: HttpTag =
         status >= 500
             ? 'ServerError'
             : (httpTags[status as keyof typeof httpTags] ?? 'UnexpectedStatus')
-    return new HttpError(tag, status, message, data, backendTag)
+    return new HttpError(tag, status, message, problem)
 }
 
 /**
  * Map a non-2xx response to an error, from most to least specific:
- * declared tagged error -> undeclared tag → `{ detail: string }` → 422 issues → status only.
+ * declared problem type → 422 validation issues → status only.
  */
 export function toResponseError(
     status: number,
     data: unknown,
-    definitions: readonly ErrorDefinition[],
+    definitions: readonly ProblemDefinition[],
 ): QueryError {
-    const detail =
-        typeof data === 'object' && data !== null && 'detail' in data ? data.detail : undefined
+    const parsedProblem = problemSchema.safeParse(data)
+    if (!parsedProblem.success) return httpError(status, `Request failed (HTTP ${status})`)
 
-    const tagged = taggedDetailSchema.safeParse(detail)
-    if (tagged.success) {
-        const { _tag, message = _tag } = tagged.data
-        const Definition = definitions.find((definition) => definition.tag === _tag)
-        if (Definition) {
-            const parsed = Definition.schema.safeParse(detail)
-            if (parsed.success) return new Definition(status, message, parsed.data as never)
-            console.warn(`Error "${_tag}" does not match its schema`, parsed.error)
-        }
-        return httpError(status, message, data, _tag)
+    const problem = parsedProblem.data
+    const message = problem.detail || problem.title || `Request failed (HTTP ${status})`
+
+    const Definition = definitions.find((definition) => definition.type === problem.type)
+    if (Definition) {
+        const parsed = Definition.schema.safeParse(problem)
+        if (parsed.success) return new Definition(status, message, parsed.data as never, problem)
+        console.warn(`Problem "${problem.type}" does not match its schema`, parsed.error)
     }
 
-    if (typeof detail === 'string') return httpError(status, detail, data)
-
     if (status === 422) {
-        const issues = z.array(validationIssueSchema).safeParse(detail)
+        const issues = z.array(validationIssueSchema).safeParse(problem.errors)
         if (issues.success) return new ValidationError(issues.data)
     }
 
-    return httpError(status, `Request failed (HTTP ${status})`, data)
+    return httpError(status, message, problem)
 }
 
 type Tagged = { readonly _tag: string }
@@ -198,7 +210,7 @@ type TagHandlers<E extends Tagged, R> = {
  * @example Partial, with a fallback
  * ```ts
  * matchError(createTodo.error, {
- *     TooManyTodos: (error) => `Limit of ${error.data.max} todos reached`,
+ *     'urn:eka:problem:too-many-todos': (error) => `Limit of ${error.data.max} todos reached`,
  *     Network: () => 'Server unreachable',
  *     orElse: (error) => error.message,
  * })
