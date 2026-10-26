@@ -1,0 +1,48 @@
+name: Web Tests
+
+on:
+  pull_request:
+    paths: ["apps/web/**", ".github/workflows/web-tests.yaml"]
+  push:
+    branches: [main, development]
+    paths: ["apps/web/**", ".github/workflows/web-tests.yaml"]
+
+permissions:
+  contents: read
+
+jobs:
+  vitest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24.22.1"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        id: install
+        run: npm ci
+
+      - name: ESLint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run lint
+
+      - name: Prettier
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npx prettier --check .
+
+      - name: TypeScript
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npx tsc -b
+
+      - name: Vitest
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm test
