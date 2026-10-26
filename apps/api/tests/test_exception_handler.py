@@ -40,11 +40,10 @@ def test_unhandled(caplog: pytest.LogCaptureFixture):
     register(app)
 
     test_endpoint: str = "/kaboom"
-    test_exception_detail: str = "test detail"
 
     @app.post(test_endpoint)
     def kaboom() -> None:
-        raise ValueError(test_exception_detail)
+        raise ValueError()
 
     with (
         caplog.at_level(logging.ERROR, logger=UNHANDLED_LOGGER_ID),
