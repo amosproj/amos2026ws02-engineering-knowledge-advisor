@@ -8,7 +8,8 @@ RUN npm ci
 
 COPY apps/web/ ./
 
-# Public build-time config, passed from compose.yaml
+# Passed from compose.yaml. VITE_* values are embedded in the JS bundle and readable
+# in clear text by any client: never put secrets (passwords, API keys) here
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 

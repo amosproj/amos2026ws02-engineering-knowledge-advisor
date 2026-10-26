@@ -24,7 +24,7 @@ export default defineConfig(({ mode }) => {
         server: {
             // Mirror the Nginx /api proxy so the app always calls a same-origin /api
             proxy: {
-                '/api': env.API_PROXY_TARGET || 'http://localhost:8000',
+                '/api': env.WEB_API_PROXY_TARGET || 'http://localhost:8000',
             },
         },
     }

@@ -225,7 +225,14 @@ S3_BUCKET=engineering-documents
 S3_REGION=us-east-1
 ```
 
-The same file holds the frontend configuration. `VITE_*` variables are public and baked in at build time: no secrets, and rebuild after changing one. A new one must also be added to the `web` build `args` in `compose.yaml`, `apps/web/Dockerfile` and `apps/web/src/utils/env.ts`.
+The same file holds the frontend configuration. [`VITE_*` variables](https://vite.dev/guide/env-and-mode):
+
+- are **PUBLIC**: they are embedded in the browser bundle and readable by anyone
+- **MUST NOT** hold secrets (e.g. passwords, API keys)
+- **MUST** be added to `.env`, the `web` build `args` in `compose.yaml`, `apps/web/Dockerfile`, `apps/web/src/vite-env.d.ts` and `apps/web/src/utils/env.ts`
+- are read at build time: rebuild the frontend after changing one
+
+Frontend variables that are not exposed to the browser use the `WEB_` prefix (e.g. `WEB_API_PROXY_TARGET`, used only by the Vite dev server).
 
 Use different, unique passwords for your local environment. Do not commit `.env` to Git or share real credentials in issues, screenshots, or messages.
 
