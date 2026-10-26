@@ -34,7 +34,7 @@ jobs:
           python-version: "3.13"
 
       - name: Check tool versions are in sync
-        run: python3 scripts/check_tool_versions.py
+        run: uv run --project apps/api python scripts/check_tool_versions.py
 
       - name: Check SBOM freshness
-        run: python3 scripts/generate_sbom.py --check
+        run: uv run --project apps/api python scripts/generate_sbom.py --check

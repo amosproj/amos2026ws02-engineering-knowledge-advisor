@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.background import BackgroundTask
 
+DEFAULT_PROBLEM_TYPE: str = "about:blank"
+
 
 class ProblemException(Exception):
     def __init__(self, problem: Problem, headers: dict[str, str] | None = None):
@@ -26,7 +28,7 @@ class Problem(BaseModel):
     )
 
     type: str = Field(
-        default="about:blank",
+        default=DEFAULT_PROBLEM_TYPE,
         description="URI reference identifying the problem type.",
     )
     title: str | None = Field(
@@ -51,7 +53,7 @@ class Problem(BaseModel):
     @field_validator("type")
     @classmethod
     def _type_not_empty(cls, v: str) -> str:
-        return v or "about:blank"
+        return v or DEFAULT_PROBLEM_TYPE
 
     @classmethod
     def from_status(
@@ -59,7 +61,7 @@ class Problem(BaseModel):
     ) -> Problem:
         """Build an 'about:blank' problem. Its title should match the status phrase (§4.2.1)"""
         return cls(
-            type="about:blank",
+            type=DEFAULT_PROBLEM_TYPE,
             title=HTTPStatus(status).phrase,
             status=status,
             detail=detail,

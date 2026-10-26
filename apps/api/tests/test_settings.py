@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from config import Settings, get_settings
+from config.settings import Settings, get_settings
 
 
 @pytest.fixture(autouse=True)

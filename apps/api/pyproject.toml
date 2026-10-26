@@ -44,8 +44,8 @@ testpaths = [ "tests" ]
 
 [tool.pyright]
 include = [ "src", "tests" ]
-extraPaths = [ "src" ]
+extraPaths = [ "src", "../../scripts" ]
 pythonVersion = "3.13"
 
 [tool.ruff]
-src = ["src"]
+src = [ "src" ]
