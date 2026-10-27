@@ -1,9 +1,8 @@
----
-title: Engineering Knowledge Advisor - Software Architecture
-subtitle: AMOS WS 2026/27, Team 02 - Sprint 02
----
+# Engineering Knowledge Advisor - Software Architecture
 
-# 1. Runtime Overview
+AMOS WS 2026/27, Team 02 - Sprint 02
+
+## 1. Runtime Overview
 
 Components at runtime and who calls whom. **Solid** boxes are decided
 components, **dotted grey**
@@ -16,11 +15,11 @@ flowchart TB
     agent(["AI agent<br/>(MCP client)"])
 
     subgraph webc["web container"]
-        nginx["Nginx 1.28<br/>serves React frontend, proxies /api/"]
+        nginx["Nginx<br/>serves React frontend, proxies /api/"]
     end
 
     subgraph apic["api container (FastAPI)"]
-        rest["REST API /api/v1<br/>contract: openapi.json"]
+        rest["REST API /api<br/>contract: openapi.json"]
         mcp["MCP endpoint /mcp"]
         cad["CAD parser<br/>(STEP)"]
         rag["RAG layer<br/>vanilla RAG or ontology-based OG-RAG<br/>+ embedding model"]
@@ -28,7 +27,7 @@ flowchart TB
     end
 
     subgraph datac["data layer"]
-        db[("db container<br/>PostgreSQL 16 + pgvector<br/>relational data + vectors<br/>volume on disk")]
+        db[("db container<br/>PostgreSQL + pgvector<br/>relational data + vectors<br/>volume on disk")]
         s3[("minio container<br/>S3 object storage<br/>CAD files, documents<br/>volume on disk")]
     end
 
@@ -39,11 +38,13 @@ flowchart TB
 
     creator -- "HTTPS" --> nginx
     reader -- "HTTPS" --> nginx
-    nginx -- "/api/v1" --> rest
+    nginx -- "/api/*" --> rest
     agent -- "MCP over HTTP" --> mcp
     mcp --> rest
     rest -- "parse upload" --> cad
-    rest -- "SQL, vector search" --> db
+    cad -- "store parts, metadata, vectors" --> db
+    
+    rest -- "SQL" --> db
     rest -- "store / load files" --> s3
     rest -- "ask" --> rag
     rag -- "retrieve chunks" --> db
@@ -57,19 +58,21 @@ flowchart TB
 
 **Main flows**
 
-- **Upload (Creator):** frontend → `/api/v1` → file stored in MinIO → CAD
+- **Upload (Creator):** frontend → `/api` → file stored in MinIO → CAD
   parser extracts parts and metadata → stored in PostgreSQL, text embedded via
   the LLM adapter and stored in pgvector.
-- **Question (Reader or Agent):** frontend or MCP → `/api/v1` → RAG layer finds
+- **Question (Reader or Agent):** frontend or MCP → `/api` → RAG layer finds
   relevant chunks in pgvector → LLM adapter sends question + context to the
   selected model → answer with sources.
 
 <div class="page-break"></div>
 
-# 2. Code Overview
+## 2. Code Overview
 
-Repository folders and backend modules.  dotted grey boxes depend on open decisions.
-Arrows inside the backend show which module calls which.
+Repository folders and backend modules. **Solid** boxes exist in the code
+today, **dashed** boxes are decided modules that are not created yet (planned
+location), **dotted grey** boxes depend on open decisions. Arrows inside the
+backend show which module calls which.
 
 ```mermaid
 flowchart LR
@@ -84,7 +87,7 @@ flowchart LR
 
     subgraph api["apps/api (FastAPI)"]
         direction TB
-        arouter["src/main.py, src/api<br/>app entry, routers /api/v1"]
+        arouter["src/main.py, src/api<br/>app entry, routers /api"]
         amcp["src/api/mcp<br/>MCP endpoint"]
         acad["src/cad<br/>STEP parser"]
         arag["src/rag<br/>retrieval, prompts"]
@@ -112,11 +115,13 @@ flowchart LR
         infra ~~~ compose ~~~ docs ~~~ deliv ~~~ ci
     end
 
-    web -- "HTTP /api/v1" --> api
+    web -- "HTTP /api" --> api
     api ~~~ root
 
+    classDef planned stroke-dasharray: 6 4,fill:#ffffff;
     classDef open stroke-dasharray: 2 3,fill:#e6e6e6,color:#444;
-    class amcp,arag open
+    class acad,allm,adb,amig,amcp planned
+    class arag open
 ```
 
 | Folder | Content |
@@ -129,43 +134,44 @@ flowchart LR
 
 <div class="page-break"></div>
 
-# 3. Technology Stack
+## 3. Technology Stack
 
-Versions are the ones pinned in `package-lock.json`, `uv.lock`, the Dockerfiles
-and `compose.yaml`. *Planned* means chosen but not implemented, *open* means
-not decided yet.
+Language and framework per component. Exact versions are deliberately not
+listed here so this page does not go out of date; they are pinned in
+`package-lock.json`, `uv.lock`, the Dockerfiles and `compose.yaml`, and listed
+in the SBOM (`Documentation/sbom`). *In use* means part of the current setup,
+*planned* means decided but not implemented, *open* means not decided yet.
 
-| Component | Language | Framework / Product | Version |
+| Component | Language | Framework / Product | Status |
 |---|---|---|---|
-| Frontend | TypeScript 6.0 | React | 19.3 |
-| Frontend build | TypeScript | Vite | 8.3 |
-| Frontend styling | CSS | Tailwind CSS, shadcn | 4.3 |
-| Frontend data / routing | TypeScript | TanStack Query / Router / Form, Zod | 5.104 / 1.170 / 1.33, 4.6 |
-| Frontend tests | TypeScript | Vitest | 5.0 |
-| Frontend build image | JavaScript | Node.js (alpine) | 24.22 |
-| Web server | - | Nginx (alpine) | 1.28 |
-| Backend | Python 3.13 | FastAPI on Starlette | 0.156 / 1.10 |
-| ASGI server | Python | Uvicorn | 0.54 |
-| Validation / config | Python | Pydantic, pydantic-settings | 2.14 / 2.16 |
-| Data access | Python | SQLAlchemy, psycopg | 2.1 / 3.3 |
-| DB migrations | Python | Alembic | 1.20 |
-| Object storage client | Python | boto3 | 1.43 |
-| Backend tests | Python | pytest | 9.1 |
-| Python packaging | - | uv | 0.13.5 |
-| Relational + vector DB | SQL | PostgreSQL + pgvector (`pgvector/pgvector:pg16`) | 16 |
-| Object storage | - | MinIO (`chainguard/minio`), S3 API | latest |
-| API contract | YAML / JSON | OpenAPI, exported from FastAPI | 3.1 |
-| LLM adapter | Python | own interface (`chat`, `embed`) | - |
-| LLM model | - |  GPT, Claude or open-source LLMs (e.g. Qwen) | *open* |
+| Frontend | TypeScript | React | in use |
+| Frontend build | TypeScript | Vite | in use |
+| Frontend styling | CSS | Tailwind CSS | in use |
+| UI components | TypeScript | shadcn components (copied into the repo) on Base UI | in use |
+| Frontend data / routing | TypeScript | TanStack Query / Router / Form, Zod | in use |
+| Frontend tests | TypeScript | Vitest | in use |
+| Web server | - | Nginx | in use |
+| Backend | Python | FastAPI, Uvicorn | in use |
+| Validation / config | Python | Pydantic, pydantic-settings | in use |
+| Data access | Python | SQLAlchemy, psycopg | in use |
+| DB migrations | Python | Alembic | *planned* |
+| Object storage client | Python | boto3 | in use |
+| Backend tests | Python | pytest | in use |
+| Python packaging | - | uv | in use |
+| Relational + vector DB | SQL | PostgreSQL + pgvector | in use |
+| Object storage | - | MinIO (S3 API) | in use |
+| API contract | JSON | OpenAPI (`Documentation/openapi.json`), exported from FastAPI | in use |
+| LLM adapter | Python | own interface (`chat`, `embed`) | *planned* |
+| LLM model | - | GPT, Claude or open-source LLMs (e.g. Qwen) | *open* |
 | CAD parser | Python | STEP library (e.g. OpenCascade / pythonOCC) | *planned* |
 | RAG approach | Python | vanilla RAG or ontology-based OG-RAG | *open* |
 | Embedding model | - | to be chosen with the RAG approach | *open* |
 | Agent access | Python | MCP endpoint `/mcp` | *open* |
-| Containers / CI | - | Docker Compose, GitHub Actions | - |
+| Containers / CI | - | Docker Compose, GitHub Actions | in use |
 
 <div class="page-break"></div>
 
-# 4. Explanation and Design Decisions
+## 4. Explanation and Design Decisions
 
 **Runtime (page 1).** Creators and Readers use the React frontend in the
 browser. Nginx serves the frontend and forwards `/api/*` to the backend, so
@@ -213,4 +219,10 @@ folders.
 - **FastAPI + React.** Python gives direct access to CAD, embedding and LLM
   libraries; FastAPI validates requests and generates the OpenAPI contract.
   React with TypeScript gives a typed, component-based UI.
+- **Nginx instead of a Node.js server for the frontend.** The React app is a
+  single-page app without server-side rendering, so the Vite build produces
+  only static files. Node.js is used only in the build stage of the Docker
+  image; the running container is Nginx, which serves static files fast,
+  needs little memory and has a small attack surface. The same Nginx also
+  forwards `/api/*` to the backend, so no extra proxy is needed.
 
