@@ -73,3 +73,43 @@ def test_problem_response_do_not_modify_problem_by_ref():
     response = ProblemResponse(problem)  # sets status
     assert problem.status is None
     assert response.status_code == 500
+
+
+def test_field_validator_value_error_returns_422():
+    from pydantic import BaseModel, field_validator
+
+    test_error_message: str = "value must be positive"
+
+    class Payload(BaseModel):
+        value: int
+
+        @field_validator("value")
+        @classmethod
+        def _positive(cls, v: int) -> int:
+            if v <= 0:
+                raise ValueError(test_error_message)
+            return v
+
+    app = FastAPI()
+    register(app)
+
+    test_endpoint: str = "/validate"
+
+    @app.post(test_endpoint)
+    def validate(payload: Payload) -> None:
+        return None
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response: Response = client.post(test_endpoint, json={"value": -1})
+
+    expected_status: int = 422
+
+    # headers
+    assert response.status_code == expected_status
+    assert response.headers["content-type"] == CONTENT_TYPE_PROBLEM_JSON
+
+    # body
+    response_body: dict[str, Any] = response.json()
+    assert response_body["status"] == expected_status
+    assert response_body["instance"] == test_endpoint
+    assert test_error_message in response_body["errors"][0]["msg"]

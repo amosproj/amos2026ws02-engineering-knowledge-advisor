@@ -69,7 +69,7 @@ class Problem(BaseModel):
         )
 
     def to_response_body(self) -> dict[str, Any]:
-        return self.model_dump(mode="json", exclude_none=True)
+        return self.model_dump(mode="json", exclude_none=True, fallback=str)
 
 
 class ProblemResponse(JSONResponse):
