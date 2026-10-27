@@ -56,12 +56,14 @@ def build_api_sbom() -> dict[str, Any]:
     """Build the API SBOM from the uv lockfile."""
     # --locked fails if uv.lock does not match pyproject.toml, so the inventory
     # always reflects the committed dependency set.
+    # --no-dev keeps the SBOM aligned with the Dockerfile, dev tools are not shipped.
     try:
         raw = run(
             [
                 "uv",
                 "export",
                 "--locked",
+                "--no-dev",
                 "--format",
                 UV_SBOM_FORMAT,
                 "--preview-features",
@@ -118,8 +120,7 @@ def normalize(document: dict[str, Any]) -> dict[str, Any]:
     document.get("metadata", {}).pop("timestamp", None)
 
     components = document.get("components", [])
-    components.sort(key=lambda item: (
-        item.get("name", ""), item.get("version", "")))
+    components.sort(key=lambda item: (item.get("name", ""), item.get("version", "")))
     dependencies = document.get("dependencies", [])
     dependencies.sort(key=lambda item: item.get("ref", ""))
 
@@ -132,8 +133,9 @@ def serialize(document: dict[str, Any]) -> str:
 
 def index_content(relative: str) -> str | None:
     """Return the content of a file as staged in the git index, if present."""
+    # `git show :<path>` rejects backslashes
     result = subprocess.run(
-        ["git", "show", f":{relative}"],
+        ["git", "show", f":{Path(relative).as_posix()}"],
         cwd=ROOT,
         check=False,
         capture_output=True,
@@ -199,14 +201,14 @@ def main() -> None:
             raise SystemExit(
                 "SBOMs are missing or outdated in the commit:\n"
                 + "\n".join(outdated)
-                + "\nRun: python3 scripts/generate_sbom.py"
+                + "\nRun: uv run --project apps/api python scripts/generate_sbom.py"
                 + "\nThen: git add Documentation/sbom/"
                 + "\nAnd commit again."
             )
         raise SystemExit(
             "SBOMs are missing or outdated:\n"
             + "\n".join(outdated)
-            + "\nRun: python3 scripts/generate_sbom.py"
+            + "\nRun: uv run --project apps/api python scripts/generate_sbom.py"
         )
 
 
