@@ -218,5 +218,3 @@ folders.
   libraries; FastAPI validates requests and generates the OpenAPI contract.
   React with TypeScript gives a typed, component-based UI.
 
-*Based on the architecture sketch from the team meeting on Saturday, 21.10.,
-review comments on issue #38, and the Docker Compose setup in `compose.yaml`.*
