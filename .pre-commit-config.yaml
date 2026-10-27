@@ -13,7 +13,7 @@ repos:
         entry: uv run --project apps/api python scripts/check_tool_versions.py
         language: system
         pass_filenames: false
-        files: ^(apps/api/(pyproject\.toml|Dockerfile)|apps/web/(package\.json|Dockerfile)|\.github/workflows/sbom-check\.yml|scripts/check_tool_versions\.py)$
+        files: ^(apps/api/(pyproject\.toml|Dockerfile)|apps/web/(package\.json|Dockerfile)|\.github/workflows/(sbom-check|api-tests|web-tests)\.yaml|scripts/check_tool_versions\.py)$
 
       - id: ruff-check
         name: ruff check

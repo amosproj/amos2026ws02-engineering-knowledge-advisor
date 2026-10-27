@@ -22,6 +22,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v10.3.2
         with:
+          version: "0.13.5"
           working-directory: apps/api
           enable-cache: true
 

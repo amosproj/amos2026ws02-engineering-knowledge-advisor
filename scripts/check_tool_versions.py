@@ -30,7 +30,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 PYPROJECT = ROOT / "apps" / "api" / "pyproject.toml"
 PACKAGE_JSON = ROOT / "apps" / "web" / "package.json"
-WORKFLOW = ROOT / ".github" / "workflows" / "sbom-check.yml"
+SBOM_WORKFLOW = ROOT / ".github" / "workflows" / "sbom-check.yaml"
+API_WORKFLOW = ROOT / ".github" / "workflows" / "api-tests.yaml"
+WEB_WORKFLOW = ROOT / ".github" / "workflows" / "web-tests.yaml"
 API_DOCKERFILE = ROOT / "apps" / "api" / "Dockerfile"
 WEB_DOCKERFILE = ROOT / "apps" / "web" / "Dockerfile"
 
@@ -59,7 +61,7 @@ def python_versions() -> dict[str, str | None]:
     match = re.search(r"(\d+\.\d+)", spec)
     return {
         label(PYPROJECT): match.group(1) if match else None,
-        label(WORKFLOW): search(WORKFLOW, PY_WORKFLOW_PATTERN),
+        label(SBOM_WORKFLOW): search(SBOM_WORKFLOW, PY_WORKFLOW_PATTERN),
         label(API_DOCKERFILE): search(API_DOCKERFILE, PY_DOCKERFILE_PATTERN),
     }
 
@@ -69,7 +71,8 @@ def uv_versions() -> dict[str, str | None]:
     required = pyproject.get("tool", {}).get("uv", {}).get("required-version", "")
     return {
         label(PYPROJECT): required.removeprefix("==") or None,
-        label(WORKFLOW): search(WORKFLOW, UV_WORKFLOW_PATTERN),
+        label(SBOM_WORKFLOW): search(SBOM_WORKFLOW, UV_WORKFLOW_PATTERN),
+        label(API_WORKFLOW): search(API_WORKFLOW, UV_WORKFLOW_PATTERN),
         label(API_DOCKERFILE): search(API_DOCKERFILE, UV_DOCKERFILE_PATTERN),
     }
 
@@ -77,13 +80,14 @@ def uv_versions() -> dict[str, str | None]:
 def npm_versions() -> dict[str, str | None]:
     return {
         label(PACKAGE_JSON): npm_package_manager_version(),
-        label(WORKFLOW): search(WORKFLOW, NPM_WORKFLOW_PATTERN),
+        label(SBOM_WORKFLOW): search(SBOM_WORKFLOW, NPM_WORKFLOW_PATTERN),
     }
 
 
 def node_versions() -> dict[str, str | None]:
     return {
-        label(WORKFLOW): search(WORKFLOW, NODE_WORKFLOW_PATTERN),
+        label(SBOM_WORKFLOW): search(SBOM_WORKFLOW, NODE_WORKFLOW_PATTERN),
+        label(WEB_WORKFLOW): search(WEB_WORKFLOW, NODE_WORKFLOW_PATTERN),
         label(WEB_DOCKERFILE): search(WEB_DOCKERFILE, NODE_DOCKERFILE_PATTERN),
     }
 
