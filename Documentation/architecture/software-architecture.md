@@ -5,9 +5,9 @@ subtitle: AMOS WS 2026/27, Team 02 - Sprint 02
 
 # 1. Runtime Overview
 
-Components at runtime and who calls whom. **Solid** boxes run in the current
-Docker Compose setup, **dashed** boxes are planned, **dotted grey** boxes are
-options the team has not decided yet.
+Components at runtime and who calls whom. **Solid** boxes are decided
+components, **dotted grey**
+boxes are options the team has not decided yet.
 
 ```mermaid
 flowchart TB
@@ -32,7 +32,7 @@ flowchart TB
         s3[("minio container<br/>S3 object storage<br/>CAD files, documents<br/>volume on disk")]
     end
 
-    subgraph prov["LLM providers"]
+    subgraph prov["LLM models"]
         hosted(["Hosted: GPT, Claude"])
         oss(["Open-source LLMs<br/>e.g. Qwen, self-hosted"])
     end
@@ -51,10 +51,8 @@ flowchart TB
     llm --> hosted
     llm --> oss
 
-    classDef planned stroke-dasharray: 6 4,fill:#f7f7f7;
     classDef open stroke-dasharray: 2 3,fill:#e6e6e6,color:#444;
-    class cad,llm,hosted,oss planned
-    class mcp,rag,agent open
+    class mcp,rag,agent,hosted,oss open
 ```
 
 **Main flows**
@@ -70,9 +68,8 @@ flowchart TB
 
 # 2. Code Overview
 
-Repository folders and backend modules. Dashed boxes are planned modules
-(proposed location), dotted grey boxes depend on open decisions. Arrows inside
-the backend show which module calls which.
+Repository folders and backend modules.  dotted grey boxes depend on open decisions.
+Arrows inside the backend show which module calls which.
 
 ```mermaid
 flowchart LR
@@ -118,9 +115,7 @@ flowchart LR
     web -- "HTTP /api/v1" --> api
     api ~~~ root
 
-    classDef planned stroke-dasharray: 6 4,fill:#f7f7f7;
     classDef open stroke-dasharray: 2 3,fill:#e6e6e6,color:#444;
-    class acad,allm,adb,amig planned
     class amcp,arag open
 ```
 
@@ -160,7 +155,8 @@ not decided yet.
 | Relational + vector DB | SQL | PostgreSQL + pgvector (`pgvector/pgvector:pg16`) | 16 |
 | Object storage | - | MinIO (`chainguard/minio`), S3 API | latest |
 | API contract | YAML / JSON | OpenAPI, exported from FastAPI | 3.1 |
-| LLM adapter | Python | own interface; GPT, Claude, open-source LLMs (e.g. Qwen) | *planned* |
+| LLM adapter | Python | own interface (`chat`, `embed`) | - |
+| LLM model | - |  GPT, Claude or open-source LLMs (e.g. Qwen) | *open* |
 | CAD parser | Python | STEP library (e.g. OpenCascade / pythonOCC) | *planned* |
 | RAG approach | Python | vanilla RAG or ontology-based OG-RAG | *open* |
 | Embedding model | - | to be chosen with the RAG approach | *open* |
