@@ -1,0 +1,40 @@
+name: SBOM check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - development
+
+jobs:
+  sbom:
+    name: Verify committed SBOMs are current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Keep the tool versions identical to the ones used locally, otherwise
+      # the generated inventories differ between machines.
+      - uses: astral-sh/setup-uv@v10.3.2
+        with:
+          version: "0.13.5"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24.22.1"
+
+      # npm writes its own version into the generated SBOM, so the version has
+      # to match packageManager in apps/web/package.json.
+      - name: Pin npm version
+        run: npm install -g npm@11.19.1
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Check tool versions are in sync
+        run: uv run --project apps/api python scripts/check_tool_versions.py
+
+      - name: Check SBOM freshness
+        run: uv run --project apps/api python scripts/generate_sbom.py --check

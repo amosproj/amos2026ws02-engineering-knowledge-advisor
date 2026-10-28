@@ -1,0 +1,18 @@
+-- Enable vector support for future semantic search features.
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Simple table to verify database initialization.
+CREATE TABLE IF NOT EXISTS init_test (
+    id SERIAL PRIMARY KEY,
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Insert a test row only if it does not already exist.
+INSERT INTO init_test (message)
+SELECT 'Database initialization works!'
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM init_test
+    WHERE message = 'Database initialization works!'
+);

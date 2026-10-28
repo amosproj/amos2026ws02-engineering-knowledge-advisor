@@ -1,0 +1,49 @@
+[project]
+name = "api"
+version = "0.1.0"
+description = "The backend API of the Engineering Knowledge Advisor. Exposes endpoints to interact with knowledge databases and LLMs."
+readme = "README.md"
+authors = [
+    { name = "Jost Nadwornik", email = "nadwornik@campus.tu-berlin.de" },
+    { name = "Leonid Drobischevskiy", email = "leonid.drobischevskiy@fau.de" },
+]
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.20.0",
+    "boto3>=1.43.116",
+    "fastapi>=0.156.8",
+    "starlette>=1.10.0",
+    "psycopg[binary]>=3.3.6",
+    "pydantic-settings>=2.16.1",
+    "sqlalchemy>=2.1.5",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.4,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+# Matches the Dockerfile and CI; uv export --format cyclonedx1.5 needs >=0.13.
+required-version = "==0.13.5"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16.0",
+    "pre-commit>=4.7.0",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "ruff>=0.17.2",
+]
+
+[tool.pytest.ini_options]
+pythonpath = [ "src" ]
+testpaths = [ "tests" ]
+
+[tool.pyright]
+include = [ "src", "tests" ]
+extraPaths = [ "src", "../../scripts" ]
+pythonVersion = "3.13"
+
+[tool.ruff]
+src = [ "src" ]

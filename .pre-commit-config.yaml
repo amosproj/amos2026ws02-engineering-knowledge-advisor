@@ -1,0 +1,42 @@
+repos:
+  - repo: local
+    hooks:
+      - id: check-sbom
+        name: Check SBOMs are up to date
+        entry: uv run --project apps/api python scripts/generate_sbom.py --staged
+        language: system
+        pass_filenames: false
+        files: ^(apps/api/(pyproject\.toml|uv\.lock)|apps/web/(package\.json|package-lock\.json)|scripts/generate_sbom\.py|Documentation/sbom/.*\.json|\.pre-commit-config\.yaml)$
+
+      - id: check-tool-versions
+        name: Check Python, uv, npm and Node versions are in sync
+        entry: uv run --project apps/api python scripts/check_tool_versions.py
+        language: system
+        pass_filenames: false
+        files: ^(apps/api/(pyproject\.toml|Dockerfile)|apps/web/(package\.json|Dockerfile)|\.github/workflows/(sbom-check|api-tests|web-tests)\.yaml|scripts/check_tool_versions\.py)$
+
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --project apps/api/ ruff check --fix
+        language: system
+        types_or: [python, pyi]
+
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --project apps/api/ ruff format
+        language: system
+        types_or: [python, pyi]
+
+      - id: pyright
+        name: pyright
+        entry: uv run --project apps/api pyright --project apps/api
+        language: system
+        pass_filenames: false
+        types_or: [python, pyi]
+
+      - id: pytest
+        name: pytest
+        entry: uv run --directory apps/api pytest -q
+        language: system
+        pass_filenames: false
+        types_or: [python]
