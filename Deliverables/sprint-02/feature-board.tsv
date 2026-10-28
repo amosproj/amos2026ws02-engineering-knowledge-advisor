@@ -1,0 +1,27 @@
+Title	URL	Assignees	Status	Estimated size	Real size
+S3-0 Define data model v0 for machines, assembly groups and knowledge	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/5		Product Backlog		
+S3-1 Implement data model v0 as database migrations	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/51		Product Backlog		
+S3-2 Import the assembly tree of a STEP file	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/6		Product Backlog		
+S3-3 Provide machine and assembly tree endpoints	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/52		Product Backlog		
+S3-4 Show machines and their assembly tree	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/53		Product Backlog		
+S3-5 Upload a STEP file from the user interface	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/54		Product Backlog		
+S3-7 Design the main user flows	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/55		Product Backlog		
+S3-8 Set up the CI pipeline	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/25		Product Backlog		
+S3-9 Set up a staging environment with automatic deployment	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/56		Product Backlog		
+S4-2 Label an assembly group	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/10		Product Backlog		
+S4-4 Store knowledge items with type and scope	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/11		Product Backlog		
+S4-7 Connect LLMs through an adapter	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/30		Product Backlog		
+SX-Y Find assembly groups by function, part size and loading mode	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/13		Product Backlog		
+SX-Y Display Search Results	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/14		Product Backlog		
+Map out the data that we receive	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/33		Sprint Backlog		
+Check our requirements for testing	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/34		Sprint Backlog		
+Create PDF of software architecture description and upload to Deliverables folder	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/38	mgulbazilyas	In Progress		
+Initialize software bill of materials with your dependencies	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/37	mgulbazilyas	Awaiting Review		
+Setup Frontend	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/27	franktronics	Awaiting Review		
+Setup Backend	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/26	le-db	Awaiting Review		
+Setup repository structure	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/23	Jost-Na	Awaiting Review		
+Setup Docker Compose	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/31	Jost-Na	Awaiting Review	3	
+Setup database	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/28	Jost-Na	Awaiting Review		
+Setup Object Storage	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/29	Jost-Na	Awaiting Review		
+Setup README	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/24	Jost-Na	Awaiting Review		
+Review CAD parsing needs for STEP files	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/4	ChristianJPohl	Awaiting Review	5	
