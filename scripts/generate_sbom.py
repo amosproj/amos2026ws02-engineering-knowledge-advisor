@@ -5,6 +5,9 @@ The inventories are derived from the committed lockfiles:
 * ``apps/api/uv.lock`` -> ``Documentation/sbom/api.cdx.json``
 * ``apps/web/package-lock.json`` -> ``Documentation/sbom/web.cdx.json``
 
+The API inventory is enriched with license information read from the package
+metadata of the locked wheels, because ``uv export`` does not emit licenses.
+
 Run without arguments to write the files, with ``--check`` to verify that the
 committed files are up to date (used by CI), and with ``--staged`` to verify
 that the files staged for a commit are up to date (used by the pre-commit
@@ -14,9 +17,13 @@ hook).
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
+import re
 import shutil
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +41,50 @@ NPM_SBOM_TYPE = "application"
 
 API_SBOM_FILE = "api.cdx.json"
 WEB_SBOM_FILE = "web.cdx.json"
+
+# License metadata is read from wheels resolved for the API container runtime
+# (python:3.13-slim on Linux), so platform-specific packages such as uvloop are
+# covered regardless of the machine running the generator.
+API_PYTHON_VERSION_FILE = API_DIR / ".python-version"
+API_PYTHON_PLATFORM = "linux"
+
+# Free-text ``License`` fields that unambiguously name one SPDX license.
+LICENSE_TEXT_TO_SPDX = {
+    "apache-2.0": "Apache-2.0",
+    "apache 2.0": "Apache-2.0",
+    "apache license 2.0": "Apache-2.0",
+    "apache license, version 2.0": "Apache-2.0",
+    "bsd-2-clause": "BSD-2-Clause",
+    "bsd-3-clause": "BSD-3-Clause",
+    "isc": "ISC",
+    "lgpl-3.0-only": "LGPL-3.0-only",
+    "mit": "MIT",
+    "mit license": "MIT",
+    "mpl-2.0": "MPL-2.0",
+    "psf-2.0": "PSF-2.0",
+}
+
+# Trove classifiers that unambiguously name one SPDX license. "BSD License" is
+# deliberately missing: it does not say which BSD variant applies.
+CLASSIFIER_TO_SPDX = {
+    "License :: OSI Approved :: Apache Software License": "Apache-2.0",
+    "License :: OSI Approved :: ISC License (ISCL)": "ISC",
+    "License :: OSI Approved :: MIT License": "MIT",
+    "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)": "MPL-2.0",
+    "License :: OSI Approved :: Python Software Foundation License": "PSF-2.0",
+}
+
+# Packages whose metadata is ambiguous or incomplete, checked against the
+# license files shipped with the package. Review these on version bumps.
+LICENSE_OVERRIDES = {
+    # Metadata says "Dual License" with a generic BSD classifier; the LICENSE
+    # file applies Apache-2.0 to newer contributions and BSD-3-Clause to all.
+    "python-dateutil": "Apache-2.0 AND BSD-3-Clause",
+    # Ships LICENSE-APACHE and LICENSE-MIT, but the License field names only MIT.
+    "uvloop": "Apache-2.0 OR MIT",
+}
+
+SPDX_ID = re.compile(r"^[A-Za-z0-9.+-]+$")
 
 
 def run(command: list[str], cwd: Path) -> str:
@@ -80,7 +131,136 @@ def build_api_sbom() -> dict[str, Any]:
             "If apps/api/uv.lock is out of date, run: uv lock --directory apps/api"
         ) from error
 
-    return normalize(json.loads(raw))
+    document = json.loads(raw)
+    add_api_licenses(document)
+    return normalize(document)
+
+
+def canonical_name(name: str) -> str:
+    """Normalize a Python package name as specified by PEP 503."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def locked_requirements(components: list[dict[str, Any]]) -> str:
+    """Pin every component to its locked version and artifact hashes."""
+    lines = []
+    for component in components:
+        hashes = sorted(
+            {
+                f"--hash=sha256:{item['content']}"
+                for reference in component.get("externalReferences", [])
+                for item in reference.get("hashes", [])
+                if item.get("alg") == "SHA-256"
+            }
+        )
+        lines.append(
+            " ".join([f"{component['name']}=={component['version']}", *hashes])
+        )
+    return "\n".join(lines) + "\n"
+
+
+def read_package_metadata(
+    components: list[dict[str, Any]],
+) -> dict[str, importlib.metadata.PackageMetadata]:
+    """Install the locked artifacts into a temporary directory and read them."""
+    python_version = API_PYTHON_VERSION_FILE.read_text(encoding="utf-8").strip()
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        requirements = Path(temp_dir) / "requirements.txt"
+        requirements.write_text(locked_requirements(components), encoding="utf-8")
+        target = Path(temp_dir) / "site-packages"
+
+        # --no-deps installs exactly the locked set, including packages whose
+        # environment markers exclude them on the target platform (tzdata).
+        try:
+            run(
+                [
+                    "uv",
+                    "pip",
+                    "install",
+                    "--quiet",
+                    "--no-deps",
+                    "--require-hashes",
+                    "--target",
+                    str(target),
+                    "--python-version",
+                    python_version,
+                    "--python-platform",
+                    API_PYTHON_PLATFORM,
+                    "--requirement",
+                    str(requirements),
+                ],
+                ROOT,
+            )
+        except subprocess.CalledProcessError as error:
+            raise SystemExit(
+                f"Reading API package metadata failed:\n{error.stderr}"
+            ) from error
+
+        return {
+            canonical_name(distribution.metadata["Name"]): distribution.metadata
+            for distribution in importlib.metadata.distributions(path=[str(target)])
+        }
+
+
+def resolve_license(
+    name: str, metadata: importlib.metadata.PackageMetadata | None
+) -> str | None:
+    """Return an SPDX license expression for a package, or None if unknown."""
+    if name in LICENSE_OVERRIDES:
+        return LICENSE_OVERRIDES[name]
+    if metadata is None:
+        return None
+
+    # PEP 639 field: already a validated SPDX expression.
+    expression = metadata.get("License-Expression")
+    if expression:
+        return expression.strip()
+
+    text = " ".join((metadata.get("License") or "").split()).lower()
+    if text in LICENSE_TEXT_TO_SPDX:
+        return LICENSE_TEXT_TO_SPDX[text]
+
+    classifiers = [
+        classifier
+        for classifier in metadata.get_all("Classifier") or []
+        if classifier.startswith("License ::")
+    ]
+    # Several license classifiers do not say whether they combine with AND or OR.
+    if len(classifiers) == 1 and classifiers[0] in CLASSIFIER_TO_SPDX:
+        return CLASSIFIER_TO_SPDX[classifiers[0]]
+
+    return None
+
+
+def license_entry(expression: str) -> dict[str, Any]:
+    """Format an SPDX expression as a CycloneDX license choice."""
+    if SPDX_ID.match(expression):
+        return {"license": {"id": expression}}
+    return {"expression": expression}
+
+
+def add_api_licenses(document: dict[str, Any]) -> None:
+    """Attach licenses to the API components, which uv export leaves out."""
+    components = document.get("components", [])
+    metadata = read_package_metadata(components)
+
+    unresolved = []
+    for component in components:
+        name = canonical_name(component["name"])
+        expression = resolve_license(name, metadata.get(name))
+        if expression is None:
+            unresolved.append(f"{component['name']}=={component['version']}")
+            continue
+        component["licenses"] = [license_entry(expression)]
+
+    if unresolved:
+        print(
+            "Warning: no license found for: "
+            + ", ".join(unresolved)
+            + ". Add an entry to LICENSE_OVERRIDES in scripts/generate_sbom.py.",
+            file=sys.stderr,
+        )
 
 
 def build_web_sbom() -> dict[str, Any]:
