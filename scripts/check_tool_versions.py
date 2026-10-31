@@ -10,8 +10,8 @@ pins it must match:
   (also pinned in the SBOM workflow and ``apps/api/Dockerfile``)
 * npm: ``packageManager`` in ``apps/web/package.json``
   (also pinned in the SBOM workflow)
-* Node: ``node-version`` in the SBOM workflow
-  (also pinned in ``apps/web/Dockerfile``)
+* Node: the latest-LTS alias in the SBOM and web-test workflows
+  (also used in ``apps/web/Dockerfile``)
 
 The API Dockerfile must also install with ``--no-dev``, because the API
 SBOM only covers non-dev dependencies.
@@ -42,8 +42,8 @@ PY_DOCKERFILE_PATTERN = r"FROM python:([\d.]+)"
 UV_WORKFLOW_PATTERN = r"setup-uv@.*\n\s+with:\n\s+version:\s*\"?([\d.]+)"
 UV_DOCKERFILE_PATTERN = r"ghcr\.io/astral-sh/uv:([\d.]+)"
 NPM_WORKFLOW_PATTERN = r"npm install -g npm@([\d.]+)"
-NODE_WORKFLOW_PATTERN = r"node-version:\s*\"?([\d.]+)"
-NODE_DOCKERFILE_PATTERN = r"FROM node:([\d.]+)"
+NODE_WORKFLOW_PATTERN = r'node-version:\s*"?((?:lts)/\*)"?'
+NODE_DOCKERFILE_PATTERN = r"FROM node:(lts)-alpine"
 
 
 def label(path: Path) -> str:
@@ -86,8 +86,12 @@ def npm_versions() -> dict[str, str | None]:
 
 def node_versions() -> dict[str, str | None]:
     return {
-        label(SBOM_WORKFLOW): search(SBOM_WORKFLOW, NODE_WORKFLOW_PATTERN),
-        label(WEB_WORKFLOW): search(WEB_WORKFLOW, NODE_WORKFLOW_PATTERN),
+        label(SBOM_WORKFLOW): "lts"
+        if search(SBOM_WORKFLOW, NODE_WORKFLOW_PATTERN)
+        else None,
+        label(WEB_WORKFLOW): "lts"
+        if search(WEB_WORKFLOW, NODE_WORKFLOW_PATTERN)
+        else None,
         label(WEB_DOCKERFILE): search(WEB_DOCKERFILE, NODE_DOCKERFILE_PATTERN),
     }
 

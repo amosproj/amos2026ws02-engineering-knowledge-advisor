@@ -235,6 +235,13 @@ S3_BUCKET=engineering-documents
 S3_REGION=us-east-1
 ```
 
+Set `WEB_PROFILE=dev` in `.env` to run the frontend using Vite with hot reload.
+Set `WEB_PROFILE=prod` or ommitt it to serve the built frontend through Nginx. Rebuild after changing this value:
+
+```powershell
+docker compose up --build
+```
+
 The same file holds the frontend configuration. [`VITE_*` variables](https://vite.dev/guide/env-and-mode):
 
 - are **PUBLIC**: they are embedded in the browser bundle and readable by anyone
@@ -265,16 +272,19 @@ If it reports missing variables or configuration errors, check that you created 
 This will install the pre-commit Git hook and auto-init venv based on apps/api/pyproject.toml
 
 From the repository root, run:
+
 ```sh
 uv run --directory apps/api pre-commit install  # will also run uv sync
 ```
 
 (optional) manual test-run:
+
 ```sh
 uv run --directory apps/api pre-commit
 ```
 
 To uninstall the hook:
+
 ```sh
 uv run --directory apps/api pre-commit uninstall
 ```
@@ -290,7 +300,7 @@ docker compose up --build
 Docker Compose will:
 
 1. Pull the required base images if they are not available locally.
-2. Build the frontend and backend images.
+2. Build the frontend and backend images, using the mode selected by `WEB_PROFILE`.
 3. Create the required Docker network and persistent volumes.
 4. Start PostgreSQL, MinIO, the API, and the web server in dependency order.
 5. Display service logs in the terminal.
@@ -327,7 +337,9 @@ Open:
 
 [http://localhost:8080](http://localhost:8080)
 
-The React frontend should load through Nginx.
+With `WEB_PROFILE=dev`, the React frontend runs through Vite and source changes
+are picked up automatically. With `WEB_PROFILE=prod`, the built frontend is
+served through Nginx.
 
 ### API health check
 
