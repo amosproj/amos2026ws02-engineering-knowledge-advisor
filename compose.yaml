@@ -3,19 +3,39 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      target: ${APP_ENV:-prod}
       args:
         VITE_API_URL: ${VITE_API_URL:-}
+    environment:
+      # Only used by the Vite dev server (APP_ENV=dev): where it proxies /api
+      WEB_API_PROXY_TARGET: http://api:8000
     ports:
       - "127.0.0.1:8080:80"
     depends_on:
       api:
         condition: service_healthy
     restart: unless-stopped
+    # Hot reload, only active with `docker compose up --watch` (APP_ENV=dev)
+    develop:
+      watch:
+        - action: rebuild
+          path: ./apps/web/package.json
+        - action: rebuild
+          path: ./apps/web/package-lock.json
+        - action: sync
+          path: ./apps/web
+          target: /app
+          ignore:
+            - node_modules/
+            - dist/
+            - package.json
+            - package-lock.json
 
   api:
     build:
       context: apps/api
       dockerfile: Dockerfile
+      target: ${APP_ENV:-prod}
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       S3_ENDPOINT_URL: http://minio:9000
@@ -42,6 +62,17 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
+    develop:
+      watch:
+        - action: rebuild
+          path: ./apps/api/pyproject.toml
+        - action: rebuild
+          path: ./apps/api/uv.lock
+        - action: sync
+          path: ./apps/api/src
+          target: /app/src
+          ignore:
+            - __pycache__/
 
   db:
     image: pgvector/pgvector:pg16
