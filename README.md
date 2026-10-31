@@ -299,6 +299,21 @@ The first startup may take several minutes, depending on your internet connectio
 
 When startup completes, keep this terminal open to see the logs.
 
+### Development mode (hot reload)
+
+The `APP_ENV` variable in `.env` selects the environment used by Docker Compose and passed to the Dockerfiles (`dev` and `prod` stages):
+
+| `APP_ENV`        | Command                              | What you get                                                                    |
+| ---------------- | ------------------------------------ | ------------------------------------------------------------------------------- |
+| `prod` (default) | `docker compose up --build`          | Built frontend served by Nginx, API without reload.                             |
+| `dev`            | `docker compose up --build --watch`  | Vite dev server (HMR) and API with auto-reload: code changes apply instantly.   |
+
+Both modes serve the app on [http://localhost:8080](http://localhost:8080). Only the web port is published on the host: the API, PostgreSQL and MinIO stay inside the Docker network.
+
+In `dev` mode, `--watch` synchronizes your source changes into the containers and rebuilds the image when `apps/web/package*.json`, `apps/api/pyproject.toml` or `apps/api/uv.lock` change. Do not use `--watch` with `APP_ENV=prod`.
+
+After changing `APP_ENV`, stop the stack (`docker compose down`) and start it again with `--build`.
+
 ### Run in the background
 
 If you prefer to use the terminal for other tasks, start the application in detached mode:

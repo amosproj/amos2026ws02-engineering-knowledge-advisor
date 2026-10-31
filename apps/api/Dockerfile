@@ -1,6 +1,6 @@
 
 # Use the official Python image
-FROM python:3.13-slim
+FROM python:3.13-slim AS base
 
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /bin/
@@ -29,5 +29,11 @@ RUN useradd --create-home appuser \
 USER appuser
 
 EXPOSE 8000
+
+FROM base AS dev
+
+CMD ["uv", "run", "--no-sync", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app/src"]
+
+FROM base AS prod
 
 CMD ["uv", "run", "--no-sync", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
