@@ -50,7 +50,7 @@ Use the same uv and npm versions locally and in CI: npm records its generator ve
 | npm    | `packageManager` in `apps/web/package.json`       | `sbom-check` workflow                          |
 | Node   | `node-version` in the `sbom-check` workflow       | `apps/web/Dockerfile`                          |
 
-`scripts/check_tool_versions.py` fails if any of these disagree, or if `apps/api/Dockerfile` stops installing with `--no-dev` (the API SBOM only covers non-dev dependencies); it runs as a pre-commit hook and in CI. The generator also refuses to run with a local npm that differs from `packageManager`. To bump a version, update every place in its row.
+`scripts/check_tool_versions.py` fails if any pinned tool versions disagree, if Node is not using the latest-LTS alias in both workflows and the web Dockerfile, or if `apps/api/Dockerfile` stops installing with `--no-dev` (the API SBOM only covers non-dev dependencies); it runs as a pre-commit hook and in CI. The generator also refuses to run with a local npm that differs from `packageManager`. To bump a pinned version, update every place in its row.
 
 ## Underlying commands
 

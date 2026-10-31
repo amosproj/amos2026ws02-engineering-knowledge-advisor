@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Keep the tool versions identical to the ones used locally, otherwise
+      # Keep pinned tool versions identical to the ones used locally, otherwise
       # the generated inventories differ between machines.
       - uses: astral-sh/setup-uv@v10.3.2
         with:
@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "24.22.1"
+          node-version: "lts/*"
 
       # npm writes its own version into the generated SBOM, so the version has
       # to match packageManager in apps/web/package.json.
