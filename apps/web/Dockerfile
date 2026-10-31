@@ -1,6 +1,6 @@
 ARG WEB_PROFILE=prod
 
-FROM node:alpine AS web-base
+FROM node:lts-alpine AS web-base
 
 WORKDIR /app
 
