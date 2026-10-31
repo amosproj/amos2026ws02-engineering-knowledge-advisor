@@ -1,0 +1,12 @@
+# Override used by 'npm run dev': publishes the infrastructure services on localhost
+# so the API and web app running outside Docker can reach them.
+services:
+  db:
+    ports:
+      # Set POSTGRES_PORT in .env if 5432 is already used by a local PostgreSQL
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+
+  minio:
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
