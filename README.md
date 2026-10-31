@@ -236,8 +236,7 @@ S3_REGION=us-east-1
 ```
 
 Set `WEB_PROFILE=dev` in `.env` to run the frontend using Vite with hot reload.
-Set `WEB_PROFILE=prod` to serve the built frontend through Nginx. If omitted,
-Compose defaults to `prod`. Rebuild after changing this value:
+Set `WEB_PROFILE=prod` or ommitt it to serve the built frontend through Nginx. Rebuild after changing this value:
 
 ```powershell
 docker compose up --build
@@ -273,16 +272,19 @@ If it reports missing variables or configuration errors, check that you created 
 This will install the pre-commit Git hook and auto-init venv based on apps/api/pyproject.toml
 
 From the repository root, run:
+
 ```sh
 uv run --directory apps/api pre-commit install  # will also run uv sync
 ```
 
 (optional) manual test-run:
+
 ```sh
 uv run --directory apps/api pre-commit
 ```
 
 To uninstall the hook:
+
 ```sh
 uv run --directory apps/api pre-commit uninstall
 ```
