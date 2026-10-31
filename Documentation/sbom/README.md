@@ -4,7 +4,7 @@ CycloneDX 1.5 inventories for the application dependencies of this repository.
 
 | File             | Source of truth                    | Contents                                       |
 | ---------------- | ---------------------------------- | ---------------------------------------------- |
-| `api.cdx.json`   | `apps/api/uv.lock`                 | Python packages resolved for the API            |
+| `api.cdx.json`   | `apps/api/uv.lock`                 | Python packages resolved for the API, with licenses |
 | `web.cdx.json`   | `apps/web/package-lock.json`       | npm packages resolved for the frontend          |
 
 ## Regeneration
@@ -28,7 +28,7 @@ uv tool install pre-commit
 pre-commit install
 ```
 
-The hook requires uv and npm on your `PATH`; uv provides the pinned Python. It only runs when `apps/api/pyproject.toml`, `apps/api/uv.lock`, `apps/web/package.json`, `apps/web/package-lock.json`, the generator script, or the SBOM files themselves are staged.
+The hook requires Python, uv, and npm on your `PATH`, and network access the first time it reads the API package metadata (see [Licenses](#licenses)). It only runs when `apps/api/pyproject.toml`, `apps/api/uv.lock`, `apps/web/package.json`, `apps/web/package-lock.json`, the generator script, or the SBOM files themselves are staged.
 
 If the staged SBOMs are missing or outdated, the commit stops and nothing is committed. Regenerate the files, review them, stage them, and commit again:
 
@@ -69,6 +69,20 @@ uv export --locked --format cyclonedx1.5 --preview-features sbom-export --direct
 ```
 
 `--locked` fails if `uv.lock` does not match `pyproject.toml`, so a stale lockfile cannot produce an SBOM.
+
+## Licenses
+
+`npm sbom` reads licenses from `package.json`, so `web.cdx.json` contains them directly. `uv export` reads only `uv.lock`, which records no license data, so the generator adds licenses to `api.cdx.json` afterwards:
+
+1. Every exported component is installed with `uv pip install --no-deps --require-hashes --target <temp dir>`, pinned to its locked version and hashes and resolved for the API runtime (Python from `apps/api/.python-version`, Linux). Platform-specific packages such as `uvloop` and `tzdata` are therefore covered on any machine. The project environment is not touched.
+2. The license is read from the package metadata, in this order: an entry in `LICENSE_OVERRIDES`, the PEP 639 `License-Expression` field, a `License` field that names exactly one SPDX license, a single unambiguous `License ::` classifier.
+3. A single SPDX identifier is written as `license.id`; a compound expression as `expression`.
+
+Packages that cannot be resolved get no `licenses` entry and are reported as a warning. Resolve them by checking the license files shipped with the package and adding an entry to `LICENSE_OVERRIDES` in `scripts/generate_sbom.py`. Review the existing overrides when those packages are upgraded.
+
+The licenses come from the metadata the package authors publish. No manual legal review has been done.
+
+The wheels are downloaded from PyPI the first time and served from the uv cache afterwards, so generating the SBOM needs network access on a clean machine.
 
 ## Scope
 
