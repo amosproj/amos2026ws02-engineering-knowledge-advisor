@@ -12,6 +12,7 @@ The project uses a containerized web application architecture with a React front
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
 - [Starting the Application](#starting-the-application)
+- [Staging Deployment](#staging-deployment)
 - [Testing the Services](#testing-the-services)
 - [Stopping the Application](#stopping-the-application)
 - [Development Workflow](#development-workflow)
@@ -328,6 +329,26 @@ To view the status of the services:
 ```powershell
 docker compose ps
 ```
+
+## Staging Deployment
+
+The deployment workflow builds and pushes the frontend and API Docker images to the `ekadvisor` Docker Hub account, using the following repositories:
+
+- `engineering-knowledge-advisor-web`
+- `engineering-knowledge-advisor-api`
+
+### Automatic Deployment of Updated Images
+
+A service running on the VPS checks the Docker Hub repositories for new images every two minutes. When an updated image is detected, the service automatically pulls the latest image and restarts the corresponding application service.
+
+**Note:** Automatic updates apply only to the frontend and API images. PostgreSQL, MinIO and other components are not updated automatically.
+
+### Rolling Back a Deployment
+
+If a deployment needs to be rolled back, there are two options:
+
+1. **Create a corrective release:** Build and deploy a new release containing the required fixes.
+2. **Revert to a previous image:** Log in to the team's Docker Hub account and retag a previously deployed image as `latest`. The VPS service will detect the updated tag and pull the corresponding image during its next check.
 
 ## Testing the Services
 
