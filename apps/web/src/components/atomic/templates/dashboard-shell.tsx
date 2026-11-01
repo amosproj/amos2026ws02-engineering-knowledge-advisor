@@ -38,6 +38,7 @@ export type DashboardNavConfig = {
 
 type DashboardShellProps = {
     navConfig: DashboardNavConfig
+    headerActions?: React.ReactNode
     children?: React.ReactNode
 }
 
@@ -83,7 +84,7 @@ function NavSection({ items, pathname }: { items: readonly DashboardNavItem[]; p
     )
 }
 
-export function DashboardShell({ navConfig, children }: DashboardShellProps) {
+export function DashboardShell({ navConfig, headerActions, children }: DashboardShellProps) {
     const pathname = useRouterState({ select: (state) => state.location.pathname })
 
     const activeTitle = [...navConfig.navMenu, ...navConfig.navFooter].find((item) =>
@@ -107,15 +108,20 @@ export function DashboardShell({ navConfig, children }: DashboardShellProps) {
                 <SidebarRail />
             </Sidebar>
             <SidebarInset>
-                <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-                    <div className="flex items-center gap-2 px-4">
+                <header className="flex h-16 shrink-0 items-center justify-between gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+                    <div className="flex min-w-0 items-center gap-2 px-4">
                         <SidebarTrigger className="-ml-1" />
                         <Separator
                             orientation="vertical"
                             className="mr-2 data-vertical:h-4 data-vertical:self-auto"
                         />
-                        <span className="text-sm font-medium">{activeTitle ?? APP_NAME}</span>
+                        <span className="truncate text-sm font-medium">
+                            {activeTitle ?? APP_NAME}
+                        </span>
                     </div>
+                    {headerActions ? (
+                        <div className="flex shrink-0 items-center gap-2 px-4">{headerActions}</div>
+                    ) : null}
                 </header>
                 <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 pt-0">
                     {children}
