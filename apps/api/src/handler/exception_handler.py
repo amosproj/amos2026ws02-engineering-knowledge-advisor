@@ -2,34 +2,37 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException
 
+from api.router_basic import RESPONSE_DETAIL_422
 from logger import logger
 from model.problem import ProblemException, ProblemResponse
 
+LOG_UNHANDLED: str = "Unhandled exception"
 
-async def handle_problem(request: Request, e: ProblemException) -> ProblemResponse:
-    problem = e.problem
+
+async def handle_problem(request: Request, exc: ProblemException) -> ProblemResponse:
+    problem = exc.problem
     if problem.instance is None:
         problem = problem.model_copy(update={"instance": request.url.path})
-    return ProblemResponse(problem, headers=e.headers)
+    return ProblemResponse(problem, headers=exc.headers)
 
 
-async def handle_http(request: Request, e: HTTPException) -> ProblemResponse:
-    detail = e.detail if isinstance(e.detail, str) else None
+async def handle_http(request: Request, exc: HTTPException) -> ProblemResponse:
+    detail = exc.detail if isinstance(exc.detail, str) else None
     return ProblemResponse.from_status(
-        e.status_code, detail, instance=request.url.path, headers=e.headers
+        exc.status_code, detail, instance=request.url.path, headers=exc.headers
     )
 
 
 async def handle_validation(
-    request: Request, e: RequestValidationError
+    request: Request, exc: RequestValidationError
 ) -> ProblemResponse:
     return ProblemResponse.from_status(
-        422, "Request validation failed", instance=request.url.path, errors=e.errors()
+        422, RESPONSE_DETAIL_422, instance=request.url.path, errors=exc.errors()
     )
 
 
-async def handle_unexpected(request: Request, e: Exception) -> ProblemResponse:
-    logger.exception("Unhandled exception", exc_info=e)
+async def handle_unexpected(request: Request, exc: Exception) -> ProblemResponse:
+    logger.exception(LOG_UNHANDLED, exc_info=exc)
     return ProblemResponse.from_status(500, instance=request.url.path)
 
 

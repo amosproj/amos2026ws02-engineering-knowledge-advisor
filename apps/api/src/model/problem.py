@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from http import HTTPStatus
-from typing import Any
 
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.background import BackgroundTask
+
+from services import JsonObject
 
 DEFAULT_PROBLEM_TYPE: str = "about:blank"
 
@@ -52,23 +53,25 @@ class Problem(BaseModel):
 
     @field_validator("type")
     @classmethod
-    def _type_not_empty(cls, v: str) -> str:
-        return v or DEFAULT_PROBLEM_TYPE
+    def _type_not_empty(cls, value: str) -> str:
+        return value or DEFAULT_PROBLEM_TYPE
 
     @classmethod
     def from_status(
-        cls, status: int, detail: str | None = None, **extensions: Any
+        cls, status: int, detail: str | None = None, **extensions: object
     ) -> Problem:
-        """Build an 'about:blank' problem. Its title should match the status phrase (§4.2.1)"""
-        return cls(
-            type=DEFAULT_PROBLEM_TYPE,
-            title=HTTPStatus(status).phrase,
-            status=status,
-            detail=detail,
-            **extensions,
+        """Build an 'about:blank' problem. Its title should match the ``status`` phrase (§4.2.1)"""
+        return cls.model_validate(
+            {
+                "type": DEFAULT_PROBLEM_TYPE,
+                "title": HTTPStatus(status).phrase,
+                "status": status,
+                "detail": detail,
+                **extensions,
+            }
         )
 
-    def to_response_body(self) -> dict[str, Any]:
+    def to_response_body(self) -> JsonObject:
         return self.model_dump(mode="json", exclude_none=True, fallback=str)
 
 
@@ -82,12 +85,12 @@ class ProblemResponse(JSONResponse):
         *,
         headers: Mapping[str, str] | None = None,
         background: BackgroundTask | None = None,
-        **fields: Any,
+        **fields: object,
     ) -> None:
         if problem is None:
-            problem = Problem(**fields)
+            problem = Problem.model_validate(fields)
         elif fields:
-            problem = Problem(**{**problem.model_dump(), **fields})
+            problem = Problem.model_validate({**problem.model_dump(), **fields})
 
         status = problem.status if problem.status is not None else self.default_status
         problem = problem.model_copy(update={"status": status})
@@ -108,6 +111,6 @@ class ProblemResponse(JSONResponse):
         detail: str | None = None,
         *,
         headers: Mapping[str, str] | None = None,
-        **extensions: Any,
+        **extensions: object,
     ) -> ProblemResponse:
         return cls(Problem.from_status(status, detail, **extensions), headers=headers)
