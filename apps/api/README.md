@@ -30,6 +30,8 @@ uv run --directory apps/api alembic revision --autogenerate -m "what changed"   
 uv run --directory apps/api alembic check                                       # models and migrations agree
 ```
 
+Text columns: `String` (`varchar` without a length) for ids and short values, `Text` for free form text. Postgres stores both the same way. To set a limit, use ``varchar(n)``.
+
 ## Knowledge records (OG-RAG)
 
 Loaded on start with the ontology. Invalid ontology stops the start.
