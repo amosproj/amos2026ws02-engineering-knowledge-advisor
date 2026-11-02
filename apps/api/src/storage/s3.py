@@ -12,6 +12,8 @@ from logger import logger
 
 BUCKET_CHECK_ATTEMPTS = 30
 BUCKET_CHECK_DELAY_SECONDS = 2
+UPLOAD_FORM_EXPIRES_SECONDS = 3600
+UPLOAD_CONTENT_TYPE = "application/octet-stream"
 
 
 @lru_cache
@@ -70,6 +72,23 @@ def ensure_bucket() -> None:
         time.sleep(BUCKET_CHECK_DELAY_SECONDS)
 
     raise RuntimeError("Object storage did not become ready") from last_error
+
+
+def create_upload_form(key: str, size: int) -> tuple[str, dict[str, str]]:
+    settings = get_settings()
+    form = get_s3_client().generate_presigned_post(
+        Bucket=settings.s3_bucket,
+        Key=key,
+        Fields={"Content-Type": UPLOAD_CONTENT_TYPE},
+        Conditions=[
+            {"Content-Type": UPLOAD_CONTENT_TYPE},
+            ["content-length-range", size, size],
+        ],
+        ExpiresIn=UPLOAD_FORM_EXPIRES_SECONDS,
+    )
+    # The browser reaches MinIO through a same-origin proxy, not the internal endpoint
+    url = f"{settings.s3_public_url.rstrip('/')}/{settings.s3_bucket}"
+    return url, form["fields"]
 
 
 if __name__ == "__main__":

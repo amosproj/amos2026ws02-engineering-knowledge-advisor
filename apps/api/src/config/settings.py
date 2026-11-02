@@ -21,8 +21,9 @@ class Settings(BaseSettings):
     s3_access_key: str = Field(validation_alias="S3_ACCESS_KEY")
     s3_secret_key: SecretStr = Field(validation_alias="S3_SECRET_KEY")
     s3_region: str = Field(validation_alias="S3_REGION")
+    s3_public_url: str = Field(validation_alias="S3_PUBLIC_URL")
 
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    return Settings()  # pyright: ignore[reportCallIssue]

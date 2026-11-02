@@ -16,13 +16,13 @@ def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_settings_env(isolated: Path):
     env: Path = isolated / ".env"
     env.write_text("API_PROFILE=prod")
-    assert Settings().profile == "prod"
+    assert Settings().profile == "prod"  # pyright: ignore[reportCallIssue]
 
 
 def test_settings_reject_unknowns(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("API_PROFILE", "thisprofiledoesnotexist")
     with pytest.raises(ValidationError):
-        Settings()
+        Settings()  # pyright: ignore[reportCallIssue]
 
 
 def test_settings_cache(monkeypatch: pytest.MonkeyPatch):

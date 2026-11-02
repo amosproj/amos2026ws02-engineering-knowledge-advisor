@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.concurrency import asynccontextmanager
 
-from api import health_router, v1_router
+from api import health_router, machines_router, v1_router
 from config.settings import Settings, get_settings
 from handler import exception_handler
 from logger import logger
@@ -24,5 +24,6 @@ app = FastAPI(
 
 app.include_router(health_router)
 app.include_router(v1_router)
+app.include_router(machines_router)
 
 exception_handler.register(app)

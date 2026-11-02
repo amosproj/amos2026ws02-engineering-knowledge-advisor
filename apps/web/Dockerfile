@@ -32,4 +32,5 @@ ARG WEB_PROFILE
 RUN test "$WEB_PROFILE" = "prod"
 
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY infra/nginx/default.conf /etc/nginx/conf.d/default.conf
+# Copied as a template so nginx replaces ${S3_BUCKET} with its env value at startup
+COPY infra/nginx/default.conf /etc/nginx/templates/default.conf.template

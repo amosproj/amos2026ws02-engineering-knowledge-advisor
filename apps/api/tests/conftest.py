@@ -11,6 +11,7 @@ os.environ.setdefault("S3_BUCKET", "test")
 os.environ.setdefault("S3_ACCESS_KEY", "test")
 os.environ.setdefault("S3_SECRET_KEY", "test")
 os.environ.setdefault("S3_REGION", "us-east-1")
+os.environ.setdefault("S3_PUBLIC_URL", "/storage")
 
 
 @pytest.fixture
