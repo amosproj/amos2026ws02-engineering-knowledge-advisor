@@ -21,6 +21,8 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy application source and install the project
 COPY src ./src
+COPY alembic.ini ./
+COPY migrations ./migrations
 RUN uv sync --frozen --no-dev
 
 # Run as a non-root user
