@@ -12,13 +12,15 @@ import {
     toast,
     type DashboardNavConfig,
 } from '@components'
+import type { MachineImport } from '@components/atomic/organisms/machine-import/import-machine-model'
 
 const navConfig: DashboardNavConfig = {
     navMenu: [{ title: 'Home', link: '/', icon: Home02Icon }],
     navFooter: [{ title: 'Settings', link: '/settings', icon: Settings05Icon }],
 }
 
-async function submitMachineImport() {
+async function submitMachineImport(machineImport: MachineImport) {
+    console.log('Machine import submitted:', machineImport)
     //TODO: Implement the actual submission logic for machine import
     toast.add({
         type: 'info',

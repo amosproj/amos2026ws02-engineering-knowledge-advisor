@@ -21,7 +21,6 @@ import {
     STEP_FILE_ACCEPT,
     STEP_FILE_MAX_SIZE,
     importMachineSchema,
-    type ImportMachineValues,
     type MachineImport,
 } from './import-machine-model'
 
@@ -36,8 +35,9 @@ export function ImportMachineDialog({ onSubmit }: ImportMachineDialogProps) {
     const form = useAppForm({
         defaultValues: {
             machineName: '',
-            file: null,
-        } as ImportMachineValues,
+            machineDescription: '',
+            file: null as File | null,
+        } as MachineImport,
         validators: {
             onSubmit: importMachineSchema,
         },
@@ -99,6 +99,15 @@ export function ImportMachineDialog({ onSubmit }: ImportMachineDialogProps) {
                                             {(field) => (
                                                 <field.InputForm
                                                     label="Machine name"
+                                                    autoComplete="off"
+                                                    disabled={isSubmitting}
+                                                />
+                                            )}
+                                        </form.AppField>
+                                        <form.AppField name="machineDescription">
+                                            {(field) => (
+                                                <field.TextareaForm
+                                                    label="Machine description"
                                                     autoComplete="off"
                                                     disabled={isSubmitting}
                                                 />
