@@ -5,34 +5,23 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import {
     Button,
     DashboardShell,
-    ImportMachineDialog,
     Tooltip,
     TooltipContent,
     TooltipTrigger,
-    toast,
     type DashboardNavConfig,
 } from '@components'
-import type { MachineImport } from '@components/atomic/organisms/machine-import/import-machine-model'
+
+import { ImportMachineDialog } from './machines/components/import-machine-dialog'
 
 const navConfig: DashboardNavConfig = {
     navMenu: [{ title: 'Home', link: '/', icon: Home02Icon }],
     navFooter: [{ title: 'Settings', link: '/settings', icon: Settings05Icon }],
 }
 
-async function submitMachineImport(machineImport: MachineImport) {
-    console.log('Machine import submitted:', machineImport)
-    //TODO: Implement the actual submission logic for machine import
-    toast.add({
-        type: 'info',
-        title: 'Upload not connected yet',
-        description: 'The file was not sent.',
-    })
-}
-
 function HeaderActions() {
     return (
         <>
-            <ImportMachineDialog onSubmit={submitMachineImport} />
+            <ImportMachineDialog />
             <Tooltip>
                 <TooltipTrigger
                     render={

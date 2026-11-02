@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, Response, status
-from sqlalchemy import update
+from sqlalchemy import delete, update
 from sqlalchemy.orm import Session
 
 from api.router_builder import ApiRouterBuilder
@@ -112,6 +112,34 @@ def complete_machine_upload(
         _leave_uploading(session, machine_id, MachineStatus.PROCESSING)
 
     return _accepted_state(_find_machine(session, machine_id))
+
+
+@machines_router.delete(
+    "/machines/{machine_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        404: {"model": Problem, "description": "Machine not found"},
+        409: {"model": Problem, "description": "Machine is no longer uploading"},
+        422: {"model": Problem, "description": "Invalid machine id"},
+    },
+)
+def delete_machine(
+    machine_id: UUID, session: Annotated[Session, Depends(get_session)]
+) -> None:
+    """Cancel an import whose STEP file is still uploading."""
+    object_key = session.execute(
+        delete(Machine)
+        .where(Machine.id == machine_id, Machine.status == MachineStatus.UPLOADING)
+        .returning(Machine.object_key)
+    ).scalar_one_or_none()
+    session.commit()
+
+    if object_key is None:
+        _find_machine(session, machine_id)
+        raise ProblemException(
+            Problem.from_status(409, "The machine is no longer uploading")
+        )
+    _delete_object_quietly(object_key)
 
 
 def _find_machine(session: Session, machine_id: UUID) -> Machine:
