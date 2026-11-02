@@ -14,10 +14,10 @@ The files are generated, not edited by hand:
 ```bash
 uv run --project apps/api python scripts/generate_sbom.py            # write the inventories
 uv run --project apps/api python scripts/generate_sbom.py --check    # fail if the committed files are stale
-uv run --project apps/api python scripts/generate_sbom.py --staged   # fail if the staged files are stale
+uv run --project apps/api python scripts/generate_sbom.py --staged   # fail if the staged files are stale, and write the updated files unstaged
 ```
 
-A pre-commit hook runs the `--staged` variant whenever dependency inputs change: it compares the inventories staged for the commit against freshly generated ones and blocks the commit if they differ. The CI workflow `sbom-check` runs the `--check` variant and fails the build on stale inventories.
+A pre-commit hook runs the `--staged` variant whenever dependency inputs change: it compares the inventories staged for the commit against freshly generated ones, and if they differ it writes the updated files to the working tree and blocks the commit. The CI workflow `sbom-check` runs the `--check` variant and fails the build on stale inventories.
 
 ## Pre-commit hook
 
@@ -30,7 +30,7 @@ pre-commit install
 
 The hook requires Python, uv, and npm on your `PATH`, and network access the first time it reads the API package metadata (see [Licenses](#licenses)). It only runs when `apps/api/pyproject.toml`, `apps/api/uv.lock`, `apps/web/package.json`, `apps/web/package-lock.json`, the generator script, or the SBOM files themselves are staged.
 
-If the staged SBOMs are missing or outdated, the commit stops and nothing is committed. Regenerate the files, review them, stage them, and commit again:
+If the staged SBOMs are missing or outdated, the commit stops and nothing is committed. The hook writes the updated files without staging them, so they appear in your list of changes. Review them, stage them, and commit again:
 
 ```bash
 uv run --project apps/api python scripts/generate_sbom.py

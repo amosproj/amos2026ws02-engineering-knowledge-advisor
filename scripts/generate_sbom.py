@@ -11,7 +11,8 @@ metadata of the locked wheels, because ``uv export`` does not emit licenses.
 Run without arguments to write the files, with ``--check`` to verify that the
 committed files are up to date (used by CI), and with ``--staged`` to verify
 that the files staged for a commit are up to date (used by the pre-commit
-hook).
+hook). When they are not, ``--staged`` writes the updated files to the working
+tree without staging them and fails, so they can be reviewed and added.
 """
 
 from __future__ import annotations
@@ -342,8 +343,8 @@ def main() -> None:
         "--staged",
         action="store_true",
         help=(
-            "Fail if the staged SBOMs differ from the generated ones. "
-            "Used by the pre-commit hook."
+            "Fail if the staged SBOMs differ from the generated ones, and write "
+            "the updated files without staging them. Used by the pre-commit hook."
         ),
     )
     args = parser.parse_args()
@@ -369,20 +370,23 @@ def main() -> None:
         if current == content:
             continue
 
-        if args.staged or args.check:
+        if args.check:
+            outdated.append(relative)
+            continue
+
+        OUTPUT.mkdir(parents=True, exist_ok=True)
+        destination.write_text(content, encoding="utf-8")
+        if args.staged:
             outdated.append(relative)
         else:
-            OUTPUT.mkdir(parents=True, exist_ok=True)
-            destination.write_text(content, encoding="utf-8")
             print(f"Updated {relative}")
 
     if outdated:
         if args.staged:
             raise SystemExit(
-                "SBOMs are missing or outdated in the commit:\n"
+                "SBOMs are missing or outdated in the commit. Updated, not staged:\n"
                 + "\n".join(outdated)
-                + "\nRun: uv run --project apps/api python scripts/generate_sbom.py"
-                + "\nThen: git add Documentation/sbom/"
+                + "\nRun: git add Documentation/sbom/"
                 + "\nAnd commit again."
             )
         raise SystemExit(
