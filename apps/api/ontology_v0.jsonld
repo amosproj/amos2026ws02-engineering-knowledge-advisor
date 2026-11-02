@@ -1,0 +1,70 @@
+{
+  "@context": {
+    "og": "https://example.org/ograg/ontology#",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "schema": "https://schema.org/",
+    "domain": {"@id": "rdfs:domain", "@type": "@id"},
+    "range": {"@id": "rdfs:range", "@type": "@id"},
+    "displayName": "rdfs:label",
+    "comment": "rdfs:comment",
+    "enum": "og:allowedValues"
+  },
+  "@graph": [
+    {"@id": "og:Machine", "@type": "rdfs:Class", "displayName": "Machine", "comment": "A special-purpose machine or line, e.g. a robot cell. Stored as a record.", "og:record": true},
+    {"@id": "og:AssemblyGroup", "@type": "rdfs:Class", "displayName": "Assembly group", "comment": "Anchor entity. A mechanical assembly group (Baugruppe) of a machine; search results group by it. Stored as a record.", "og:record": true, "og:anchor": true},
+    {"@id": "og:Characteristic", "@type": "rdfs:Class", "displayName": "Characteristic", "comment": "Searchable characteristics of an assembly group: function, loading mode, payload and part-size range."},
+    {"@id": "og:Category", "@type": "rdfs:Class", "displayName": "Category", "comment": "Structured categorization that makes an assembly group findable by category and technology."},
+    {"@id": "og:CadFile", "@type": "rdfs:Class", "displayName": "CAD file", "comment": "Reference to an original engineering source (CAD model). Files are referenced, not copied."},
+    {"@id": "og:Component", "@type": "rdfs:Class", "displayName": "Component", "comment": "A purchased or manufactured part inside the assembly group."},
+    {"@id": "og:KnowledgeItem", "@type": "rdfs:Class", "displayName": "Knowledge item", "comment": "One piece of engineering knowledge: a requirement, consideration, design decision or lesson learned, global or for specific assembly groups. Stored as a record and extracted from documents. Global requirements and considerations are guidelines.", "og:record": true, "og:extractable": true, "og:guidelineWhen": {"scope": ["global"], "itemType": ["requirement", "consideration"]}},
+
+    {"@id": "og:identifier", "@type": "rdf:Property", "domain": "og:Machine", "range": "schema:Text", "displayName": "identifier", "comment": "Identifier of the machine, e.g. a project or serial number.", "og:identity": true, "og:search": ["semantic", "lexical"]},
+    {"@id": "og:name", "@type": "rdf:Property", "domain": "og:Machine", "range": "schema:Text", "displayName": "name", "comment": "Name of the machine.", "og:identity": true},
+    {"@id": "og:description", "@type": "rdf:Property", "domain": "og:Machine", "range": "schema:Text", "displayName": "description", "comment": "Free-text description of the machine."},
+    {"@id": "og:customer", "@type": "rdf:Property", "domain": "og:Machine", "range": "schema:Text", "displayName": "customer", "comment": "The customer the machine was built for."},
+
+    {"@id": "og:identifier", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "schema:Text", "displayName": "identifier", "comment": "Stays the same when the same CAD file is imported again.", "og:identity": true, "og:search": ["semantic", "lexical"]},
+    {"@id": "og:name", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "schema:Text", "displayName": "name", "comment": "Name of the assembly group.", "og:identity": true},
+    {"@id": "og:description", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "schema:Text", "displayName": "description", "comment": "Free-text description of the assembly group."},
+    {"@id": "og:partOf", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:Machine", "displayName": "part of", "comment": "The machine the assembly group belongs to.", "og:parentLink": true},
+    {"@id": "og:hasCharacteristic", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:Characteristic", "displayName": "has characteristic", "comment": "The searchable characteristics of the assembly group."},
+    {"@id": "og:hasCategory", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:Category", "displayName": "has category", "comment": "The categorization of the assembly group."},
+    {"@id": "og:hasCadFile", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:CadFile", "displayName": "has CAD file", "comment": "The CAD model of the assembly group, referenced by name and uri. The file itself is not stored here."},
+    {"@id": "og:hasComponent", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:Component", "displayName": "has component", "comment": "The components inside the assembly group."},
+
+    {"@id": "og:function", "@type": "rdf:Property", "domain": "og:Characteristic", "range": "schema:Text", "displayName": "function", "comment": "What the assembly group does, e.g. feeding or buffering."},
+    {"@id": "og:loadingMode", "@type": "rdf:Property", "domain": "og:Characteristic", "range": "schema:Text", "displayName": "loading mode", "comment": "How parts are loaded into the assembly group.", "enum": ["manual", "robot", "conveyor", "drawer", "gravity", "other"]},
+    {"@id": "og:payloadKg", "@type": "rdf:Property", "domain": "og:Characteristic", "range": "schema:Number", "displayName": "payload in kg", "comment": "Payload the assembly group handles, in kilograms."},
+    {"@id": "og:partSizeMinMm", "@type": "rdf:Property", "domain": "og:Characteristic", "range": "schema:Number", "displayName": "smallest part size in mm", "comment": "Smallest part size the assembly group handles, in millimetres."},
+    {"@id": "og:partSizeMaxMm", "@type": "rdf:Property", "domain": "og:Characteristic", "range": "schema:Number", "displayName": "largest part size in mm", "comment": "Largest part size the assembly group handles, in millimetres."},
+
+    {"@id": "og:functionArea", "@type": "rdf:Property", "domain": "og:Category", "range": "schema:Text", "displayName": "functional area", "comment": "The functional area the assembly group belongs to.", "enum": ["Handling and gripping", "Conveying and transfer", "Positioning and indexing", "Joining and assembly", "Separation and cleaning", "Testing and inspection", "Frame and enclosure", "Feeding and dosing", "Other"]},
+    {"@id": "og:reuseStatus", "@type": "rdf:Property", "domain": "og:Category", "range": "schema:Text", "displayName": "reuse status", "comment": "How far the assembly group has proven itself for reuse in other machines.", "enum": ["proven standard", "reuse candidate", "one-off", "deprecated"]},
+    {"@id": "og:tag", "@type": "rdf:Property", "domain": "og:Category", "range": "schema:Text", "displayName": "tag", "comment": "Free keywords that make the assembly group findable, e.g. a technology."},
+
+    {"@id": "og:name", "@type": "rdf:Property", "domain": "og:CadFile", "range": "schema:Text", "displayName": "name", "comment": "File name, e.g. RC-01_input_tray.CATProduct.", "og:search": ["semantic", "lexical"]},
+    {"@id": "og:format", "@type": "rdf:Property", "domain": "og:CadFile", "range": "schema:Text", "displayName": "format", "comment": "CAD system or file format, e.g. CATIA V5."},
+    {"@id": "og:uri", "@type": "rdf:Property", "domain": "og:CadFile", "range": "schema:URL", "displayName": "uri", "comment": "Where the original file can be found.", "og:search": ["lexical"]},
+
+    {"@id": "og:name", "@type": "rdf:Property", "domain": "og:Component", "range": "schema:Text", "displayName": "name", "comment": "Name of the component."},
+    {"@id": "og:partId", "@type": "rdf:Property", "domain": "og:Component", "range": "schema:Text", "displayName": "part id", "comment": "Identifier of the part, e.g. a supplier or in-house part number.", "og:search": ["semantic", "lexical"]},
+    {"@id": "og:quantity", "@type": "rdf:Property", "domain": "og:Component", "range": "schema:Number", "displayName": "quantity", "comment": "How many of the component the assembly group contains."},
+
+    {"@id": "og:itemType", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "schema:Text", "displayName": "item type", "enum": ["requirement", "consideration", "design decision", "lesson learned"], "comment": "Shown in every item's facts, not searched: as a search value it would match every item of its type.", "og:search": []},
+    {"@id": "og:scope", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "schema:Text", "displayName": "scope", "comment": "global: applies to every machine; machine-specific: to the linked assembly groups or machines.", "enum": ["global", "machine-specific"], "og:search": []},
+    {"@id": "og:name", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "schema:Text", "displayName": "name", "comment": "Identifies the item for references between items (relatesTo).", "og:identity": true},
+    {"@id": "og:statement", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "schema:Text", "displayName": "statement", "comment": "The knowledge in one or two sentences, as the engineer said it."},
+    {"@id": "og:reasoning", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "schema:Text", "displayName": "reasoning", "comment": "Why the statement holds: the engineering reasoning behind it."},
+    {"@id": "og:condition", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "schema:Text", "displayName": "condition", "comment": "When the item applies, e.g. a part size or an operating case."},
+    {"@id": "og:consequence", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "schema:Text", "displayName": "consequence", "comment": "What happens when the item is ignored."},
+    {"@id": "og:recommendation", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "schema:Text", "displayName": "recommendation", "comment": "What to do, according to the item."},
+    {"@id": "og:confidence", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "schema:Text", "displayName": "confidence", "comment": "How well established the knowledge is.", "enum": ["established practice", "rule of thumb", "unverified"], "og:search": ["semantic"]},
+    {"@id": "og:author", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "schema:Text", "displayName": "author", "comment": "Who recorded the item: the uploader of the source document.", "og:author": true, "og:search": ["semantic", "lexical"]},
+    {"@id": "og:sourceDocumentId", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "schema:Text", "displayName": "source document", "comment": "Id of the uploaded document the item was extracted from, e.g. a walkthrough transcript. Filled by the extraction.", "og:search": ["semantic", "lexical"], "og:provenance": true},
+    {"@id": "og:reference", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "schema:Text", "displayName": "reference", "comment": "A standard, norm or other reference the item is based on, e.g. DIN EN ISO 13849.", "og:search": ["semantic", "lexical"]},
+    {"@id": "og:appliesTo", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "og:AssemblyGroup", "displayName": "applies to", "comment": "The assembly groups the item is about; none for a global item.", "og:parentLink": true},
+    {"@id": "og:appliesToMachine", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "og:Machine", "displayName": "applies to machine", "comment": "The machines the item is about, when it concerns a whole machine.", "og:parentLink": true},
+    {"@id": "og:relatesTo", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "og:KnowledgeItem", "displayName": "relates to", "comment": "Other knowledge items this one refines, contradicts or depends on."}
+  ]
+}
