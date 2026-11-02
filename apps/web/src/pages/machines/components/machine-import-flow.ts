@@ -1,5 +1,6 @@
 import { HttpError, NetworkError } from '@queries/query-errors'
 
+import { machineErrorMessage } from '../models/machine-errors'
 import {
     completeMachineUpload,
     deleteMachine,
@@ -10,13 +11,6 @@ import { uploadFile } from './upload-file'
 
 // After this, the import is left to the server so the import button is not blocked forever
 export const MAX_PROCESSING_MS = 15 * 60_000
-
-const errorMessages: Record<string, string> = {
-    upload_not_found: 'The file did not reach the server. Import it again.',
-    file_mismatch: 'The uploaded file does not match the selected file. Import it again.',
-    invalid_step_file: 'The file is not a valid STEP file.',
-    duplicate_file: 'This STEP file has already been imported.',
-}
 
 export type ImportResult =
     | { status: 'ready' }
@@ -83,7 +77,7 @@ async function waitForProcessing(
 
     return state.status === 'ready'
         ? { status: 'ready' }
-        : { status: 'failed', message: errorMessage(state.error_code) }
+        : { status: 'failed', message: machineErrorMessage(state.error_code) }
 }
 
 async function completeWithRetry(id: string) {
@@ -111,15 +105,12 @@ async function cancel(id: string): Promise<ImportResult> {
 
 function failed(error: unknown): ImportResult {
     const errorCode = error instanceof HttpError ? error.problem?.error_code : undefined
-    if (typeof errorCode === 'string') return { status: 'failed', message: errorMessage(errorCode) }
+    if (typeof errorCode === 'string')
+        return { status: 'failed', message: machineErrorMessage(errorCode) }
     return {
         status: 'failed',
-        message: error instanceof Error ? error.message : errorMessage(null),
+        message: error instanceof Error ? error.message : machineErrorMessage(null),
     }
-}
-
-function errorMessage(errorCode: string | null) {
-    return (errorCode && errorMessages[errorCode]) || 'The import failed. Try again.'
 }
 
 function isTransient(error: unknown) {

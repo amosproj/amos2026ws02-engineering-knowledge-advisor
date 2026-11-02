@@ -1,8 +1,12 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Response, status
-from sqlalchemy import delete, update
+from psycopg import errors as pg_errors
+from sqlalchemy import delete, select, text, update
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from api.router_builder import ApiRouterBuilder
@@ -10,6 +14,7 @@ from db import Machine, MachineStatus, get_session
 from model.machine import (
     CreateMachineRequest,
     CreateMachineResponse,
+    MachineDetails,
     MachineResponse,
     UploadForm,
 )
@@ -19,6 +24,9 @@ from storage.s3 import create_upload_form, delete_object_quietly, get_object_siz
 machines_router: APIRouter = (
     ApiRouterBuilder().version("v1").add_tags(["machines"]).build()
 )
+
+# The worker locks a processing machine while it checks its file
+EDITABLE_STATUSES = (MachineStatus.UPLOADING, MachineStatus.READY, MachineStatus.FAILED)
 
 
 @machines_router.post(
@@ -52,6 +60,17 @@ def create_machine(
     return CreateMachineResponse(
         id=machine_id, upload=UploadForm(url=url, fields=fields)
     )
+
+
+@machines_router.get("/machines")
+def list_machines(
+    session: Annotated[Session, Depends(get_session)],
+) -> list[MachineResponse]:
+    """Return every machine, newest first."""
+    machines = session.scalars(
+        select(Machine).order_by(Machine.created_at.desc(), Machine.id.desc())
+    )
+    return [MachineResponse.model_validate(machine) for machine in machines]
 
 
 @machines_router.get(
@@ -112,32 +131,81 @@ def complete_machine_upload(
     return _accepted_state(_find_machine(session, machine_id))
 
 
+@machines_router.patch(
+    "/machines/{machine_id}",
+    responses={
+        404: {"model": Problem, "description": "Machine not found"},
+        409: {"model": Problem, "description": "Machine file is being processed"},
+        422: {"model": Problem, "description": "Invalid machine id or body"},
+    },
+)
+def update_machine(
+    machine_id: UUID,
+    body: MachineDetails,
+    session: Annotated[Session, Depends(get_session)],
+) -> MachineResponse:
+    """Change the name and description of a machine."""
+    with _fail_if_processing(session):
+        machine = session.execute(
+            update(Machine)
+            .where(Machine.id == machine_id, Machine.status.in_(EDITABLE_STATUSES))
+            .values(name=body.name, description=body.description)
+            .returning(Machine)
+        ).scalar_one_or_none()
+    if machine is None:
+        session.rollback()
+        _find_machine(session, machine_id)
+        raise _processing_conflict()
+
+    response = MachineResponse.model_validate(machine)
+    session.commit()
+    return response
+
+
 @machines_router.delete(
     "/machines/{machine_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
         404: {"model": Problem, "description": "Machine not found"},
-        409: {"model": Problem, "description": "Machine is no longer uploading"},
+        409: {"model": Problem, "description": "Machine file is being processed"},
         422: {"model": Problem, "description": "Invalid machine id"},
     },
 )
 def delete_machine(
     machine_id: UUID, session: Annotated[Session, Depends(get_session)]
 ) -> None:
-    """Cancel an import whose STEP file is still uploading."""
-    object_key = session.execute(
-        delete(Machine)
-        .where(Machine.id == machine_id, Machine.status == MachineStatus.UPLOADING)
-        .returning(Machine.object_key)
-    ).scalar_one_or_none()
+    """Delete a machine and its STEP file, which also cancels an import in progress."""
+    with _fail_if_processing(session):
+        object_key = session.execute(
+            delete(Machine)
+            .where(Machine.id == machine_id, Machine.status.in_(EDITABLE_STATUSES))
+            .returning(Machine.object_key)
+        ).scalar_one_or_none()
     session.commit()
 
     if object_key is None:
         _find_machine(session, machine_id)
-        raise ProblemException(
-            Problem.from_status(409, "The machine is no longer uploading")
-        )
+        raise _processing_conflict()
     delete_object_quietly(object_key)
+
+
+@contextmanager
+def _fail_if_processing(session: Session) -> Iterator[None]:
+    """Answer 409 instead of waiting for the worker lock on a processing machine."""
+    session.execute(text("SET LOCAL lock_timeout = '2s'"))
+    try:
+        yield
+    except OperationalError as error:
+        if not isinstance(error.orig, pg_errors.LockNotAvailable):
+            raise
+        session.rollback()
+        raise _processing_conflict() from error
+
+
+def _processing_conflict() -> ProblemException:
+    return ProblemException(
+        Problem.from_status(409, "The machine file is being processed, try again later")
+    )
 
 
 def _find_machine(session: Session, machine_id: UUID) -> Machine:

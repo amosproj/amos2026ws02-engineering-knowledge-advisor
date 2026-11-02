@@ -40,6 +40,7 @@
     --color-foreground: var(--foreground);
     --color-background: var(--background);
     --color-hazard-foreground: var(--hazard-foreground);
+    --color-success: var(--success);
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -106,6 +107,7 @@
     --hazard-1: oklch(0.86 0.17 88);
     --hazard-2: oklch(0.79 0.17 62);
     --hazard-foreground: oklch(0.21 0.04 60);
+    --success: oklch(0.55 0.14 150);
 }
 
 .dark {
@@ -143,6 +145,7 @@
     --hazard-1: oklch(0.76 0.15 84);
     --hazard-2: oklch(0.69 0.16 58);
     --hazard-foreground: oklch(0.18 0.03 60);
+    --success: oklch(0.72 0.15 150);
 }
 
 @layer base {

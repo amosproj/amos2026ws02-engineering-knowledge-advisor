@@ -5,6 +5,7 @@ import type { MachineImport } from '../models/import-machine-model'
 export type ImportPhase = 'uploading' | 'processing'
 
 export type ActiveImport = {
+    machineId: string
     name: string
     description?: string
     file: File

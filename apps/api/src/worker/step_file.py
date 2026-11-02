@@ -3,7 +3,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 # it turns out that step fies start with a ISO-10303-21 header and end with an END-ISO-10303-21 footer
-#we can check for those markers to validate the file without parsing it fully
+# we can check for those markers to validate the file without parsing it fully
 HEADER = b"ISO-10303-21;"
 FOOTER = b"END-ISO-10303-21;"
 UTF8_BOM = b"\xef\xbb\xbf"

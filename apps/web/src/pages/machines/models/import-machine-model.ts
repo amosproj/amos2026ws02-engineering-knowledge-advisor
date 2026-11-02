@@ -18,3 +18,10 @@ export const importMachineSchema = z.object({
 })
 
 export type MachineImport = z.output<typeof importMachineSchema>
+
+export const machineDetailsSchema = importMachineSchema.pick({
+    machineName: true,
+    machineDescription: true,
+})
+
+export type MachineDetails = z.output<typeof machineDetailsSchema>
