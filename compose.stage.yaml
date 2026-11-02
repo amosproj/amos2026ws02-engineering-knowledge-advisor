@@ -65,12 +65,7 @@ services:
     restart: unless-stopped
 
   migrate:
-    build:
-      context: apps/api
-      dockerfile: Dockerfile
-      target: prod
-      args:
-        API_PROFILE: prod
+    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/${MIGRATION_IMAGE_NAME:-engineering-knowledge-advisor-migration}:${IMAGE_TAG:-development}
     command: ["uv", "run", "--no-sync", "alembic", "upgrade", "head"]
     environment: *api-environment
     depends_on:
