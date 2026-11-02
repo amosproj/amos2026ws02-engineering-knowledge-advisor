@@ -40,6 +40,7 @@ The current setup provides the initial application skeleton and containerized in
 | Containerization             | Docker                   | Builds and runs application containers        |
 | Orchestration                | Docker Compose           | Configures and connects the services          |
 | Python dependency management | uv                       | Manages backend dependencies and the lockfile |
+| CAD file parsing             | cadquery-ocp             | Parses STEP files & extracts structure        |
 
 ## Repository Structure
 
