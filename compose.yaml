@@ -70,6 +70,24 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  worker:
+    build:
+      context: apps/api
+      dockerfile: Dockerfile
+    command: ["uv", "run", "--no-sync", "python", "-m", "worker"]
+    environment: *api-environment
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    healthcheck:
+      # The worker touches this file at least every 10 s while its loop is alive
+      test: ["CMD-SHELL", "find /tmp/worker-heartbeat -mmin -1 | grep -q ."]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
   db:
     image: pgvector/pgvector:pg16
     environment:

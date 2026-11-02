@@ -8,6 +8,9 @@ import {
 } from '../query/machine-api'
 import { uploadFile } from './upload-file'
 
+// After this, the import is left to the server so the import button is not blocked forever
+export const MAX_PROCESSING_MS = 15 * 60_000
+
 const errorMessages: Record<string, string> = {
     upload_not_found: 'The file did not reach the server. Import it again.',
     file_mismatch: 'The uploaded file does not match the selected file. Import it again.',
@@ -16,7 +19,10 @@ const errorMessages: Record<string, string> = {
 }
 
 export type ImportResult =
-    { status: 'ready' } | { status: 'failed'; message: string } | { status: 'cancelled' }
+    | { status: 'ready' }
+    | { status: 'failed'; message: string }
+    | { status: 'cancelled' }
+    | { status: 'processing_timeout' }
 
 type CreatedMachine = {
     id: string
@@ -50,11 +56,27 @@ export async function followMachineImport(
         return failed(error)
     }
 
+    const deadline = new AbortController()
+    const timer = setTimeout(() => deadline.abort(), MAX_PROCESSING_MS)
+    try {
+        return await waitForProcessing(machine.id, state, deadline.signal)
+    } finally {
+        clearTimeout(timer)
+    }
+}
+
+async function waitForProcessing(
+    id: string,
+    state: MachineState,
+    signal: AbortSignal,
+): Promise<ImportResult> {
     while (state.status !== 'ready' && state.status !== 'failed') {
-        await delay(2_000)
+        await delay(2_000, signal)
+        if (signal.aborted) return { status: 'processing_timeout' }
         try {
-            state = await getMachine({ params: { id: machine.id } })
+            state = await getMachine({ params: { id }, signal })
         } catch (error) {
+            if (signal.aborted) return { status: 'processing_timeout' }
             if (!isTransient(error)) return failed(error)
         }
     }
@@ -107,6 +129,15 @@ function isTransient(error: unknown) {
     )
 }
 
-function delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms))
+/** Wait for `ms`, or less if the signal aborts. */
+function delay(ms: number, signal?: AbortSignal) {
+    return new Promise<void>((resolve) => {
+        const done = () => {
+            clearTimeout(timer)
+            signal?.removeEventListener('abort', done)
+            resolve()
+        }
+        const timer = setTimeout(done, ms)
+        signal?.addEventListener('abort', done)
+    })
 }

@@ -7,7 +7,7 @@ import {
     getMachine,
     type MachineState,
 } from '../query/machine-api'
-import { followMachineImport } from './machine-import-flow'
+import { followMachineImport, MAX_PROCESSING_MS } from './machine-import-flow'
 
 vi.mock('../query/machine-api', () => ({
     completeMachineUpload: vi.fn(),
@@ -172,6 +172,20 @@ describe('followMachineImport', () => {
             status: 'failed',
             message: 'The file is not a valid STEP file.',
         })
+    })
+
+    it('gives up waiting once the processing takes too long', async () => {
+        vi.mocked(completeMachineUpload).mockResolvedValue(state('processing'))
+        vi.mocked(getMachine).mockResolvedValue(state('processing'))
+        const { result, xhr } = start()
+
+        xhr.respond(204)
+        await vi.advanceTimersByTimeAsync(MAX_PROCESSING_MS)
+
+        await expect(result).resolves.toEqual({ status: 'processing_timeout' })
+        const polls = vi.mocked(getMachine).mock.calls.length
+        await vi.advanceTimersByTimeAsync(10_000)
+        expect(getMachine).toHaveBeenCalledTimes(polls)
     })
 
     it('stops polling when the machine no longer exists', async () => {

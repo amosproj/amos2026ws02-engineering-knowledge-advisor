@@ -34,6 +34,20 @@ Or from repository root using API's `.env`:
 uv run --directory apps/api uvicorn main:app
 ```
 
+## Background jobs
+
+The `worker` service (`python -m worker`, code in `src/worker/`) runs one loop with three jobs:
+
+| Job | When | What it does |
+|-----|------|--------------|
+| `process_next_machine` | every 2 s, back to back while machines wait | Takes the machine waiting longest in `processing`, streams its STEP file to compute the SHA-256 and check the `ISO-10303-21;` / `END-ISO-10303-21;` markers, then sets it `ready` or `failed` (`invalid_step_file`, `duplicate_file`, `upload_not_found`). The object of a failed machine is deleted. |
+| `expire_abandoned_uploads` | at start, then hourly | Deletes the machines still `uploading` 24 h after their creation, with their object. |
+| `delete_orphan_objects` | at start, then hourly | Deletes the objects under `machines/` older than 24 h that no machine points to, or whose machine failed. |
+
+- A machine is locked (`FOR UPDATE SKIP LOCKED`) while it is processed, so several workers can run side by side. If a worker stops or crashes, the lock is released and the machine is processed again.
+- On a storage or database error, the machine stays in `processing` and is retried after 30 s.
+- The worker touches `/tmp/worker-heartbeat` every 10 s. The container is reported unhealthy when the file is older than one minute.
+
 ## Test & Lint
 
 ```sh

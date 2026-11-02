@@ -1,11 +1,17 @@
 import logging
 import time
+from collections.abc import Iterator
 from functools import lru_cache
 from typing import Any
 
 import boto3
 from botocore.config import Config
-from botocore.exceptions import ClientError, ConnectionError, HTTPClientError
+from botocore.exceptions import (
+    BotoCoreError,
+    ClientError,
+    ConnectionError,
+    HTTPClientError,
+)
 
 from config.settings import get_settings
 from logger import logger
@@ -14,6 +20,7 @@ BUCKET_CHECK_ATTEMPTS = 30
 BUCKET_CHECK_DELAY_SECONDS = 2
 UPLOAD_FORM_EXPIRES_SECONDS = 3600
 UPLOAD_CONTENT_TYPE = "application/octet-stream"
+DELETE_BATCH_SIZE = 1000
 
 
 @lru_cache
@@ -101,8 +108,49 @@ def get_object_size(key: str) -> int | None:
     return response["ContentLength"]
 
 
+def open_object(key: str) -> Any | None:
+    """Return the object body as a stream, None if the object does not exist."""
+    try:
+        response = get_s3_client().get_object(Bucket=get_settings().s3_bucket, Key=key)
+    except ClientError as error:
+        if _http_status(error) == 404:
+            return None
+        raise
+    return response["Body"]
+
+
+def list_objects(prefix: str) -> Iterator[list[dict[str, Any]]]:
+    """Yield the objects under the prefix, one page of up to DELETE_BATCH_SIZE at a time."""
+    paginator = get_s3_client().get_paginator("list_objects_v2")
+    for page in paginator.paginate(
+        Bucket=get_settings().s3_bucket,
+        Prefix=prefix,
+        PaginationConfig={"PageSize": DELETE_BATCH_SIZE},
+    ):
+        yield page.get("Contents", [])
+
+
 def delete_object(key: str) -> None:
     get_s3_client().delete_object(Bucket=get_settings().s3_bucket, Key=key)
+
+
+def delete_object_quietly(key: str) -> None:
+    try:
+        delete_object(key)
+    except (BotoCoreError, ClientError):
+        logger.exception(f"Could not delete object {key}")
+
+
+def delete_objects(keys: list[str]) -> None:
+    """Delete up to DELETE_BATCH_SIZE objects in one request."""
+    if not keys:
+        return
+    response = get_s3_client().delete_objects(
+        Bucket=get_settings().s3_bucket,
+        Delete={"Objects": [{"Key": key} for key in keys], "Quiet": True},
+    )
+    for error in response.get("Errors", []):
+        logger.error(f"Could not delete object {error['Key']}: {error['Code']}")
 
 
 if __name__ == "__main__":

@@ -76,6 +76,12 @@ function notify(name: string, result: ImportResult) {
         toast.add({ type: 'success', title: 'Machine imported', description: `${name} is ready.` })
     } else if (result.status === 'cancelled') {
         toast.add({ type: 'info', title: 'Import cancelled', description: name })
+    } else if (result.status === 'processing_timeout') {
+        toast.add({
+            type: 'info',
+            title: `Import of ${name} is taking longer than expected`,
+            description: 'It continues on the server.',
+        })
     } else {
         toast.add({
             type: 'error',

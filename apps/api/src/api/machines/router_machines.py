@@ -1,14 +1,12 @@
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import delete, update
 from sqlalchemy.orm import Session
 
 from api.router_builder import ApiRouterBuilder
 from db import Machine, MachineStatus, get_session
-from logger import logger
 from model.machine import (
     CreateMachineRequest,
     CreateMachineResponse,
@@ -16,7 +14,7 @@ from model.machine import (
     UploadForm,
 )
 from model.problem import Problem, ProblemException
-from storage.s3 import create_upload_form, delete_object, get_object_size
+from storage.s3 import create_upload_form, delete_object_quietly, get_object_size
 
 machines_router: APIRouter = (
     ApiRouterBuilder().version("v1").add_tags(["machines"]).build()
@@ -107,7 +105,7 @@ def complete_machine_upload(
 
     if size != expected_size:
         if _leave_uploading(session, machine_id, MachineStatus.FAILED, "file_mismatch"):
-            _delete_object_quietly(object_key)
+            delete_object_quietly(object_key)
     else:
         _leave_uploading(session, machine_id, MachineStatus.PROCESSING)
 
@@ -139,7 +137,7 @@ def delete_machine(
         raise ProblemException(
             Problem.from_status(409, "The machine is no longer uploading")
         )
-    _delete_object_quietly(object_key)
+    delete_object_quietly(object_key)
 
 
 def _find_machine(session: Session, machine_id: UUID) -> Machine:
@@ -174,10 +172,3 @@ def _leave_uploading(
     ).scalar_one_or_none()
     session.commit()
     return updated is not None
-
-
-def _delete_object_quietly(object_key: str) -> None:
-    try:
-        delete_object(object_key)
-    except (BotoCoreError, ClientError):
-        logger.exception(f"Could not delete object {object_key}")
