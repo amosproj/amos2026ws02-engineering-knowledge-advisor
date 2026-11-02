@@ -91,6 +91,20 @@ def create_upload_form(key: str, size: int) -> tuple[str, dict[str, str]]:
     return url, form["fields"]
 
 
+def get_object_size(key: str) -> int | None:
+    try:
+        response = get_s3_client().head_object(Bucket=get_settings().s3_bucket, Key=key)
+    except ClientError as error:
+        if _http_status(error) == 404:
+            return None
+        raise
+    return response["ContentLength"]
+
+
+def delete_object(key: str) -> None:
+    get_s3_client().delete_object(Bucket=get_settings().s3_bucket, Key=key)
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     ensure_bucket()

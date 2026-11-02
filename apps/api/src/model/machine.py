@@ -1,9 +1,12 @@
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
-STEP_FILE_MAX_SIZE = 5 * 1024 * 1024 * 1024 # 5 GB
+from db import MachineStatus
+
+STEP_FILE_MAX_SIZE = 5 * 1024 * 1024 * 1024  # 5 GB
 
 
 class CreateMachineRequest(BaseModel):
@@ -32,3 +35,17 @@ class UploadForm(BaseModel):
 class CreateMachineResponse(BaseModel):
     id: UUID
     upload: UploadForm
+
+
+class MachineResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    description: str | None
+    status: MachineStatus
+    error_code: str | None
+    original_filename: str
+    size_bytes: int
+    created_at: datetime
+    updated_at: datetime
