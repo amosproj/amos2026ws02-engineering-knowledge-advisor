@@ -381,12 +381,21 @@ def main() -> None:
         else:
             print(f"Updated {relative}")
 
+    if args.staged:
+        # `uv run` relocks before this script starts, so a stale uv.lock shows up
+        # as a working tree file that differs from the index.
+        lock = API_DIR / "uv.lock"
+        lock_relative = str(lock.relative_to(ROOT))
+        if index_content(lock_relative) != lock.read_text(encoding="utf-8"):
+            outdated.append(lock_relative)
+
     if outdated:
         if args.staged:
             raise SystemExit(
-                "SBOMs are missing or outdated in the commit. Updated, not staged:\n"
+                "Generated files are missing or outdated in the commit. "
+                "Updated, not staged:\n"
                 + "\n".join(outdated)
-                + "\nRun: git add Documentation/sbom/"
+                + f"\nRun: git add {' '.join(outdated)}"
                 + "\nAnd commit again."
             )
         raise SystemExit(

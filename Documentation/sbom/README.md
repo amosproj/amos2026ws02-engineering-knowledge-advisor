@@ -28,9 +28,9 @@ uv tool install pre-commit
 pre-commit install
 ```
 
-The hook requires Python, uv, and npm on your `PATH`, and network access the first time it reads the API package metadata (see [Licenses](#licenses)). It only runs when `apps/api/pyproject.toml`, `apps/api/uv.lock`, `apps/web/package.json`, `apps/web/package-lock.json`, the generator script, or the SBOM files themselves are staged.
+The hook requires Python, uv, and npm on your `PATH`, and network access the first time it reads the API package metadata (see [Licenses](#licenses)). It only runs when `apps/api/pyproject.toml`, `apps/api/uv.lock`, `apps/api/.python-version`, `apps/web/package.json`, `apps/web/package-lock.json`, the generator script, or the SBOM files themselves are staged.
 
-If the staged SBOMs are missing or outdated, the commit stops and nothing is committed. The hook writes the updated files without staging them, so they appear in your list of changes. Review them, stage them, and commit again:
+If the staged SBOMs are missing or outdated, the commit stops and nothing is committed. The hook writes the updated files without staging them, so they appear in your list of changes. If `apps/api/uv.lock` was stale, it is updated the same way, and the error message names every file to stage. Review them, stage them, and commit again:
 
 ```bash
 uv run --project apps/api python scripts/generate_sbom.py
