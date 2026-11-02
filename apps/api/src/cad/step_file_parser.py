@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from OCP.Bnd import Bnd_Box
+from OCP.BRepBndLib import BRepBndLib
 from OCP.IFSelect import IFSelect_RetDone
 from OCP.OCP.collections import Sequence_TDF_Label  # pyright: ignore
 from OCP.STEPCAFControl import STEPCAFControl_Reader
@@ -42,13 +44,31 @@ class StepFileParser(CadFileParser):
 
             return None
 
+        def get_dimensions(label: TDF_Label) -> tuple[float, float, float]:
+            shape = XCAFDoc_DocumentTool.ShapeTool_s(document.Main()).GetShape_s(label)
+            if shape.IsNull():
+                raise ValueError("No shape found for label")
+
+            box = Bnd_Box()
+            BRepBndLib.Add_s(shape, box)
+
+            if box.IsVoid():
+                raise ValueError("No bounding box found for shape")
+
+            xmin, ymin, zmin = box.CornerMin().Coord()
+            xmax, ymax, zmax = box.CornerMax().Coord()
+
+            return xmax - xmin, ymax - ymin, zmax - zmin
+
         def visit(label: TDF_Label, depth: int = 0) -> AssemblyTreeNode:
             name = label_name(label)
             if not name:
                 raise ValueError("No name found for label")
 
+            dims = get_dimensions(label)
+
             if not shape_tool.IsAssembly_s(label):
-                return AssemblyTreeNode(identifier=name, kind="part")
+                return AssemblyTreeNode(identifier=name, kind="part", dimensions=dims)
 
             children = Sequence_TDF_Label()
             shape_tool.GetComponents_s(label, children, False)
@@ -70,7 +90,9 @@ class StepFileParser(CadFileParser):
                 child_node.identifier = occurrence_name
                 nodes.append(child_node)
 
-            return AssemblyTreeNode(identifier=name, kind="assembly", children=nodes)
+            return AssemblyTreeNode(
+                identifier=name, kind="assembly", dimensions=dims, children=nodes
+            )
 
         return CadFile(
             identifier=file_identifier,
