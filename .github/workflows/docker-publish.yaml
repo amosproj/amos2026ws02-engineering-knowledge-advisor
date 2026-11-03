@@ -24,6 +24,11 @@ jobs:
             dockerfile: ./apps/api/Dockerfile
             target: ""
             build-args: ""
+          - image: migrate
+            context: ./apps/api
+            dockerfile: ./apps/api/Dockerfile
+            target: ""
+            build-args: ""
 
     steps:
       - name: Check out repository

@@ -1,6 +1,8 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,7 +16,11 @@ class Settings(BaseSettings):
 
     profile: Literal["dev", "prod"] = "dev"
 
+    database_url: SecretStr | None = None
+
+    ograg_ontology_path: Path  # required field
+
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    return Settings()  # pyright: ignore[reportCallIssue]

@@ -270,7 +270,7 @@ If it reports missing variables or configuration errors, check that you created 
 
 ### 4. Initialize Python venv and install the pre-commit hook
 
-This will install the pre-commit Git hook and auto-init venv based on apps/api/pyproject.toml
+This will install the pre-commit Git hook and auto-init venv based on `apps/api/pyproject.toml`
 
 From the repository root, run:
 

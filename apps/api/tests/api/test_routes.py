@@ -11,8 +11,14 @@ def test_invalid_double_slashes(app):
         assert "//" not in path
 
 
+def test_error_responses_are_documented_as_problems(app):
+    schemas = app.openapi()["components"]["schemas"]
+    assert "HTTPValidationError" not in schemas
+    assert "ValidationError" not in schemas
+
+
 def test_health(app, client):
-    paths = [p for p in route_paths(app) if "health" in p]
+    paths = [path for path in route_paths(app) if "health" in path]
     assert len(paths) == 1
 
     response = client.get(paths[0])
