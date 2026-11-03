@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.concurrency import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from api import basic_router, health_router, v1_records_router
+from api import basic_router, health_router, v1_catalog_router, v1_records_router
 from config.settings import Settings, get_settings
 from db import create_engine, create_sessionmaker, get_ograg_tables
 from handler import exception_handler, service_exception_handler
@@ -52,6 +52,7 @@ app = FastAPI(
 app.include_router(health_router)
 app.include_router(basic_router)
 app.include_router(v1_records_router)
+app.include_router(v1_catalog_router)
 
 exception_handler.register(app)
 service_exception_handler.register(app)

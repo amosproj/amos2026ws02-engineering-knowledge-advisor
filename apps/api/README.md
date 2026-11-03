@@ -48,6 +48,22 @@ Loaded on start with the ontology. Invalid ontology stops the start.
 | `GET /api/v1/records/review`                        | Records that lost their last link and await a review      |
 | `DELETE /api/v1/records/{id}[?delete_orphans=true]` | Delete and unlink everywhere, records left without a link are marked for review (or deleted). Not for machines, assembly groups and CAD files |
 
+## Machines, assembly groups and CAD files
+
+Stored as records: CadFile `partOf` AssemblyGroup `partOf` Machine. The upload state of each CAD file is in `cad_uploads`, its files in S3 under `machines/{machine}/assembly-groups/{group}/cad-files/{file}/`.
+
+| Route                                                  | What                                                                  |
+|--------------------------------------------------------|-----------------------------------------------------------------------|
+| `POST /api/v1/machines`, `GET /api/v1/machines`        | Create a machine, list all machines with their counts and status      |
+| `GET/PATCH/DELETE /api/v1/machines/{id}`               | The machine with its groups and their CAD files, change it, delete it all |
+| `POST /api/v1/machines/{id}/assembly-groups`           | Create an assembly group                                              |
+| `GET/PATCH/DELETE /api/v1/assembly-groups/{id}`        | The group with its CAD files, change it, delete it with its CAD files |
+| `POST /api/v1/assembly-groups/{id}/cad-files`          | Register 1 to 5 STEP files, returns an upload form per file           |
+| `POST /api/v1/cad-files/{id}/complete`                 | Confirm the upload, the file waits for the worker in `processing`     |
+| `GET/PATCH/DELETE /api/v1/cad-files/{id}`              | Upload state, rename, delete (also cancels the upload)                |
+
+Upload: register the files, `POST` each file with its form (`fields`, then the file as `file`) to the form's `url`, then call `/complete`. Deleting answers 409 while the worker processes one of the files.
+
 ## Run
 
 ```sh
