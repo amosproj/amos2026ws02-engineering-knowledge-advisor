@@ -23,6 +23,9 @@ export default defineConfig(({ mode }) => {
             },
         },
         server: {
+            watch: {
+                usePolling: env.WEB_PROFILE === 'dev',
+            },
             // Mirror the Nginx /api proxy so the app always calls a same-origin /api
             proxy: {
                 '/api': env.WEB_API_PROXY_TARGET || 'http://localhost:8000',

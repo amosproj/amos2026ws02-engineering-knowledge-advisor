@@ -12,6 +12,7 @@ The project uses a containerized web application architecture with a React front
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
 - [Starting the Application](#starting-the-application)
+- [Staging Deployment](#staging-deployment)
 - [Testing the Services](#testing-the-services)
 - [Stopping the Application](#stopping-the-application)
 - [Development Workflow](#development-workflow)
@@ -235,6 +236,13 @@ S3_BUCKET=engineering-documents
 S3_REGION=us-east-1
 ```
 
+Set `WEB_PROFILE=dev` in `.env` to run the frontend using Vite with hot reload.
+Set `WEB_PROFILE=prod` or ommitt it to serve the built frontend through Nginx. Rebuild after changing this value:
+
+```powershell
+docker compose up --build
+```
+
 The same file holds the frontend configuration. [`VITE_*` variables](https://vite.dev/guide/env-and-mode):
 
 - are **PUBLIC**: they are embedded in the browser bundle and readable by anyone
@@ -262,19 +270,22 @@ If it reports missing variables or configuration errors, check that you created 
 
 ### 4. Initialize Python venv and install the pre-commit hook
 
-This will install the pre-commit Git hook and auto-init venv based on apps/api/pyproject.toml
+This will install the pre-commit Git hook and auto-init venv based on `apps/api/pyproject.toml`
 
 From the repository root, run:
+
 ```sh
 uv run --directory apps/api pre-commit install  # will also run uv sync
 ```
 
 (optional) manual test-run:
+
 ```sh
 uv run --directory apps/api pre-commit
 ```
 
 To uninstall the hook:
+
 ```sh
 uv run --directory apps/api pre-commit uninstall
 ```
@@ -290,7 +301,7 @@ docker compose up --build
 Docker Compose will:
 
 1. Pull the required base images if they are not available locally.
-2. Build the frontend and backend images.
+2. Build the frontend and backend images, using the mode selected by `WEB_PROFILE`.
 3. Create the required Docker network and persistent volumes.
 4. Start PostgreSQL, MinIO, the API, and the web server in dependency order.
 5. Display service logs in the terminal.
@@ -319,6 +330,26 @@ To view the status of the services:
 docker compose ps
 ```
 
+## Staging Deployment
+
+The deployment workflow builds and pushes the frontend and API Docker images to the `ekadvisor` Docker Hub account, using the following repositories:
+
+- `engineering-knowledge-advisor-web`
+- `engineering-knowledge-advisor-api`
+
+### Automatic Deployment of Updated Images
+
+A service running on the VPS checks the Docker Hub repositories for new images every two minutes. When an updated image is detected, the service automatically pulls the latest image and restarts the corresponding application service.
+
+**Note:** Automatic updates apply only to the frontend and API images. PostgreSQL, MinIO and other components are not updated automatically.
+
+### Rolling Back a Deployment
+
+If a deployment needs to be rolled back, there are two options:
+
+1. **Create a corrective release:** Build and deploy a new release containing the required fixes.
+2. **Revert to a previous image:** Log in to the team's Docker Hub account and retag a previously deployed image as `latest`. The VPS service will detect the updated tag and pull the corresponding image during its next check.
+
 ## Testing the Services
 
 ### Frontend
@@ -327,7 +358,9 @@ Open:
 
 [http://localhost:8080](http://localhost:8080)
 
-The React frontend should load through Nginx.
+With `WEB_PROFILE=dev`, the React frontend runs through Vite and source changes
+are picked up automatically. With `WEB_PROFILE=prod`, the built frontend is
+served through Nginx.
 
 ### API health check
 

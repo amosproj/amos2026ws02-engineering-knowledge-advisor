@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx2 import Response
 
-from handler import register
+from handler.exception_handler import register
 from model.problem import Problem, ProblemResponse
 
 CONTENT_TYPE_PROBLEM_JSON: str = "application/problem+json"
@@ -63,7 +63,7 @@ def test_unhandled(caplog: pytest.LogCaptureFixture):
     assert response_body["instance"] == test_endpoint
 
     # logged by logger
-    errors = [e for e in caplog.records if e.name == UNHANDLED_LOGGER_ID]
+    errors = [entry for entry in caplog.records if entry.name == UNHANDLED_LOGGER_ID]
     assert errors and errors[0].message == UNHANDLED_LOG_MESSAGE
     assert errors[0].exc_info is not None
 
@@ -85,10 +85,10 @@ def test_field_validator_value_error_returns_422():
 
         @field_validator("value")
         @classmethod
-        def _positive(cls, v: int) -> int:
-            if v <= 0:
+        def _positive(cls, value: int) -> int:
+            if value <= 0:
                 raise ValueError(test_error_message)
-            return v
+            return value
 
     app = FastAPI()
     register(app)

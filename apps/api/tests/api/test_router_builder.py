@@ -68,7 +68,7 @@ def test_tags():
         .version("v1")
         .build()
     )
-    assert all(t in router.tags for t in ["knowledge", "search", "v1"])
+    assert all(tag in router.tags for tag in ["knowledge", "search", "v1"])
 
     router = ApiRouterBuilder().version("v1").version("v2").build()
     assert router.tags == ["v2"]

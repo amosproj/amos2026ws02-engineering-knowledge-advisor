@@ -5,24 +5,27 @@ from pydantic import ValidationError
 
 from config.settings import Settings, get_settings
 
+ONTOLOGY_PATH: str = "ontology.jsonld"
+
 
 @pytest.fixture(autouse=True)
 def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("API_PROFILE", raising=False)
+    monkeypatch.setenv("API_OGRAG_ONTOLOGY_PATH", ONTOLOGY_PATH)
     return tmp_path
 
 
 def test_settings_env(isolated: Path):
     env: Path = isolated / ".env"
     env.write_text("API_PROFILE=prod")
-    assert Settings().profile == "prod"
+    assert Settings().profile == "prod"  # pyright: ignore[reportCallIssue]
 
 
 def test_settings_reject_unknowns(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("API_PROFILE", "thisprofiledoesnotexist")
     with pytest.raises(ValidationError):
-        Settings()
+        Settings()  # pyright: ignore[reportCallIssue]
 
 
 def test_settings_cache(monkeypatch: pytest.MonkeyPatch):
