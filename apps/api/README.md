@@ -50,19 +50,7 @@ Loaded on start with the ontology. Invalid ontology stops the start.
 
 ## Machines, assembly groups and CAD files
 
-Stored as records: CadFile `partOf` AssemblyGroup `partOf` Machine. The upload state of each CAD file is in `cad_uploads`, its files in S3 under `machines/{machine}/assembly-groups/{group}/cad-files/{file}/`.
-
-| Route                                                  | What                                                                  |
-|--------------------------------------------------------|-----------------------------------------------------------------------|
-| `POST /api/v1/machines`, `GET /api/v1/machines`        | Create a machine, list all machines with their counts and status      |
-| `GET/PATCH/DELETE /api/v1/machines/{id}`               | The machine with its groups and their CAD files, change it, delete it all |
-| `POST /api/v1/machines/{id}/assembly-groups`           | Create an assembly group                                              |
-| `GET/PATCH/DELETE /api/v1/assembly-groups/{id}`        | The group with its CAD files, change it, delete it with its CAD files |
-| `POST /api/v1/assembly-groups/{id}/cad-files`          | Register 1 to 5 STEP files, returns an upload form per file           |
-| `POST /api/v1/cad-files/{id}/complete`                 | Confirm the upload, the file waits for the worker in `processing`     |
-| `GET/PATCH/DELETE /api/v1/cad-files/{id}`              | Upload state, rename, delete (also cancels the upload)                |
-
-Upload: register the files, `POST` each file with its form (`fields`, then the file as `file`) to the form's `url`, then call `/complete`. Deleting answers 409 while the worker processes one of the files.
+Stored as records (CadFile `partOf` AssemblyGroup `partOf` Machine), upload state in `cad_uploads`. Routes in the OpenAPI docs. Upload: register the files, `POST` each one with its form, then call `/complete`.
 
 ## Run
 
@@ -89,7 +77,7 @@ uv run uvicorn main:app --loop asyncio:SelectorEventLoop
 
 Uploaded files are stored in S3 (MinIO in Docker). The `migrate` service applies the migrations, then creates the bucket if it does not exist yet (`python -m storage.s3`).
 
-The `worker` service (`python -m worker`, code in `src/worker/`) will run the long jobs on uploaded CAD files. It runs no job yet. It touches `/tmp/worker-heartbeat` every 10 s, and the container is reported unhealthy when the file is older than one minute.
+The `worker` service (`python -m worker`, code in `src/worker/`) checks the uploaded STEP files and, every hour, deletes abandoned uploads and orphan objects. It touches `/tmp/worker-heartbeat` every 10 s, and the container is reported unhealthy when the file is older than one minute.
 
 ## Test & Lint
 

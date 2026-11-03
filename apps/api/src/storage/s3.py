@@ -1,4 +1,5 @@
 import logging
+import posixpath
 import time
 from collections.abc import Iterator
 from functools import lru_cache
@@ -167,6 +168,16 @@ def delete_objects(keys: list[str]) -> None:
 def delete_folder(prefix: str) -> None:
     for page in list_objects(prefix):
         delete_objects([obj["Key"] for obj in page if "Key" in obj])
+
+
+def delete_source_folders(source_keys: list[str]) -> None:
+    """Delete the folder of each CAD file, with its source and anything derived from it."""
+    for key in source_keys:
+        try:
+            delete_folder(posixpath.dirname(key) + "/")
+        except (BotoCoreError, ClientError):
+            # the worker deletes the objects left without a file later
+            logger.exception(f"Could not delete the folder of {key}")
 
 
 if __name__ == "__main__":

@@ -9,8 +9,14 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from config.settings import Settings
+from db.model_base import get_ograg_tables
+from logger import logger
+from services.ograg.ontology import Ontology
+from services.ograg.service import OgRagService
+from services.postgres.record_store import PgRecordStore
 
 ERROR_NO_DATABASE_URL: str = "API_DATABASE_URL is not set"
+LOG_ONTOLOGY: str = "Loaded ontology {path} version {version}"
 
 
 def get_database_url(settings: Settings) -> str:
@@ -45,3 +51,21 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
     sessions: async_sessionmaker[AsyncSession] = request.app.state.sessions
     async with sessions() as session, session.begin():
         yield session
+
+
+def create_ograg_service(settings: Settings, engine: AsyncEngine) -> OgRagService:
+    """The OG-RAG service on ``engine``. One per process.
+
+    Raises:
+        OSError, json.JSONDecodeError, OntologyError: the ontology cannot be read or is malformed.
+    """
+    ontology = Ontology.load(settings.ograg_ontology_path)
+    store = PgRecordStore(
+        engine,
+        tables=get_ograg_tables(),
+        identity_property_names=ontology.get_identity_property_names(),
+    )
+    logger.info(
+        LOG_ONTOLOGY.format(path=settings.ograg_ontology_path, version=ontology.version)
+    )
+    return OgRagService(ontology, store)

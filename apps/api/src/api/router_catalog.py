@@ -1,10 +1,8 @@
 import asyncio
-import posixpath
 from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from typing import Any
 
-from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, BackgroundTasks, Request, Response, status
 from sqlalchemy import Row, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
@@ -13,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.router_builder import ApiRouterBuilder
 from api.router_records import RecordId, Service, Session
 from db import CadUploadStatus, cad_uploads
-from logger import logger
 from model import (
     AssemblyGroup,
     AssemblyGroupChanges,
@@ -52,8 +49,8 @@ from storage.s3 import (
     SOURCE_FILE_NAME,
     cad_file_folder,
     create_upload_form,
-    delete_folder,
     delete_object_quietly,
+    delete_source_folders,
     get_object_size,
 )
 
@@ -75,7 +72,6 @@ RESPONSE_DETAIL_422: str = "Request validation failed."
 ERROR_UPLOAD_NOT_FOUND: str = "The CAD file has not been uploaded."
 ERROR_FILE_MISMATCH: str = "The uploaded file does not match the announced size."
 ERROR_IMPORT_FAILED: str = "The CAD file import failed."
-LOG_DELETE_FAILED: str = "Could not delete the folder of {key}"
 
 INVALID: dict[int | str, dict[str, Any]] = {
     422: {"model": Problem, "description": RESPONSE_DETAIL_422},
@@ -160,7 +156,7 @@ async def delete_machine_route(
         cad_files: list[Record] = await _get_cad_files(service, session, groups)
         source_keys: list[str] = await _get_source_keys(session, cad_files)
         await delete_machine(service, session, machine_id)
-    background_tasks.add_task(_delete_source_folders, source_keys)
+    background_tasks.add_task(delete_source_folders, source_keys)
 
 
 @v1_catalog_router.post(
@@ -224,7 +220,7 @@ async def delete_assembly_group_route(
         cad_files: list[Record] = await _get_cad_files(service, session, [group])
         source_keys: list[str] = await _get_source_keys(session, cad_files)
         await delete_assembly_group(service, session, assembly_group_id)
-    background_tasks.add_task(_delete_source_folders, source_keys)
+    background_tasks.add_task(delete_source_folders, source_keys)
 
 
 @v1_catalog_router.post(
@@ -372,7 +368,7 @@ async def delete_cad_file_route(
         record: Record = await get_record(service, session, CAD_FILE, cad_file_id)
         source_keys: list[str] = await _get_source_keys(session, [record])
         await delete_cad_file(service, session, cad_file_id)
-    background_tasks.add_task(_delete_source_folders, source_keys)
+    background_tasks.add_task(delete_source_folders, source_keys)
 
 
 def get_machine_status(statuses: Iterable[str]) -> MachineStatus:
@@ -481,16 +477,6 @@ async def _get_source_keys(session: AsyncSession, cad_files: list[Record]) -> li
         )
     )
     return list(rows.scalars())
-
-
-def _delete_source_folders(source_keys: list[str]) -> None:
-    """Deletes the folder of each file, with its source and anything derived from it."""
-    for key in source_keys:
-        try:
-            delete_folder(posixpath.dirname(key) + "/")
-        except (BotoCoreError, ClientError):
-            # the worker deletes the objects left without a file later
-            logger.exception(LOG_DELETE_FAILED.format(key=key))
 
 
 def _to_completed_cad_file(record: Record, upload: Row[Any]) -> CadFile:
