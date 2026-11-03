@@ -81,7 +81,7 @@ services:
     restart: "no"
 
   worker:
-    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/${API_IMAGE_NAME:-engineering-knowledge-advisor-api}:${IMAGE_TAG:-development}
+    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/${WORKER_IMAGE_NAME:-engineering-knowledge-advisor-worker}:${IMAGE_TAG:-development}
     command: ["uv", "run", "--no-sync", "python", "-m", "worker"]
     environment: *api-environment
     depends_on:

@@ -29,6 +29,11 @@ jobs:
             dockerfile: ./apps/api/Dockerfile
             target: ""
             build-args: ""
+          - image: worker
+            context: ./apps/api
+            dockerfile: ./apps/api/Dockerfile
+            target: ""
+            build-args: ""
 
     steps:
       - name: Check out repository
