@@ -793,6 +793,11 @@
           "url": "https://files.pythonhosted.org/packages/30/cf/697c051fd534e223461fb8b523890e21a24eeca229cd50624cff6f02fabd/greenlet-3.5.6-cp315-cp315t-win_arm64.whl"
         }
       ],
+      "licenses": [
+        {
+          "expression": "MIT AND PSF-2.0"
+        }
+      ],
       "name": "greenlet",
       "purl": "pkg:pypi/greenlet@3.5.6",
       "type": "library",
@@ -3098,6 +3103,11 @@
           "url": "https://files.pythonhosted.org/packages/48/7f/c2d1b436b6e7cfebac140c2579a298344b85f2991a2ce5c3615cefb29400/numpy-2.5.4-cp315-cp315t-win_arm64.whl"
         }
       ],
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0"
+        }
+      ],
       "name": "numpy",
       "purl": "pkg:pypi/numpy@2.5.4",
       "type": "library",
@@ -3161,6 +3171,13 @@
           ],
           "type": "distribution",
           "url": "https://files.pythonhosted.org/packages/a2/8d/a9c2a531da0ebb54b4a7174450e8534a39db112a141ae3a437de28420111/pgvector-0.5.1-py3-none-any.whl"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
         }
       ],
       "name": "pgvector",
