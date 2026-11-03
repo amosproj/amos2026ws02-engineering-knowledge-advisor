@@ -56,7 +56,8 @@ function PageLink({ page, kind, isActive, disabled, children }: PageLinkProps) {
     const linkProps = useLinkProps({
         from: '/machines',
         to: '/machines',
-        search: { page: page > 1 ? page : undefined },
+        // Keeps the search while changing page
+        search: (prev) => ({ ...prev, page: page > 1 ? page : undefined }),
         // Without this, every link to /machines is marked as the current page
         activeOptions: { exact: true, includeSearch: true },
         disabled,

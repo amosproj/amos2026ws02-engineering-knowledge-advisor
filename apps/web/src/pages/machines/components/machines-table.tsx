@@ -7,12 +7,11 @@ import {
     TableHeader,
     TableRow,
 } from '@components'
-import { formatFileSize } from '@components/atomic/organisms/file-upload/file-validation'
 
 import type { Machine } from '../query/machine-api'
-import { formatDateTime } from './format-date-time'
-import { useMachineImport } from './machine-import-context'
-import { MachineStatusBadge } from './machine-status-badge'
+import { StatusBadge } from './status-badge'
+
+const COLUMNS = 6
 
 type MachinesTableProps = {
     machines: Machine[] | undefined
@@ -20,16 +19,16 @@ type MachinesTableProps = {
 }
 
 export function MachinesTable({ machines, onOpen }: MachinesTableProps) {
-    const { activeImport } = useMachineImport()
-
     return (
         <Table>
             <TableHeader>
                 <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Identifier</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead className="text-right">Groups</TableHead>
+                    <TableHead className="text-right">Files</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>File</TableHead>
-                    <TableHead>Imported</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -54,30 +53,24 @@ export function MachinesTable({ machines, onOpen }: MachinesTableProps) {
                                       </p>
                                   ) : null}
                               </TableCell>
+                              <TableCell>{machine.identifier}</TableCell>
+                              <TableCell className="max-w-48 truncate">
+                                  {machine.customer}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                  {machine.assembly_group_count}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                  {machine.cad_file_count}
+                              </TableCell>
                               <TableCell>
-                                  <MachineStatusBadge
-                                      status={machine.status}
-                                      activeImport={
-                                          activeImport?.machineId === machine.id
-                                              ? activeImport
-                                              : null
-                                      }
-                                  />
-                              </TableCell>
-                              <TableCell className="max-w-56">
-                                  <p className="truncate">{machine.original_filename}</p>
-                                  <p className="text-muted-foreground">
-                                      {formatFileSize(machine.size_bytes)}
-                                  </p>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">
-                                  {formatDateTime(machine.created_at)}
+                                  <StatusBadge status={machine.status} />
                               </TableCell>
                           </TableRow>
                       ))
                     : Array.from({ length: 5 }, (_, index) => (
                           <TableRow key={index}>
-                              {Array.from({ length: 4 }, (_, cell) => (
+                              {Array.from({ length: COLUMNS }, (_, cell) => (
                                   <TableCell key={cell}>
                                       <Skeleton className="h-5 w-full" />
                                   </TableCell>

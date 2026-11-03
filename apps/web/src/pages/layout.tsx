@@ -11,7 +11,7 @@ import {
     type DashboardNavConfig,
 } from '@components'
 
-import { ImportMachineDialog } from './machines/components/import-machine-dialog'
+import { ImportIndicator } from './machines/components/import-indicator'
 
 const navConfig: DashboardNavConfig = {
     navMenu: [
@@ -24,7 +24,7 @@ const navConfig: DashboardNavConfig = {
 function HeaderActions() {
     return (
         <>
-            <ImportMachineDialog />
+            <ImportIndicator />
             <Tooltip>
                 <TooltipTrigger
                     render={

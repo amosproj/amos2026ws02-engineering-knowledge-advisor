@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { createRootRouteWithContext, createRoute, createRouter } from '@tanstack/react-router'
 import { DashboardLayout } from './layout'
 import { HomePage } from './home/home-page'
+import { MachineDetailPage } from './machines/machine-detail-page'
 import { MachinesPage } from './machines/machines-page'
 import { machinesSearchSchema } from './machines/models/machines-search-model'
 import { SettingsPage } from './settings/settings-page'
@@ -26,13 +27,24 @@ const machinesRoute = createRoute({
     component: MachinesPage,
 })
 
+const machineDetailRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/machines/$machineId',
+    component: MachineDetailPage,
+})
+
 const settingsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/settings',
     component: SettingsPage,
 })
 
-const routeTree = rootRoute.addChildren([homeRoute, machinesRoute, settingsRoute])
+const routeTree = rootRoute.addChildren([
+    homeRoute,
+    machinesRoute,
+    machineDetailRoute,
+    settingsRoute,
+])
 
 export const router = createRouter({
     routeTree,
