@@ -26,7 +26,9 @@ type ActionsMenuProps = {
 export function ActionsMenu({ label, actions, size = 'icon' }: ActionsMenuProps) {
     return (
         <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="secondary" size={size} aria-label={label} />}>
+            <DropdownMenuTrigger
+                render={<Button variant="secondary" size={size} aria-label={label} />}
+            >
                 <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
