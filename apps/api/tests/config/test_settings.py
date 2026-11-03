@@ -5,11 +5,14 @@ from pydantic import ValidationError
 
 from config.settings import Settings, get_settings
 
+ONTOLOGY_PATH: str = "ontology.jsonld"
+
 
 @pytest.fixture(autouse=True)
 def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("API_PROFILE", raising=False)
+    monkeypatch.setenv("API_OGRAG_ONTOLOGY_PATH", ONTOLOGY_PATH)
     return tmp_path
 
 

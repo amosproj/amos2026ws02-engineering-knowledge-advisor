@@ -1,5 +1,5 @@
-from db.models import Base as Base
-from db.models import Machine as Machine
-from db.models import MachineStatus as MachineStatus
-from db.session import get_engine as get_engine
+from db.model_base import ModelBase as ModelBase
+from db.model_base import get_ograg_tables as get_ograg_tables
+from db.session import create_engine as create_engine
+from db.session import create_sessionmaker as create_sessionmaker
 from db.session import get_session as get_session

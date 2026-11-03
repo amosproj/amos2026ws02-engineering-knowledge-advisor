@@ -1,27 +1,33 @@
-import os
+from collections.abc import Iterator
 
 import pytest
+from fakes import ONTOLOGY_PATH
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-os.environ.setdefault(
-    "DATABASE_URL", "postgresql+psycopg://test:test@localhost:5432/test"
-)
-os.environ.setdefault("S3_ENDPOINT_URL", "http://localhost:9000")
-os.environ.setdefault("S3_BUCKET", "test")
-os.environ.setdefault("S3_ACCESS_KEY", "test")
-os.environ.setdefault("S3_SECRET_KEY", "test")
-os.environ.setdefault("S3_REGION", "us-east-1")
-os.environ.setdefault("S3_PUBLIC_URL", "/storage")
+from config.settings import get_settings
+
+# route tests need a database URL, but not a whole database
+TEST_DATABASE_URL: str = "postgresql+psycopg://test@localhost:5432/test"
 
 
 @pytest.fixture
-def app():
+def anyio_backend() -> str:
+    return "asyncio"
+
+
+@pytest.fixture
+def app(monkeypatch: pytest.MonkeyPatch) -> Iterator[FastAPI]:
     from main import app
 
-    return app
+    monkeypatch.setenv("API_DATABASE_URL", TEST_DATABASE_URL)
+    monkeypatch.setenv("API_OGRAG_ONTOLOGY_PATH", str(ONTOLOGY_PATH))
+    get_settings.cache_clear()
+    yield app
+    get_settings.cache_clear()  # clear for next test
 
 
 @pytest.fixture
-def client(app):
-    with TestClient(app) as c:
-        yield c
+def client(app: FastAPI) -> Iterator[TestClient]:
+    with TestClient(app) as client:
+        yield client
