@@ -26,6 +26,7 @@ BUCKET_CHECK_DELAY_SECONDS = 2
 UPLOAD_FORM_EXPIRES_SECONDS = 3600
 UPLOAD_CONTENT_TYPE = "application/octet-stream"
 DELETE_BATCH_SIZE = 1000
+SOURCE_FILE_NAME = "source.step"
 
 
 @lru_cache
@@ -84,6 +85,11 @@ def ensure_bucket() -> None:
         time.sleep(BUCKET_CHECK_DELAY_SECONDS)
 
     raise RuntimeError("Object storage did not become ready") from last_error
+
+
+def cad_file_folder(machine_id: str, assembly_group_id: str, cad_file_id: str) -> str:
+    """Folder of one CAD file: its STEP source now, its preview and 3D model later."""
+    return f"machines/{machine_id}/assembly-groups/{assembly_group_id}/cad-files/{cad_file_id}/"
 
 
 def create_upload_form(key: str, size: int) -> tuple[str, dict[str, str]]:
@@ -156,6 +162,11 @@ def delete_objects(keys: list[str]) -> None:
     )
     for error in response.get("Errors", []):
         logger.error(f"Could not delete object {error.get('Key')}: {error.get('Code')}")
+
+
+def delete_folder(prefix: str) -> None:
+    for page in list_objects(prefix):
+        delete_objects([obj["Key"] for obj in page if "Key" in obj])
 
 
 if __name__ == "__main__":

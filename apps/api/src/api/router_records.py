@@ -7,7 +7,9 @@ from api.router_builder import ApiRouterBuilder
 from db.session import get_session
 from model import RecordNode, Records, RecordsDeleted, RecordToReview, RecordWritten
 from model.problem import Problem, ProblemException
-from services import Record
+from services import JsonObject, Record
+from services.catalog import ASSEMBLY_GROUP, CAD_FILE, MACHINE
+from services.ograg.ontology import get_type
 from services.ograg.service import OgRagService
 
 RECORD_ID_PATTERN: str = r"^[A-Za-z0-9][A-Za-z0-9._-]*$"
@@ -15,6 +17,12 @@ RECORD_ID_MAX_LENGTH: int = 200
 
 RESPONSE_DETAIL_404: str = "No such record."
 RESPONSE_DETAIL_409: str = "Concurrent write. Please try again."
+RESPONSE_DETAIL_409_CATALOG: str = (
+    "Machines, assembly groups and CAD files are managed through their own endpoints."
+)
+RESPONSE_DESCRIPTION_409: str = "Concurrent write, or a machine, assembly group or CAD file: they have their own endpoints."
+# written only through their own endpoints, which keep their hierarchy and files consistent
+CATALOG_CLASSES: tuple[str, ...] = (MACHINE, ASSEMBLY_GROUP, CAD_FILE)
 RESPONSE_DETAIL_422_INVALID_ONTOLOGY: str = (
     "Does not fit ontology. Link target is missing, or value cannot be stored."
 )
@@ -52,7 +60,7 @@ RecordId = Annotated[
         },
         409: {
             "model": Problem,
-            "description": RESPONSE_DETAIL_409,
+            "description": RESPONSE_DESCRIPTION_409,
         },
     },
 )
@@ -69,7 +77,12 @@ async def put_record(
     ``@id`` is ``record_id``.
     Link targets must already exist.
     """
-    warnings = await service.upsert_record(record_id, node.to_node(), session, author)
+    submitted: JsonObject = node.to_node()
+    if get_type(submitted, service.ontology.anchor_class) in CATALOG_CLASSES:
+        raise ProblemException(
+            Problem.from_status(409, detail=RESPONSE_DETAIL_409_CATALOG)
+        )
+    warnings = await service.upsert_record(record_id, submitted, session, author)
     return RecordWritten(id=record_id, warnings=warnings)
 
 
@@ -116,7 +129,7 @@ async def get_record(
         404: {"model": Problem, "description": RESPONSE_DETAIL_404},
         409: {
             "model": Problem,
-            "description": RESPONSE_DETAIL_409,
+            "description": RESPONSE_DESCRIPTION_409,
         },
         422: {"model": Problem, "description": RESPONSE_DETAIL_422_INVALID_REQUEST},
     },
@@ -131,6 +144,11 @@ async def delete_record(
 
     Records left without a parent link are also deleted if ``delete_orphans`` is ``True``, otherwise marked for review.
     """
+    stored: Record | None = await service.get_record(record_id, session)
+    if stored is not None and stored.cls in CATALOG_CLASSES:
+        raise ProblemException(
+            Problem.from_status(409, detail=RESPONSE_DETAIL_409_CATALOG)
+        )
     result = await service.delete_record(record_id, session, delete_orphans)
     if not result.deleted_ids:
         raise ProblemException(Problem.from_status(404, detail=RESPONSE_DETAIL_404))

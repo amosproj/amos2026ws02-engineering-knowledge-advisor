@@ -43,10 +43,10 @@ Loaded on start with the ontology. Invalid ontology stops the start.
 
 | Route                                               | What                                                      |
 |-----------------------------------------------------|-----------------------------------------------------------|
-| `PUT /api/v1/records/{id}`                          | Create or replace a record, links must be valid           |
+| `PUT /api/v1/records/{id}`                          | Create or replace a record, links must be valid. Not for machines, assembly groups and CAD files |
 | `GET /api/v1/records`                               | All records by id                                         |
 | `GET /api/v1/records/review`                        | Records that lost their last link and await a review      |
-| `DELETE /api/v1/records/{id}[?delete_orphans=true]` | Delete and unlink everywhere, records left without a link are marked for review (or deleted) |
+| `DELETE /api/v1/records/{id}[?delete_orphans=true]` | Delete and unlink everywhere, records left without a link are marked for review (or deleted). Not for machines, assembly groups and CAD files |
 
 ## Run
 

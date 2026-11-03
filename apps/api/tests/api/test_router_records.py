@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator, Iterator, Sequence
 from typing import Any
 
@@ -13,7 +14,7 @@ from db.session import get_session
 from handler.exception_handler import register
 from handler.service_exception_handler import register as register_service
 from services import ConflictError, Record, Tx
-from services.ograg.service import OgRagService
+from services.ograg.service import DeleteResult, OgRagService
 
 PROBLEM_JSON: str = "application/problem+json"
 SESSION: str = "the request's session"
@@ -32,6 +33,11 @@ GROUP: dict[str, Any] = {
     "name": "Input tray",
     "partOf": MACHINE_ID,
 }
+ITEM: dict[str, Any] = {
+    "@type": "KnowledgeItem",
+    "statement": "Chamfer the nest.",
+}
+LINKED_ITEM: dict[str, Any] = {**ITEM, "appliesTo": [GROUP_ID]}
 
 
 @pytest.fixture
@@ -60,6 +66,16 @@ def client(app: FastAPI) -> Iterator[TestClient]:
         yield client
 
 
+def seed_machine_and_group(service: OgRagService) -> None:
+    """Machines and groups cannot be written through /records."""
+
+    async def seed() -> None:
+        await service.upsert_record(MACHINE_ID, MACHINE)
+        await service.upsert_record(GROUP_ID, GROUP)
+
+    asyncio.run(seed())
+
+
 def put_record(client: TestClient, record_id: str, node: dict[str, Any]) -> Response:
     return client.put(f"{RECORDS_URL}/{record_id}", json=node)
 
@@ -80,38 +96,41 @@ def assert_problem(response: Response, status: int, *keywords: str) -> None:
     assert_mentions(body["detail"], *keywords)
 
 
-def test_put_list_and_delete(client: TestClient):
-    response: Response = put_record(client, MACHINE_ID, {**MACHINE, "colour": "red"})
+def test_put_list_and_delete(client: TestClient, service: OgRagService):
+    seed_machine_and_group(service)
+    response: Response = put_record(client, ITEM_ID, {**ITEM, "colour": "red"})
     written: dict[str, Any] = response.json()
-    assert written["id"] == MACHINE_ID and len(written["warnings"]) == 1
-    assert_mentions(written["warnings"][0], "Machine", "colour")
-    assert put_record(client, GROUP_ID, GROUP).status_code == 200
+    assert written["id"] == ITEM_ID and len(written["warnings"]) == 1
+    assert_mentions(written["warnings"][0], "KnowledgeItem", "colour")
+    assert put_record(client, "KI-2", LINKED_ITEM).status_code == 200
     records: dict[str, Any] = get_listed_records(client)
-    assert sorted(records) == [GROUP_ID, MACHINE_ID]
-    assert records[GROUP_ID]["partOf"] == MACHINE_ID
+    assert sorted(records) == [GROUP_ID, ITEM_ID, "KI-2", MACHINE_ID]
+    assert records["KI-2"]["appliesTo"] == [GROUP_ID]
 
-    assert delete_record(client, GROUP_ID).json() == {
-        "deleted_ids": [GROUP_ID],
+    assert delete_record(client, ITEM_ID).json() == {
+        "deleted_ids": [ITEM_ID],
         "marked_ids": [],
     }
-    assert sorted(get_listed_records(client)) == [MACHINE_ID]
+    assert ITEM_ID not in get_listed_records(client)
 
 
 def test_a_record_is_listed_as_stored(client: TestClient):
-    put_record(client, MACHINE_ID, MACHINE)
-    assert get_listed_records(client) == {MACHINE_ID: {**MACHINE, "@id": MACHINE_ID}}
+    put_record(client, ITEM_ID, ITEM)
+    assert get_listed_records(client) == {ITEM_ID: {**ITEM, "@id": ITEM_ID}}
 
 
-def test_one_record_is_read_with_its_link_ids(client: TestClient):
-    put_record(client, MACHINE_ID, MACHINE)
-    put_record(client, GROUP_ID, GROUP)
-    response: Response = client.get(f"{RECORDS_URL}/{GROUP_ID}")
+def test_one_record_is_read_with_its_link_ids(
+    client: TestClient, service: OgRagService
+):
+    seed_machine_and_group(service)
+    put_record(client, ITEM_ID, LINKED_ITEM)
+    response: Response = client.get(f"{RECORDS_URL}/{ITEM_ID}")
     assert response.status_code == 200
-    assert response.json() == {**GROUP, "@id": GROUP_ID}
+    assert response.json() == {**LINKED_ITEM, "@id": ITEM_ID}
 
 
 def test_reading_a_missing_record_is_a_404_problem(client: TestClient):
-    assert_problem(client.get(f"{RECORDS_URL}/{MACHINE_ID}"), 404)
+    assert_problem(client.get(f"{RECORDS_URL}/{ITEM_ID}"), 404)
 
 
 def test_the_review_list_is_not_read_as_a_record_id(client: TestClient):
@@ -121,16 +140,16 @@ def test_the_review_list_is_not_read_as_a_record_id(client: TestClient):
 
 def test_plain_type_and_id_keys_are_ordinary_properties(client: TestClient):
     response: Response = put_record(
-        client, MACHINE_ID, {**MACHINE, "type": "robot", "id": "x"}
+        client, ITEM_ID, {**ITEM, "type": "robot", "id": "x"}
     )
     warnings: list[str] = response.json()["warnings"]
     assert len(warnings) == 2
-    assert_mentions(" ".join(warnings), "Machine.type", "Machine.id")
-    assert get_listed_records(client)[MACHINE_ID]["@type"] == MACHINE["@type"]
+    assert_mentions(" ".join(warnings), "KnowledgeItem.type", "KnowledgeItem.id")
+    assert get_listed_records(client)[ITEM_ID]["@type"] == ITEM["@type"]
 
 
 def test_a_body_that_is_not_an_object_is_a_422_problem(client: TestClient):
-    response: Response = client.put(f"{RECORDS_URL}/{MACHINE_ID}", json=[MACHINE])
+    response: Response = client.put(f"{RECORDS_URL}/{ITEM_ID}", json=[ITEM])
     assert response.status_code == 422
 
 
@@ -150,12 +169,12 @@ def test_a_record_that_does_not_fit_is_a_422_problem(client: TestClient):
 
 
 def test_a_link_to_a_missing_record_is_a_422_problem(client: TestClient):
-    assert_problem(put_record(client, GROUP_ID, GROUP), 422, "partOf", MACHINE_ID)
+    assert_problem(put_record(client, ITEM_ID, LINKED_ITEM), 422, "appliesTo", GROUP_ID)
 
 
 def test_text_the_database_cannot_store_is_a_422_problem(client: TestClient):
-    machine: dict[str, Any] = {**MACHINE, "name": "nul \u0000 byte"}
-    assert_problem(put_record(client, MACHINE_ID, machine), 422)
+    item: dict[str, Any] = {**ITEM, "statement": "nul \u0000 byte"}
+    assert_problem(put_record(client, ITEM_ID, item), 422)
     assert get_listed_records(client) == {}
 
 
@@ -164,33 +183,54 @@ def test_a_conflict_is_a_409_problem(client: TestClient, service: OgRagService):
         raise ConflictError("deadlock: try again")
 
     service.store.save_records = conflicting_save  # type: ignore[method-assign]
-    assert_problem(put_record(client, MACHINE_ID, MACHINE), 409, "deadlock")
+    assert_problem(put_record(client, ITEM_ID, ITEM), 409, "deadlock")
+
+
+def test_machines_groups_and_cad_files_are_not_written_here(
+    client: TestClient, service: OgRagService
+):
+    assert_problem(put_record(client, MACHINE_ID, MACHINE), 409, "own endpoints")
+    # without @type, a record is an assembly group
+    assert_problem(put_record(client, GROUP_ID, {"name": "x"}), 409, "own endpoints")
+    seed_machine_and_group(service)
+    assert_problem(delete_record(client, MACHINE_ID), 409, "own endpoints")
+    assert MACHINE_ID in get_listed_records(client)
 
 
 def test_deleting_a_missing_record_is_a_404_problem(client: TestClient):
-    assert_problem(delete_record(client, MACHINE_ID), 404)
+    assert_problem(delete_record(client, ITEM_ID), 404)
 
 
 def test_an_invalid_record_id_is_a_422_problem(client: TestClient):
-    assert_problem(put_record(client, "-bad id", MACHINE), 422)
+    assert_problem(put_record(client, "-bad id", ITEM), 422)
 
 
-def test_review_lists_records_that_lost_their_last_link(client: TestClient):
-    item: dict[str, Any] = {
-        "@type": "KnowledgeItem",
-        "statement": "Chamfer the nest.",
-        "appliesTo": [GROUP_ID],
-    }
-    put_record(client, MACHINE_ID, MACHINE)
-    put_record(client, GROUP_ID, GROUP)
-    put_record(client, ITEM_ID, item)
-    assert delete_record(client, GROUP_ID).json()["marked_ids"] == [ITEM_ID]
+def test_review_lists_records_that_lost_their_last_link(
+    client: TestClient, service: OgRagService
+):
+    seed_machine_and_group(service)
+    put_record(client, ITEM_ID, LINKED_ITEM)
+    asyncio.run(service.delete_record(GROUP_ID))
     reviews: list[dict[str, Any]] = client.get(f"{RECORDS_URL}/review").json()
     assert [rec["id"] for rec in reviews] == [ITEM_ID]
     assert_mentions(reviews[0]["review"], "AssemblyGroup", GROUP_ID)
 
-    response: Response = delete_record(client, MACHINE_ID, "?delete_orphans=true")
-    assert response.json()["deleted_ids"] == [MACHINE_ID]
+
+def test_delete_passes_its_options_and_returns_the_marked_ids(
+    client: TestClient, service: OgRagService
+):
+    calls: list[tuple[str, Tx | None, bool]] = []
+
+    async def spy_delete(
+        record_id: str, tx: Tx | None = None, delete_orphans: bool = False
+    ) -> DeleteResult:
+        calls.append((record_id, tx, delete_orphans))
+        return DeleteResult(deleted_ids=[record_id], marked_ids=["KI-2"])
+
+    service.delete_record = spy_delete  # type: ignore[method-assign]
+    response: Response = delete_record(client, ITEM_ID, "?delete_orphans=true")
+    assert calls == [(ITEM_ID, SESSION, True)]
+    assert response.json() == {"deleted_ids": [ITEM_ID], "marked_ids": ["KI-2"]}
 
 
 def test_writes_run_in_the_requests_session(client: TestClient, service: OgRagService):
@@ -202,7 +242,7 @@ def test_writes_run_in_the_requests_session(client: TestClient, service: OgRagSe
         await save(records, tx)
 
     service.store.save_records = recording_save  # type: ignore[method-assign]
-    put_record(client, MACHINE_ID, MACHINE)
+    put_record(client, ITEM_ID, ITEM)
     assert seen == [SESSION]
 
 
