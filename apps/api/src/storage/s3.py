@@ -2,7 +2,7 @@ import logging
 import time
 from collections.abc import Iterator
 from functools import lru_cache
-from typing import Any
+from typing import TYPE_CHECKING
 
 import boto3
 from botocore.config import Config
@@ -12,9 +12,14 @@ from botocore.exceptions import (
     ConnectionError,
     HTTPClientError,
 )
+from botocore.response import StreamingBody
 
 from config.settings import get_settings
 from logger import logger
+
+if TYPE_CHECKING:  # the stubs are a dev dependency
+    from types_boto3_s3 import S3Client
+    from types_boto3_s3.type_defs import ObjectTypeDef
 
 BUCKET_CHECK_ATTEMPTS = 30
 BUCKET_CHECK_DELAY_SECONDS = 2
@@ -24,7 +29,7 @@ DELETE_BATCH_SIZE = 1000
 
 
 @lru_cache
-def get_s3_client() -> Any:
+def get_s3_client() -> "S3Client":
     settings = get_settings()
     return boto3.client(
         "s3",
@@ -42,10 +47,10 @@ def get_s3_client() -> Any:
 
 
 def _http_status(error: ClientError) -> int:
-    return error.response["ResponseMetadata"]["HTTPStatusCode"]
+    return error.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
 
 
-def _bucket_exists(client: Any, bucket: str) -> bool:
+def _bucket_exists(client: "S3Client", bucket: str) -> bool:
     try:
         client.head_bucket(Bucket=bucket)
         return True
@@ -108,7 +113,7 @@ def get_object_size(key: str) -> int | None:
     return response["ContentLength"]
 
 
-def open_object(key: str) -> Any | None:
+def open_object(key: str) -> StreamingBody | None:
     """Return the object body as a stream, None if the object does not exist."""
     try:
         response = get_s3_client().get_object(Bucket=get_settings().s3_bucket, Key=key)
@@ -119,7 +124,7 @@ def open_object(key: str) -> Any | None:
     return response["Body"]
 
 
-def list_objects(prefix: str) -> Iterator[list[dict[str, Any]]]:
+def list_objects(prefix: str) -> Iterator[list["ObjectTypeDef"]]:
     """Yield the objects under the prefix, one page of up to DELETE_BATCH_SIZE at a time."""
     paginator = get_s3_client().get_paginator("list_objects_v2")
     for page in paginator.paginate(
@@ -150,7 +155,7 @@ def delete_objects(keys: list[str]) -> None:
         Delete={"Objects": [{"Key": key} for key in keys], "Quiet": True},
     )
     for error in response.get("Errors", []):
-        logger.error(f"Could not delete object {error['Key']}: {error['Code']}")
+        logger.error(f"Could not delete object {error.get('Key')}: {error.get('Code')}")
 
 
 if __name__ == "__main__":

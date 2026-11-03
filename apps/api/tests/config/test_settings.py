@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from helpers import S3_ENV
 from pydantic import ValidationError
 
 from config.settings import Settings, get_settings
@@ -13,6 +14,8 @@ def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("API_PROFILE", raising=False)
     monkeypatch.setenv("API_OGRAG_ONTOLOGY_PATH", ONTOLOGY_PATH)
+    for name, value in S3_ENV.items():
+        monkeypatch.setenv(name, value)
     return tmp_path
 
 
@@ -24,6 +27,13 @@ def test_settings_env(isolated: Path):
 
 def test_settings_reject_unknowns(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("API_PROFILE", "thisprofiledoesnotexist")
+    with pytest.raises(ValidationError):
+        Settings()  # pyright: ignore[reportCallIssue]
+
+
+@pytest.mark.parametrize("name", S3_ENV)
+def test_settings_require_s3(monkeypatch: pytest.MonkeyPatch, name: str):
+    monkeypatch.delenv(name)
     with pytest.raises(ValidationError):
         Settings()  # pyright: ignore[reportCallIssue]
 

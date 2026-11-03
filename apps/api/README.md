@@ -9,6 +9,12 @@ FastAPI backend. Requires Python 3.13 and [uv](https://docs.astral.sh/uv/).
 | `API_PROFILE`             | `dev`, `prod`                            | `dev`                |
 | `API_DATABASE_URL`        | `postgresql+psycopg://user:pw@host/db`   | none (required)      |
 | `API_OGRAG_ONTOLOGY_PATH` | JSON-LD ontology file                    | none (required)      |
+| `API_S3_ENDPOINT_URL`     | S3 endpoint, e.g. `http://minio:9000`    | none (required)      |
+| `API_S3_BUCKET`           | bucket of the uploaded files             | none (required)      |
+| `API_S3_ACCESS_KEY`       | S3 access key                            | none (required)      |
+| `API_S3_SECRET_KEY`       | S3 secret key                            | none (required)      |
+| `API_S3_REGION`           | S3 region, e.g. `us-east-1`              | none (required)      |
+| `API_S3_PUBLIC_URL`       | where the browser reaches the storage, e.g. `/storage` | none (required) |
 
 Settings are read in this order:
 1. environment variables (prefix `API_`)
@@ -62,6 +68,12 @@ On Windows, async psycopg needs a selector event loop. Add this flag to any of t
 ```sh
 uv run uvicorn main:app --loop asyncio:SelectorEventLoop
 ```
+
+## Storage and background jobs
+
+Uploaded files are stored in S3 (MinIO in Docker). The `migrate` service applies the migrations, then creates the bucket if it does not exist yet (`python -m storage.s3`).
+
+The `worker` service (`python -m worker`, code in `src/worker/`) will run the long jobs on uploaded CAD files. It runs no job yet. It touches `/tmp/worker-heartbeat` every 10 s, and the container is reported unhealthy when the file is older than one minute.
 
 ## Test & Lint
 

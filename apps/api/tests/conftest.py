@@ -4,6 +4,7 @@ import pytest
 from fakes import ONTOLOGY_PATH
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from helpers import S3_ENV
 
 from config.settings import get_settings
 
@@ -22,6 +23,8 @@ def app(monkeypatch: pytest.MonkeyPatch) -> Iterator[FastAPI]:
 
     monkeypatch.setenv("API_DATABASE_URL", TEST_DATABASE_URL)
     monkeypatch.setenv("API_OGRAG_ONTOLOGY_PATH", str(ONTOLOGY_PATH))
+    for name, value in S3_ENV.items():
+        monkeypatch.setenv(name, value)
     get_settings.cache_clear()
     yield app
     get_settings.cache_clear()  # clear for next test
