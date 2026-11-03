@@ -321,6 +321,13 @@
           "url": "https://files.pythonhosted.org/packages/47/97/808e43596be9fd879481acf082f4ba4cbf1cbd156d872d1b34bebf390e2e/cadquery_ocp-8.0.1.1.0-cp314-cp314-win_amd64.whl"
         }
       ],
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
       "name": "cadquery-ocp",
       "purl": "pkg:pypi/cadquery-ocp@8.0.1.1.0",
       "type": "library",
@@ -338,6 +345,13 @@
           ],
           "type": "distribution",
           "url": "https://files.pythonhosted.org/packages/13/5e/29c3d8c4b290dee82387468a33ac06c663518a167963cdb9ff48e6bbd8f9/cadquery_ocp_proxy-8.0.1.1.0-py3-none-any.whl"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
         }
       ],
       "name": "cadquery-ocp-proxy",
@@ -397,6 +411,13 @@
           ],
           "type": "distribution",
           "url": "https://files.pythonhosted.org/packages/9f/31/1b34d57ad642477ea92ad750fe59d4b8444b02dce3296dc7a7e33f53f85a/cadquery_ocp_stubs-8.0.1.1.0-py3-none-win_amd64.whl"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
         }
       ],
       "name": "cadquery-ocp-stubs",
@@ -1034,6 +1055,13 @@
           "url": "https://files.pythonhosted.org/packages/54/bf/eb4ff492e1c3d027617b5a20e4e6d63a035b41b8cf77a95950159556a3a5/contourpy-1.4.0-cp315-cp315t-win_arm64.whl"
         }
       ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
       "name": "contourpy",
       "purl": "pkg:pypi/contourpy@1.4.0",
       "type": "library",
@@ -1576,6 +1604,13 @@
           ],
           "type": "distribution",
           "url": "https://files.pythonhosted.org/packages/35/74/4ea331ecc65ba05a58b1e4e8ccd604c8a15565f876dfbf93fc2a2ea2e22b/fonttools-4.68.0-py3-none-any.whl"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
         }
       ],
       "name": "fonttools",
@@ -5066,6 +5101,13 @@
           "url": "https://files.pythonhosted.org/packages/63/5a/9f440e7bec8b80d0af2a65d1165b2f4e718982dad785531f62255d9ff19b/matplotlib-3.11.2-cp315-cp315t-win_arm64.whl"
         }
       ],
+      "licenses": [
+        {
+          "license": {
+            "id": "PSF-2.0"
+          }
+        }
+      ],
       "name": "matplotlib",
       "purl": "pkg:pypi/matplotlib@3.11.2",
       "type": "library",
@@ -5695,6 +5737,11 @@
           "url": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl"
         }
       ],
+      "licenses": [
+        {
+          "expression": "Apache-2.0 OR BSD-2-Clause"
+        }
+      ],
       "name": "packaging",
       "purl": "pkg:pypi/packaging@26.3",
       "type": "library",
@@ -6288,6 +6335,13 @@
           ],
           "type": "distribution",
           "url": "https://files.pythonhosted.org/packages/e4/81/b8eb349746be7bce47dd95337c6634e84910af91b59aaa9159c034c614fa/pillow-13.0.0-cp315-cp315t-win_arm64.whl"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT-CMU"
+          }
         }
       ],
       "name": "pillow",
@@ -7563,6 +7617,13 @@
           ],
           "type": "distribution",
           "url": "https://files.pythonhosted.org/packages/38/bb/d215ee7c73b61497b28a5503f9f53523f294fcc936762b7caf90e0c1c2b5/pyparsing-3.3.3-py3-none-any.whl"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
         }
       ],
       "name": "pyparsing",
