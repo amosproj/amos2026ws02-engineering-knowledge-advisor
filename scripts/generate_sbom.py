@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -89,11 +90,11 @@ SPDX_ID = re.compile(r"^[A-Za-z0-9.+-]+$")
 
 
 def run(command: list[str], cwd: Path) -> str:
-    executable = shutil.which(command[0])
+    executable: str | None = shutil.which(command[0])
     if executable is None:
         raise SystemExit(f"Required tool not found: {command[0]}")
 
-    result = subprocess.run(
+    result: subprocess.CompletedProcess[str] = subprocess.run(
         [executable, *command[1:]],
         cwd=cwd,
         check=True,
@@ -110,7 +111,7 @@ def build_api_sbom() -> dict[str, Any]:
     # always reflects the committed dependency set.
     # --no-dev keeps the SBOM aligned with the Dockerfile, dev tools are not shipped.
     try:
-        raw = run(
+        raw: str = run(
             [
                 "uv",
                 "export",
@@ -132,7 +133,7 @@ def build_api_sbom() -> dict[str, Any]:
             "If apps/api/uv.lock is out of date, run: uv lock --directory apps/api"
         ) from error
 
-    document = json.loads(raw)
+    document: dict[str, Any] = json.loads(raw)
     add_api_licenses(document)
     return normalize(document)
 
@@ -144,9 +145,9 @@ def canonical_name(name: str) -> str:
 
 def locked_requirements(components: list[dict[str, Any]]) -> str:
     """Pin every component to its locked version and artifact hashes."""
-    lines = []
+    lines: list[str] = []
     for component in components:
-        hashes = sorted(
+        hashes: list[str] = sorted(
             {
                 f"--hash=sha256:{item['content']}"
                 for reference in component.get("externalReferences", [])
@@ -164,7 +165,7 @@ def read_package_metadata(
     components: list[dict[str, Any]],
 ) -> dict[str, importlib.metadata.PackageMetadata]:
     """Install the locked artifacts into a temporary directory and read them."""
-    python_version = API_PYTHON_VERSION_FILE.read_text(encoding="utf-8").strip()
+    python_version: str = API_PYTHON_VERSION_FILE.read_text(encoding="utf-8").strip()
 
     with tempfile.TemporaryDirectory() as temp_dir:
         requirements = Path(temp_dir) / "requirements.txt"
@@ -214,15 +215,15 @@ def resolve_license(
         return None
 
     # PEP 639 field: already a validated SPDX expression.
-    expression = metadata.get("License-Expression")
+    expression: str | None = metadata.get("License-Expression")
     if expression:
         return expression.strip()
 
-    text = " ".join((metadata.get("License") or "").split()).lower()
+    text: str = " ".join((metadata.get("License") or "").split()).lower()
     if text in LICENSE_TEXT_TO_SPDX:
         return LICENSE_TEXT_TO_SPDX[text]
 
-    classifiers = [
+    classifiers: list[str] = [
         classifier
         for classifier in metadata.get_all("Classifier") or []
         if classifier.startswith("License ::")
@@ -243,13 +244,15 @@ def license_entry(expression: str) -> dict[str, Any]:
 
 def add_api_licenses(document: dict[str, Any]) -> None:
     """Attach licenses to the API components, which uv export leaves out."""
-    components = document.get("components", [])
-    metadata = read_package_metadata(components)
+    components: list[dict[str, Any]] = document.get("components", [])
+    metadata: dict[str, importlib.metadata.PackageMetadata] = read_package_metadata(
+        components
+    )
 
-    unresolved = []
+    unresolved: list[str] = []
     for component in components:
-        name = canonical_name(component["name"])
-        expression = resolve_license(name, metadata.get(name))
+        name: str = canonical_name(component["name"])
+        expression: str | None = resolve_license(name, metadata.get(name))
         if expression is None:
             unresolved.append(f"{component['name']}=={component['version']}")
             continue
@@ -268,15 +271,19 @@ def build_web_sbom() -> dict[str, Any]:
     """Build the web SBOM from the npm lockfile."""
     # npm records its own version in the SBOM, so a different local npm would
     # produce a different file than CI.
-    expected = npm_package_manager_version()
-    actual = run(["npm", "--version"], WEB_DIR).strip()
+    expected: str | None = npm_package_manager_version()
+    if expected is None:
+        raise SystemExit(
+            'apps/web/package.json must pin npm via "packageManager": "npm@<version>"'
+        )
+    actual: str = run(["npm", "--version"], WEB_DIR).strip()
     if actual != expected:
         raise SystemExit(
             f"npm {expected} is required (packageManager in apps/web/package.json), "
             f"found {actual}. Run: npm install -g npm@{expected}"
         )
 
-    raw = run(
+    raw: str = run(
         [
             "npm",
             "sbom",
@@ -300,9 +307,9 @@ def normalize(document: dict[str, Any]) -> dict[str, Any]:
     document.pop("serialNumber", None)
     document.get("metadata", {}).pop("timestamp", None)
 
-    components = document.get("components", [])
+    components: list[dict[str, Any]] = document.get("components", [])
     components.sort(key=lambda item: (item.get("name", ""), item.get("version", "")))
-    dependencies = document.get("dependencies", [])
+    dependencies: list[dict[str, Any]] = document.get("dependencies", [])
     dependencies.sort(key=lambda item: item.get("ref", ""))
 
     return document
@@ -315,7 +322,7 @@ def serialize(document: dict[str, Any]) -> str:
 def index_content(relative: str) -> str | None:
     """Return the content of a file as staged in the git index, if present."""
     # `git show :<path>` rejects backslashes
-    result = subprocess.run(
+    result: subprocess.CompletedProcess[str] = subprocess.run(
         ["git", "show", f":{Path(relative).as_posix()}"],
         cwd=ROOT,
         check=False,
@@ -329,7 +336,7 @@ def index_content(relative: str) -> str | None:
 
 
 def main() -> None:
-    TARGETS = [
+    TARGETS: list[tuple[str, Callable[[], dict[str, Any]]]] = [
         (API_SBOM_FILE, build_api_sbom),
         (WEB_SBOM_FILE, build_web_sbom),
     ]
@@ -347,15 +354,16 @@ def main() -> None:
             "the updated files without staging them. Used by the pre-commit hook."
         ),
     )
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
 
     outdated: list[str] = []
 
     for filename, builder in TARGETS:
-        content = serialize(builder())
-        destination = OUTPUT / filename
-        relative = str(destination.relative_to(ROOT))
+        content: str = serialize(builder())
+        destination: Path = OUTPUT / filename
+        relative: str = str(destination.relative_to(ROOT))
 
+        current: str | None
         if args.staged:
             # Compare against the index: that is what the commit will contain.
             # Files that are not tracked at all are reported as missing.
@@ -384,8 +392,8 @@ def main() -> None:
     if args.staged:
         # `uv run` relocks before this script starts, so a stale uv.lock shows up
         # as a working tree file that differs from the index.
-        lock = API_DIR / "uv.lock"
-        lock_relative = str(lock.relative_to(ROOT))
+        lock: Path = API_DIR / "uv.lock"
+        lock_relative: str = str(lock.relative_to(ROOT))
         if index_content(lock_relative) != lock.read_text(encoding="utf-8"):
             outdated.append(lock_relative)
 
