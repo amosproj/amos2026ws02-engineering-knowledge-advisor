@@ -194,6 +194,15 @@ async def check_text_the_database_cannot_store_is_refused(store: RecordStore) ->
     assert await store.get_all_records() == []  # nothing of a refused write is kept
 
 
+async def check_records_are_listed_by_class(store: RecordStore) -> None:
+    await store.save_records(
+        [GROUP, MACHINE, build_record(TWIN_ID, "AssemblyGroup", name="x")]
+    )
+    groups: list[Record] = await store.get_records_by_class("AssemblyGroup")
+    assert [rec.id for rec in groups] == [GROUP_ID, TWIN_ID]
+    assert await store.get_records_by_class("KnowledgeItem") == []
+
+
 Check = Callable[[RecordStore], Awaitable[None]]
 CHECKS: list[Check] = [
     check_links_are_saved_and_found_from_their_target,
@@ -204,5 +213,6 @@ CHECKS: list[Check] = [
     check_find_follows_the_identity_of_the_last_save,
     check_needs_review_lists_marked_records,
     check_text_the_database_cannot_store_is_refused,
+    check_records_are_listed_by_class,
 ]
 CHECK_IDS: list[str] = [check.__name__.removeprefix("check_") for check in CHECKS]

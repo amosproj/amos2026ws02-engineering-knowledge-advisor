@@ -122,14 +122,20 @@ Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. 
     "reuseStatus": "reuse candidate",
     "tag": ["tray", "drawer"]
   },
-  "hasCadFile": {
-    "name": "RC-01_input_tray.CATProduct",
-    "format": "CATIA V5"
-  },
   "hasComponent": [
     {"name": "Guide rail", "partId": "4711-0815", "quantity": 2},
     {"name": "Drawer slide", "partId": "4711-0900", "quantity": 1}
   ]
+}
+```
+
+### CadFile
+```json
+{
+  "@type": "CadFile",
+  "name": "RC-01_input_tray.step",
+  "format": "STEP",
+  "partOf": "AG-IT-003"
 }
 ```
 

@@ -126,6 +126,16 @@ class MemoryRecordStore(RecordStore):
         return [rec for rec in await self.get_all_records() if rec.review]
 
     @override
+    async def get_records_by_class(
+        self, cls: str, tx: Tx | None = None
+    ) -> list[Record]:
+        return [rec for rec in await self.get_all_records() if rec.cls == cls]
+
+    @override
+    async def lock_record(self, record_id: str, tx: Tx) -> None:
+        pass  # nothing runs concurrently in memory
+
+    @override
     async def find_record_ids(
         self, cls: str, text: str, tx: Tx | None = None
     ) -> list[str]:

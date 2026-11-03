@@ -15,7 +15,7 @@
     {"@id": "og:AssemblyGroup", "@type": "rdfs:Class", "displayName": "Assembly group", "comment": "Anchor entity. A mechanical assembly group (Baugruppe) of a machine; search results group by it. Stored as a record.", "og:record": true, "og:anchor": true},
     {"@id": "og:Characteristic", "@type": "rdfs:Class", "displayName": "Characteristic", "comment": "Searchable characteristics of an assembly group: function, loading mode, payload and part-size range."},
     {"@id": "og:Category", "@type": "rdfs:Class", "displayName": "Category", "comment": "Structured categorization that makes an assembly group findable by category and technology."},
-    {"@id": "og:CadFile", "@type": "rdfs:Class", "displayName": "CAD file", "comment": "Reference to an original engineering source (CAD model). Files are referenced, not copied."},
+    {"@id": "og:CadFile", "@type": "rdfs:Class", "displayName": "CAD file", "comment": "A CAD model uploaded for an assembly group. Stored as a record, the file itself lives in object storage.", "og:record": true},
     {"@id": "og:Component", "@type": "rdfs:Class", "displayName": "Component", "comment": "A purchased or manufactured part inside the assembly group."},
     {"@id": "og:KnowledgeItem", "@type": "rdfs:Class", "displayName": "Knowledge item", "comment": "One piece of engineering knowledge: a requirement, consideration, design decision or lesson learned, global or for specific assembly groups. Stored as a record and extracted from documents. Global requirements and considerations are guidelines.", "og:record": true, "og:extractable": true, "og:guidelineWhen": {"scope": ["global"], "itemType": ["requirement", "consideration"]}},
 
@@ -30,7 +30,6 @@
     {"@id": "og:partOf", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:Machine", "displayName": "part of", "comment": "The machine the assembly group belongs to.", "og:parentLink": true},
     {"@id": "og:hasCharacteristic", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:Characteristic", "displayName": "has characteristic", "comment": "The searchable characteristics of the assembly group."},
     {"@id": "og:hasCategory", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:Category", "displayName": "has category", "comment": "The categorization of the assembly group."},
-    {"@id": "og:hasCadFile", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:CadFile", "displayName": "has CAD file", "comment": "The CAD model of the assembly group, referenced by name and uri. The file itself is not stored here."},
     {"@id": "og:hasComponent", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:Component", "displayName": "has component", "comment": "The components inside the assembly group."},
 
     {"@id": "og:function", "@type": "rdf:Property", "domain": "og:Characteristic", "range": "schema:Text", "displayName": "function", "comment": "What the assembly group does, e.g. feeding or buffering."},
@@ -43,9 +42,10 @@
     {"@id": "og:reuseStatus", "@type": "rdf:Property", "domain": "og:Category", "range": "schema:Text", "displayName": "reuse status", "comment": "How far the assembly group has proven itself for reuse in other machines.", "enum": ["proven standard", "reuse candidate", "one-off", "deprecated"]},
     {"@id": "og:tag", "@type": "rdf:Property", "domain": "og:Category", "range": "schema:Text", "displayName": "tag", "comment": "Free keywords that make the assembly group findable, e.g. a technology."},
 
-    {"@id": "og:name", "@type": "rdf:Property", "domain": "og:CadFile", "range": "schema:Text", "displayName": "name", "comment": "File name, e.g. RC-01_input_tray.CATProduct.", "og:search": ["semantic", "lexical"]},
+    {"@id": "og:name", "@type": "rdf:Property", "domain": "og:CadFile", "range": "schema:Text", "displayName": "name", "comment": "File name, e.g. RC-01_input_tray.step.", "og:identity": true, "og:search": ["semantic", "lexical"]},
     {"@id": "og:format", "@type": "rdf:Property", "domain": "og:CadFile", "range": "schema:Text", "displayName": "format", "comment": "CAD system or file format, e.g. CATIA V5."},
     {"@id": "og:uri", "@type": "rdf:Property", "domain": "og:CadFile", "range": "schema:URL", "displayName": "uri", "comment": "Where the original file can be found.", "og:search": ["lexical"]},
+    {"@id": "og:partOf", "@type": "rdf:Property", "domain": "og:CadFile", "range": "og:AssemblyGroup", "displayName": "part of", "comment": "The assembly group the CAD file belongs to.", "og:parentLink": true},
 
     {"@id": "og:name", "@type": "rdf:Property", "domain": "og:Component", "range": "schema:Text", "displayName": "name", "comment": "Name of the component."},
     {"@id": "og:partId", "@type": "rdf:Property", "domain": "og:Component", "range": "schema:Text", "displayName": "part id", "comment": "Identifier of the part, e.g. a supplier or in-house part number.", "og:search": ["semantic", "lexical"]},

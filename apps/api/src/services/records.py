@@ -184,3 +184,18 @@ class RecordStore(Protocol):
             Sorted, matching record ids. More than one means the reference is ambiguous.
         """
         ...
+
+    @abstractmethod
+    async def get_records_by_class(
+        self, cls: str, tx: Tx | None = None
+    ) -> list[Record]:
+        """Returns the records of class ``cls``, sorted by id."""
+        ...
+
+    @abstractmethod
+    async def lock_record(self, record_id: str, tx: Tx) -> None:
+        """Locks the record's row until ``tx`` ends, so concurrent writers of this record and of its children wait.
+
+        Does nothing if there is no such record.
+        """
+        ...
