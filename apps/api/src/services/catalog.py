@@ -17,11 +17,6 @@ CAD_FILE: str = "CadFile"
 PART_OF: str = "partOf"
 CAD_FORMAT: str = "STEP"
 
-ID_PREFIXES: dict[str, str] = {
-    MACHINE: "machine",
-    ASSEMBLY_GROUP: "ag",
-    CAD_FILE: "cad",
-}
 EDITABLE_FIELDS: dict[str, tuple[str, ...]] = {
     MACHINE: ("name", "description", "customer", "identifier"),
     ASSEMBLY_GROUP: ("name", "description", "identifier"),
@@ -159,7 +154,7 @@ async def _create(
         node["format"] = CAD_FORMAT
     if parent_id is not None:
         node[PART_OF] = parent_id
-    record_id: str = f"{ID_PREFIXES[cls]}-{uuid4().hex}"
+    record_id: str = uuid4().hex
     if "identifier" in node:
         await _check_identifier_free(
             ograg, tx, cls, str(node["identifier"]), record_id, parent_id
