@@ -2,10 +2,10 @@ name: SBOM check
 
 on:
   pull_request:
+    paths: ["apps/api/pyproject.toml", "apps/api/uv.lock", "apps/api/.python-version", "apps/api/Dockerfile", "apps/web/package.json", "apps/web/package-lock.json", "apps/web/Dockerfile", "Documentation/sbom/**", "scripts/generate_sbom.py", "scripts/check_tool_versions.py", ".github/workflows/sbom-check.yaml", ".github/workflows/api-tests.yaml", ".github/workflows/web-tests.yaml"]
   push:
-    branches:
-      - main
-      - development
+    branches: [main, development]
+    paths: ["apps/api/pyproject.toml", "apps/api/uv.lock", "apps/api/.python-version", "apps/api/Dockerfile", "apps/web/package.json", "apps/web/package-lock.json", "apps/web/Dockerfile", "Documentation/sbom/**", "scripts/generate_sbom.py", "scripts/check_tool_versions.py", ".github/workflows/sbom-check.yaml", ".github/workflows/api-tests.yaml", ".github/workflows/web-tests.yaml"]
 
 jobs:
   sbom:
