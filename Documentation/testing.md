@@ -3,8 +3,8 @@
 ## Automated Testing
 
 - **Pipeline & Hooks**: Unit and integration tests are run in the CI pipeline and locally in pre-commit hooks
-- **Test Coverage**: There is no specific required test coverage, but developers are expected to write tests for all new features
-- **End-to-End (E2E)**: As of now, there are no automated end-to-end tests, as they are maintenance heavy and therefore very time-consuming
+- **Test Coverage**: There is no specific required test coverage, but tests are required for all features
+- **End-to-End (E2E)**: There are no automated end-to-end tests, as they are maintenance heavy and therefore very time-consuming
 
 ## Manual Testing
 
