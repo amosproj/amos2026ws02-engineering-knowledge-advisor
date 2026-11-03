@@ -19,6 +19,8 @@ dependencies = [
     "pydantic-settings>=2.16.1",
     "sqlalchemy[asyncio]>=2.1.5",
     "uvicorn[standard]>=0.54.0",
+    "cadquery-ocp>=8.0.1.1.0",
+    "cadquery-ocp-stubs>=8.0.1.1.0",
 ]
 
 [build-system]
