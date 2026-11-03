@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Engineering Knowledge Advisor API",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   "paths": {
     "/api/health/live": {
@@ -51,7 +51,7 @@
         },
         "responses": {
           "200": {
-            "description": "Successful response",
+            "description": "Successful response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -60,8 +60,18 @@
               }
             }
           },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
           "422": {
-            "description": "Request body validation error",
+            "description": "Request validation failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -71,7 +81,63 @@
             }
           },
           "429": {
-            "description": "Too many requests",
+            "description": "Too many requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/records/{record_id}": {
+      "put": {
+        "tags": [
+          "v1",
+          "records"
+        ],
+        "summary": "Put Record",
+        "description": "PUTs a record. Links hold target ids.\n\n``@type`` defaults to anchor class.\n``@id`` is ``record_id``.\nLink targets must already exist.",
+        "operationId": "put_record_api_v1_records__record_id__put",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Record Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordNode"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordWritten"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Does not fit ontology. Link target is missing, or value cannot be stored.",
             "content": {
               "application/json": {
                 "schema": {
@@ -80,12 +146,190 @@
               }
             }
           },
-          "500": {
-            "description": "Internal server error",
+          "409": {
+            "description": "Concurrent write. Please try again.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "v1",
+          "records"
+        ],
+        "summary": "Get Record",
+        "description": "Returns validated record. Links hold target ids.",
+        "operationId": "get_record_api_v1_records__record_id__get",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Record Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordNode"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "v1",
+          "records"
+        ],
+        "summary": "Delete Record",
+        "description": "Delete a record and unlink it everywhere.\n\nRecords left without a parent link are also deleted if ``delete_orphans`` is ``True``, otherwise marked for review.",
+        "operationId": "delete_record_api_v1_records__record_id__delete",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Record Id"
+            }
+          },
+          {
+            "name": "delete_orphans",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Delete Orphans"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordsDeleted"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Concurrent write. Please try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/records": {
+      "get": {
+        "tags": [
+          "v1",
+          "records"
+        ],
+        "summary": "Get Records",
+        "description": "All validated records by id. WARNING: reads EVERY record.",
+        "operationId": "get_records_api_v1_records_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Records"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/records/review": {
+      "get": {
+        "tags": [
+          "v1",
+          "records"
+        ],
+        "summary": "Get Records To Review",
+        "description": "Returns knowledge items whose assembly group was deleted.",
+        "operationId": "get_records_to_review_api_v1_records_review_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RecordToReview"
+                  },
+                  "type": "array",
+                  "title": "Response Get Records To Review Api V1 Records Review Get"
                 }
               }
             }
@@ -159,6 +403,116 @@
         "type": "object",
         "title": "Problem",
         "description": "RFC 9457 Problem object"
+      },
+      "RecordNode": {
+        "properties": {
+          "@type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "@Type",
+            "description": "Record class. Defaults to anchor class."
+          },
+          "@id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "@Id",
+            "description": "Record id. PUT specifies it in the URL."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "RecordNode",
+        "description": "JSON-LD node of a record class. Properties as defined by the ontology. Links hold target ids.\nEvery property besides ``@type`` and ``@id`` is kept as sent."
+      },
+      "RecordToReview": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "review": {
+            "type": "string",
+            "title": "Review"
+          },
+          "record": {
+            "$ref": "#/components/schemas/RecordNode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "review",
+          "record"
+        ],
+        "title": "RecordToReview",
+        "description": "A marked record."
+      },
+      "RecordWritten": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "warnings"
+        ],
+        "title": "RecordWritten",
+        "description": "Response of ``PUT /records/{id}``.\n\nAttributes:\n    warnings: validation drops"
+      },
+      "Records": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/RecordNode"
+        },
+        "type": "object",
+        "title": "Records",
+        "description": "Response of ``GET /records``. Wraps map: record id -> validated node"
+      },
+      "RecordsDeleted": {
+        "properties": {
+          "deleted_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deleted Ids"
+          },
+          "marked_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Marked Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted_ids",
+          "marked_ids"
+        ],
+        "title": "RecordsDeleted",
+        "description": "Response of ``DELETE /records/{id}``.\n\nAttributes:\n    deleted_ids: id of deleted record + ids of deleted orphans\n    marked_ids: ids of records that lost their last parent link and were marked for review"
       },
       "TestRequest": {
         "properties": {
