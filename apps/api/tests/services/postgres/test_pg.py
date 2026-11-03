@@ -24,7 +24,7 @@ from api.router_records import v1_records_router
 from db import create_sessionmaker
 from handler.exception_handler import register
 from handler.service_exception_handler import register as register_service
-from services import DocumentStatus, Lane, SearchMode, UnstorableValueError, VectorKind
+from services import Lane, SearchMode, UnstorableValueError
 from services.ograg.ontology import Ontology
 from services.ograg.service import DeleteResult, OgRagService, RecordError
 from services.postgres.names import TableName
@@ -34,7 +34,7 @@ from services.postgres.tables import Tables, define_tables
 URL: str = os.environ.get("API_TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif(
     not URL,
-    reason="set API_TEST_DATABASE_URL to a scratch Postgres with pgvector and pg_trgm",
+    reason="set API_TEST_DATABASE_URL to a scratch Postgres",
 )
 
 PROBLEM_JSON: str = "application/problem+json"
@@ -78,10 +78,8 @@ async def drop_ograg_tables(conn: AsyncConnection) -> None:
 
 
 async def create_fresh_tables(engine: AsyncEngine) -> Tables:
-    tables: Tables = define_tables(384, MetaData())
+    tables: Tables = define_tables(MetaData())
     async with engine.begin() as conn:
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
         await drop_ograg_tables(conn)
         await conn.run_sync(tables.metadata.create_all)
     return tables
@@ -97,7 +95,7 @@ def create_service_on(engine: AsyncEngine, tables: Tables) -> OgRagService:
 
 @pytest.mark.parametrize(
     "member",
-    [*VectorKind, *Lane, *DocumentStatus, *SearchMode],
+    [*Lane, *SearchMode],
     ids=lambda member: f"{type(member).__name__}.{member.name}",
 )
 def test_enum_members_are_written_as_their_value(member: StrEnum):

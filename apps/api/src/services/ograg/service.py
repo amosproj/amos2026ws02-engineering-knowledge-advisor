@@ -8,7 +8,6 @@ from services import (
     ConflictError,
     Json,
     JsonObject,
-    KnowledgeIndex,
     Link,
     Record,
     RecordStore,
@@ -83,15 +82,13 @@ class OgRagService:
         self,
         ontology: Ontology,
         store: RecordStore,
-        index: KnowledgeIndex | None = None,
     ):
         """
         Args:
             ontology: ontology to validate records with. Record classes may be stored.
             store: where records are stored.
-            index: search index, written in the record's transaction. If ``None``, records are stored without one.
         """
-        self.ontology, self.store, self.index = ontology, store, index
+        self.ontology, self.store = ontology, store
 
     async def upsert_record(
         self,
@@ -230,12 +227,10 @@ class OgRagService:
 
         Shared locks on parents. Do **NOT** lock link targets, otherwise two items that link each other can deadlock.
         """
-        await self._lock_records([record.id], self._get_parent_ids(record), tx)
         await self._check_class_is_kept(record, tx)
         for link in record.links:
             await self._check_link_target(record, link, tx)
         await self.store.save_records([record], tx)
-        await self._index_records([record], [], tx)
 
     async def _check_class_is_kept(self, record: Record, tx: Tx) -> None:
         """
@@ -288,7 +283,6 @@ class OgRagService:
         self, record_id: str, delete_orphans: bool, tx: Tx
     ) -> DeleteResult:
         """Deletes the record, first unlinking it from everywhere. Deletes orphans if asked to."""
-        await self._lock_records([record_id], [], tx)
         if await self.store.get_record(record_id, tx) is None:
             return DeleteResult()
 
@@ -299,10 +293,6 @@ class OgRagService:
             await self.store.delete_record(id_to_delete, tx)
             run.result.deleted_ids.append(id_to_delete)
             run.unlinked.pop(id_to_delete, None)
-
-        await self._index_records(
-            list(run.unlinked.values()), run.result.deleted_ids, tx
-        )
         return run.result
 
     async def _unlink_from_linking_records(
@@ -338,7 +328,6 @@ class OgRagService:
             for rec in linking
             if rec.id != target_id and rec.id not in deleted_ids
         ]
-        await self._lock_records(linking_ids, [], tx)
         return await self.store.get_records(linking_ids, tx)
 
     def _has_lost_last_parent(self, before: Record, after: Record) -> bool:
@@ -391,17 +380,3 @@ class OgRagService:
             if prop is not None and prop.is_parent_link:
                 parent_ids.setdefault(link.target_id)
         return list(parent_ids)
-
-    async def _lock_records(
-        self, record_ids: Sequence[str], parent_ids: Sequence[str], tx: Tx | None
-    ) -> None:
-        """Takes the index's write locks for ``record_ids`` (exclusive) and ``parent_ids`` (shared)."""
-        if self.index is not None:
-            await self.index.lock_records(record_ids, parent_ids, tx)
-
-    async def _index_records(
-        self, records: Sequence[Record], deleted_ids: Sequence[str], tx: Tx
-    ) -> None:
-        """Updates the index for ``records`` and the records of ``deleted_ids``."""
-        if self.index is not None:
-            await self.index.write_records(records, deleted_ids, tx)

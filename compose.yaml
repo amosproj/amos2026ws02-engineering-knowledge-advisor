@@ -2,7 +2,6 @@ x-api-environment: &api-environment
   API_PROFILE: ${API_PROFILE:-prod}
   API_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
   API_OGRAG_ONTOLOGY_PATH: ${API_OGRAG_ONTOLOGY_PATH}
-  API_OGRAG_EMBED_DIM: ${API_OGRAG_EMBED_DIM}
 
 services:
   web:

@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,7 +19,6 @@ class Settings(BaseSettings):
     database_url: SecretStr | None = None
 
     ograg_ontology_path: Path  # required field
-    ograg_embed_dim: int = Field(default=384, gt=0)  # BAAI/bge-small-en-v1.5
 
 
 @lru_cache

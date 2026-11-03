@@ -9,7 +9,6 @@ FastAPI backend. Requires Python 3.13 and [uv](https://docs.astral.sh/uv/).
 | `API_PROFILE`             | `dev`, `prod`                            | `dev`                |
 | `API_DATABASE_URL`        | `postgresql+psycopg://user:pw@host/db`   | none (required)      |
 | `API_OGRAG_ONTOLOGY_PATH` | JSON-LD ontology file                    | none (required)      |
-| `API_OGRAG_EMBED_DIM`     | embedding dimensionality, given by embedding model | `384`      |
 
 Settings are read in this order:
 1. environment variables (prefix `API_`)
@@ -23,7 +22,7 @@ Settings are read in this order:
 
 ## Database
 
-Postgres with [pgvector](https://github.com/pgvector/pgvector). Schema changes are Alembic migrations in `migrations/`:
+Postgres. Schema changes are Alembic migrations in `migrations/`:
 ```sh
 uv run --directory apps/api alembic upgrade head                                # apply
 uv run --directory apps/api alembic revision --autogenerate -m "what changed"   # review the file
