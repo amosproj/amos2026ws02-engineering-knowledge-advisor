@@ -98,7 +98,7 @@ function AssemblyGroupFormBody({ machineId, group, dialog }: AssemblyGroupFormBo
                                 {(field) => (
                                     <field.InputForm
                                         label="Identifier"
-                                        description="Unique within the machine."
+                                        description="Assembly group number, e.g. AG-01."
                                         autoComplete="off"
                                     />
                                 )}

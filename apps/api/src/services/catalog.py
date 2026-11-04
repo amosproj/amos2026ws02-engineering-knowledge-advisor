@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from uuid import uuid4
 
 from services import Json, JsonObject, Link, Record, Tx
-from services.ograg.ontology import get_local_name, to_list
+from services.ograg.ontology import get_local_name
 from services.ograg.service import DeleteResult, OgRagService, RecordError
 
 MACHINE: str = "Machine"
@@ -26,19 +26,12 @@ EDITABLE_FIELDS: dict[str, tuple[str, ...]] = {
 ERROR_NOT_FOUND: str = "no {cls} {record_id!r}"
 ERROR_NAME_REQUIRED: str = "name must not be empty"
 ERROR_NOT_EDITABLE: str = "{cls} has no editable field {field!r}"
-ERROR_IDENTIFIER_TAKEN: str = (
-    "identifier {identifier!r} is already used by {record_id!r}"
-)
 
 type Fields = Mapping[str, str | None]
 
 
 class NotFoundError(LookupError):
     """No record of the expected class has this id."""
-
-
-class IdentifierTakenError(ValueError):
-    """Another record already uses this identifier: another machine, or another group of the same machine."""
 
 
 async def create_machine(ograg: OgRagService, tx: Tx, fields: Fields) -> str:
@@ -79,11 +72,6 @@ async def update_record(
         else:
             node[field] = value
     _check_name(node)
-    identifier: str | None = cleaned.get("identifier")
-    if identifier is not None:
-        await _check_identifier_free(
-            ograg, tx, cls, identifier, record_id, _get_parent_id(record)
-        )
     await ograg.upsert_record(record_id, node, tx)
 
 
@@ -155,10 +143,6 @@ async def _create(
     if parent_id is not None:
         node[PART_OF] = parent_id
     record_id: str = uuid4().hex
-    if "identifier" in node:
-        await _check_identifier_free(
-            ograg, tx, cls, str(node["identifier"]), record_id, parent_id
-        )
     await ograg.upsert_record(record_id, {"@type": cls, **node}, tx)
     return record_id
 
@@ -188,42 +172,3 @@ def _clean_fields(cls: str, fields: Fields) -> dict[str, str | None]:
 def _check_name(node: Mapping[str, Json]) -> None:
     if not str(node.get("name") or "").strip():
         raise RecordError(ERROR_NAME_REQUIRED)
-
-
-def _get_parent_id(record: Record) -> str | None:
-    return next(
-        (link.target_id for link in record.links if link.property_name == PART_OF),
-        None,
-    )
-
-
-async def _check_identifier_free(
-    ograg: OgRagService,
-    tx: Tx,
-    cls: str,
-    identifier: str,
-    record_id: str,
-    parent_id: str | None,
-) -> None:
-    """Machine identifiers are unique among machines, group identifiers within their machine.
-
-    Case and surrounding spaces are ignored.
-
-    Raises:
-        IdentifierTakenError: another record uses ``identifier``.
-    """
-    others: list[Record] = (
-        await ograg.store.get_records_by_class(cls, tx)
-        if parent_id is None
-        else await list_children(ograg, tx, parent_id, cls)
-    )
-    wanted: str = identifier.strip().casefold()
-    for other in others:
-        identifiers: list[str] = [
-            str(val).strip().casefold()
-            for val in to_list(other.graph.get("identifier", []))
-        ]
-        if other.id != record_id and wanted in identifiers:
-            raise IdentifierTakenError(
-                ERROR_IDENTIFIER_TAKEN.format(identifier=identifier, record_id=other.id)
-            )

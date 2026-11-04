@@ -400,16 +400,6 @@
                 }
               }
             }
-          },
-          "409": {
-            "description": "Identifier already used.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
           }
         }
       }
@@ -523,16 +513,6 @@
           },
           "422": {
             "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Identifier already used.",
             "content": {
               "application/json": {
                 "schema": {
@@ -662,16 +642,6 @@
                 }
               }
             }
-          },
-          "409": {
-            "description": "Identifier already used.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
           }
         }
       }
@@ -784,16 +754,6 @@
           },
           "422": {
             "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Identifier already used.",
             "content": {
               "application/json": {
                 "schema": {

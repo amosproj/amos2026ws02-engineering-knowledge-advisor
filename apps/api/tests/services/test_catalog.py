@@ -6,7 +6,6 @@ from services.catalog import (
     ASSEMBLY_GROUP,
     CAD_FILE,
     MACHINE,
-    IdentifierTakenError,
     NotFoundError,
     create_assembly_group,
     create_cad_file,
@@ -90,30 +89,20 @@ async def test_invalid_fields_are_refused():
         await update_record(ograg, TX, CAD_FILE, cad_file_id, {"format": "IGES"})
 
 
-async def test_machine_identifiers_are_unique_ignoring_case():
+async def test_identifiers_may_be_shared():
     ograg: OgRagService = make_service()
     machine_id, _, _ = await create_tree(ograg)
 
-    with pytest.raises(IdentifierTakenError):
-        await create_machine(ograg, TX, {"name": "Other", "identifier": "rc-01"})
-    # a name equal to the identifier is no conflict
-    await create_machine(ograg, TX, {"name": "Second", "identifier": "Robot cell"})
-    # keeping its own identifier is no conflict
-    await update_record(ograg, TX, MACHINE, machine_id, {"identifier": "RC-01"})
-
-
-async def test_group_identifiers_are_unique_within_their_machine():
-    ograg: OgRagService = make_service()
-    machine_id, _, _ = await create_tree(ograg)
-    other_id: str = await create_machine(ograg, TX, {"name": "Other"})
-
-    await create_assembly_group(
-        ograg, TX, other_id, {"name": "x", "identifier": "AG-01"}
+    other_id: str = await create_machine(
+        ograg, TX, {"name": "Other", "identifier": "RC-01"}
     )
-    with pytest.raises(IdentifierTakenError):
-        await create_assembly_group(
-            ograg, TX, machine_id, {"name": "x", "identifier": "AG-01"}
-        )
+    await create_assembly_group(
+        ograg, TX, machine_id, {"name": "x", "identifier": "AG-01"}
+    )
+
+    assert await ograg.store.find_record_ids("Machine", "rc-01", TX) == sorted(
+        [machine_id, other_id]
+    )
 
 
 async def test_deleting_a_machine_deletes_its_tree_and_keeps_knowledge():
@@ -142,8 +131,6 @@ async def test_records_written_by_the_generic_endpoint_are_handled():
         {"@type": "Machine", "og:name": "Raw", "og:identifier": " RC-02 "},
     )
 
-    with pytest.raises(IdentifierTakenError):
-        await create_machine(ograg, TX, {"name": "Other", "identifier": "rc-02"})
     await update_record(ograg, TX, MACHINE, "M-raw", {"identifier": None})
     raw: Record = await get_record(ograg, TX, MACHINE, "M-raw")
     assert raw.graph["name"] == "Raw"

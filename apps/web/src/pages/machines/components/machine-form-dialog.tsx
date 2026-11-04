@@ -91,7 +91,7 @@ function MachineFormBody({ machine, onCreated, dialog }: MachineFormBodyProps) {
                                 {(field) => (
                                     <field.InputForm
                                         label="Identifier"
-                                        description="Unique among the machines."
+                                        description="Project or serial number, e.g. RC-01."
                                         autoComplete="off"
                                     />
                                 )}

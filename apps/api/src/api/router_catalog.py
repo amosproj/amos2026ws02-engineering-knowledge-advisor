@@ -66,7 +66,6 @@ STATUS_PRIORITY: tuple[MachineStatus, ...] = (
 
 RESPONSE_DETAIL_404: str = "No such machine, assembly group or CAD file."
 RESPONSE_DETAIL_409_BUSY: str = "A CAD file is being processed. Please try again."
-RESPONSE_DETAIL_409_IDENTIFIER: str = "Identifier already used."
 RESPONSE_DETAIL_409_COMPLETE: str = "Upload not found, file does not match or import failed (see error_code), or the file is being processed."
 RESPONSE_DETAIL_422: str = "Request validation failed."
 ERROR_UPLOAD_NOT_FOUND: str = "The CAD file has not been uploaded."
@@ -83,9 +82,6 @@ NOT_FOUND: dict[int | str, dict[str, Any]] = {
 BUSY: dict[int | str, dict[str, Any]] = {
     409: {"model": Problem, "description": RESPONSE_DETAIL_409_BUSY},
 }
-IDENTIFIER_TAKEN: dict[int | str, dict[str, Any]] = {
-    409: {"model": Problem, "description": RESPONSE_DETAIL_409_IDENTIFIER},
-}
 
 v1_catalog_router: APIRouter = (
     ApiRouterBuilder().version("v1").add_tags(["catalog"]).build()
@@ -95,7 +91,7 @@ v1_catalog_router: APIRouter = (
 @v1_catalog_router.post(
     "/machines",
     status_code=status.HTTP_201_CREATED,
-    responses={**INVALID, **IDENTIFIER_TAKEN},
+    responses=INVALID,
 )
 async def post_machine(
     body: MachineFields, service: Service, session: Session
@@ -120,9 +116,7 @@ async def get_machine(
     return await _load_machine(service, session, machine_id)
 
 
-@v1_catalog_router.patch(
-    "/machines/{machine_id}", responses={**NOT_FOUND, **IDENTIFIER_TAKEN}
-)
+@v1_catalog_router.patch("/machines/{machine_id}", responses=NOT_FOUND)
 async def patch_machine(
     machine_id: RecordId, body: MachineChanges, service: Service, session: Session
 ) -> Machine:
@@ -162,7 +156,7 @@ async def delete_machine_route(
 @v1_catalog_router.post(
     "/machines/{machine_id}/assembly-groups",
     status_code=status.HTTP_201_CREATED,
-    responses={**NOT_FOUND, **IDENTIFIER_TAKEN},
+    responses=NOT_FOUND,
 )
 async def post_assembly_group(
     machine_id: RecordId,
@@ -185,7 +179,7 @@ async def get_assembly_group(
 
 @v1_catalog_router.patch(
     "/assembly-groups/{assembly_group_id}",
-    responses={**NOT_FOUND, **IDENTIFIER_TAKEN},
+    responses=NOT_FOUND,
 )
 async def patch_assembly_group(
     assembly_group_id: RecordId,

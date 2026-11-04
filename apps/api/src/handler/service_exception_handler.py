@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from logger import logger
 from model.problem import ProblemResponse
 from services import ConflictError, UnstorableValueError
-from services.catalog import IdentifierTakenError, NotFoundError
+from services.catalog import NotFoundError
 from services.ograg.service import RecordError
 
 LOG_FAILED_CONVERSION: str = "Could not convert exception to response detail"
@@ -41,5 +41,4 @@ def register(app: FastAPI) -> None:
     app.exception_handler(RecordError)(handle_unprocessable)
     app.exception_handler(UnstorableValueError)(handle_unprocessable)
     app.exception_handler(ConflictError)(handle_conflict)
-    app.exception_handler(IdentifierTakenError)(handle_conflict)
     app.exception_handler(NotFoundError)(handle_not_found)
