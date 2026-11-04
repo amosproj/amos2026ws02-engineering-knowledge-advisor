@@ -11,7 +11,6 @@ import threading
 import time
 from pathlib import Path
 
-from botocore.exceptions import BotoCoreError, ClientError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -19,7 +18,9 @@ from config.settings import get_settings
 from db import create_engine, create_ograg_service, create_sessionmaker
 from logger import logger
 from services import ConflictError
-from services.ograg.service import OgRagService
+from services.catalog import CatalogService
+from services.object_storage import ObjectStorageError
+from services.s3 import S3ObjectStorage
 from worker.cleanup import delete_orphan_objects, expire_abandoned_uploads
 from worker.processing import StopRequested, process_next_cad_upload
 
@@ -30,7 +31,7 @@ CLEANUP_INTERVAL_SECONDS = 60 * 60
 HEARTBEAT_FILE = Path("/tmp/worker-heartbeat")
 HEARTBEAT_INTERVAL_SECONDS = 10
 
-TRANSIENT_ERRORS = (BotoCoreError, ClientError, SQLAlchemyError, ConflictError, OSError)
+TRANSIENT_ERRORS = (ObjectStorageError, SQLAlchemyError, ConflictError, OSError)
 
 # set on SIGTERM; the file scan checks it between chunks, as a thread cannot be cancelled
 stopping = threading.Event()
@@ -54,7 +55,9 @@ async def run() -> None:
     settings = get_settings()
     engine = create_engine(settings)
     sessions = create_sessionmaker(engine)
-    ograg = create_ograg_service(settings, engine)
+    catalog = CatalogService(
+        create_ograg_service(settings, engine), S3ObjectStorage(settings)
+    )
     heartbeat = Heartbeat(HEARTBEAT_FILE)
     next_cleanup = 0.0
     try:
@@ -62,12 +65,12 @@ async def run() -> None:
             heartbeat.beat()
 
             if time.monotonic() >= next_cleanup:
-                await _run_cleanup(sessions, ograg, heartbeat)
+                await _run_cleanup(sessions, catalog, heartbeat)
                 next_cleanup = time.monotonic() + CLEANUP_INTERVAL_SECONDS
 
             try:
                 processed = await process_next_cad_upload(
-                    sessions, stopping, heartbeat.beat
+                    sessions, catalog, stopping, heartbeat.beat
                 )
             except StopRequested:
                 break
@@ -86,12 +89,12 @@ async def run() -> None:
 
 async def _run_cleanup(
     sessions: async_sessionmaker[AsyncSession],
-    ograg: OgRagService,
+    catalog: CatalogService,
     heartbeat: Heartbeat,
 ) -> None:
     try:
-        await expire_abandoned_uploads(sessions, ograg, stopping, heartbeat.beat)
-        await delete_orphan_objects(sessions, stopping, heartbeat.beat)
+        await expire_abandoned_uploads(sessions, catalog, stopping, heartbeat.beat)
+        await delete_orphan_objects(sessions, catalog, stopping, heartbeat.beat)
     except TRANSIENT_ERRORS:
         logger.exception("Cleanup failed, retrying at the next interval")
 

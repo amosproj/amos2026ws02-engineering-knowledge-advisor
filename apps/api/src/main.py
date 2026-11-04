@@ -9,6 +9,8 @@ from config.settings import Settings, get_settings
 from db import create_engine, create_ograg_service, create_sessionmaker
 from handler import exception_handler, service_exception_handler
 from logger import logger
+from services.catalog import CatalogService
+from services.s3 import S3ObjectStorage
 
 LOG_PROFILE: str = "Loaded API profile: {profile}"
 
@@ -23,6 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     app.state.sessions = create_sessionmaker(engine)
 
     app.state.ograg = create_ograg_service(settings, engine)
+    app.state.catalog = CatalogService(app.state.ograg, S3ObjectStorage(settings))
     try:
         yield
     finally:

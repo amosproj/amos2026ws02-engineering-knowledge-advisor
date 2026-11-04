@@ -2,7 +2,7 @@ import pytest
 from fakes import make_service
 
 from services import Record
-from services.catalog import (
+from services.catalog.records import (
     ASSEMBLY_GROUP,
     CAD_FILE,
     MACHINE,

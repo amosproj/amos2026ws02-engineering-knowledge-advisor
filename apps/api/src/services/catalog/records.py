@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from uuid import uuid4
 
 from services import Json, JsonObject, Link, Record, Tx
+from services.catalog.errors import NotFoundError
 from services.ograg.ontology import get_local_name
 from services.ograg.service import DeleteResult, OgRagService, RecordError
 
@@ -28,10 +29,6 @@ ERROR_NAME_REQUIRED: str = "name must not be empty"
 ERROR_NOT_EDITABLE: str = "{cls} has no editable field {field!r}"
 
 type Fields = Mapping[str, str | None]
-
-
-class NotFoundError(LookupError):
-    """No record of the expected class has this id."""
 
 
 async def create_machine(ograg: OgRagService, tx: Tx, fields: Fields) -> str:

@@ -4,7 +4,6 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import closing
 
-from botocore.response import StreamingBody
 from psycopg import errors as pg_errors
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -13,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from db import CadUploadStatus, cad_uploads
 from db.cad_uploads import SHA256_READY_INDEX
 from logger import logger
-from storage.s3 import delete_source_folders, open_object
+from services.catalog import CatalogService
 from worker.step_file import StepFileScan, scan_step_file
 
 CHUNK_SIZE = 8 * 1024 * 1024
@@ -30,6 +29,7 @@ class StopRequested(Exception):
 
 async def process_next_cad_upload(
     sessions: async_sessionmaker[AsyncSession],
+    catalog: CatalogService,
     stopping: threading.Event,
     on_progress: Callable[[], None],
 ) -> bool:
@@ -56,7 +56,9 @@ async def process_next_cad_upload(
             cad_file_id, source_key = upload.cad_file_id, upload.source_key
             locked_id = cad_file_id
             logger.info(f"Processing CAD file {cad_file_id}")
-            scan = await asyncio.to_thread(_scan, source_key, stopping, on_progress)
+            scan = await asyncio.to_thread(
+                _scan, catalog, source_key, stopping, on_progress
+            )
             error_code = await _save_outcome(session, cad_file_id, scan)
     except StopRequested:
         raise
@@ -70,26 +72,30 @@ async def process_next_cad_upload(
     else:
         logger.info(f"CAD file {cad_file_id} failed: {error_code}")
         if error_code != UPLOAD_NOT_FOUND:
-            await asyncio.to_thread(delete_source_folders, [source_key])
+            await asyncio.to_thread(catalog.delete_source_folders, [source_key])
     return True
 
 
 def _scan(
-    source_key: str, stopping: threading.Event, on_progress: Callable[[], None]
+    catalog: CatalogService,
+    source_key: str,
+    stopping: threading.Event,
+    on_progress: Callable[[], None],
 ) -> StepFileScan | None:
     """Scan the uploaded file, None if it does not exist."""
-    body = open_object(source_key)
-    if body is None:
+    chunks = catalog.storage.read_object(source_key, CHUNK_SIZE)
+    if chunks is None:
         return None
-    with closing(body):
-        return scan_step_file(_read_chunks(body, stopping, on_progress))
+    # closed also when stopping or timing out, to release the connection
+    with closing(chunks):
+        return scan_step_file(_watch(chunks, stopping, on_progress))
 
 
-def _read_chunks(
-    body: StreamingBody, stopping: threading.Event, on_progress: Callable[[], None]
+def _watch(
+    chunks: Iterator[bytes], stopping: threading.Event, on_progress: Callable[[], None]
 ) -> Iterator[bytes]:
     deadline = time.monotonic() + MAX_PROCESSING_SECONDS
-    for chunk in body.iter_chunks(CHUNK_SIZE):
+    for chunk in chunks:
         if stopping.is_set():
             raise StopRequested
         if time.monotonic() > deadline:

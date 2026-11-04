@@ -9,19 +9,18 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from db import CadUploadStatus, cad_uploads
 from logger import logger
 from services import ConflictError
-from services.catalog import delete_cad_file
-from services.ograg.service import OgRagService
-from storage.s3 import delete_objects, delete_source_folders, list_objects
+from services.catalog import CatalogService
+from services.catalog.files import MACHINES_PREFIX, get_cad_file_id
+from services.catalog.records import delete_cad_file
 
 ABANDONED_UPLOAD_AGE = timedelta(hours=24)
 
 ORPHAN_OBJECT_AGE = timedelta(hours=24)
-MACHINES_PREFIX = "machines/"
 
 
 async def expire_abandoned_uploads(
     sessions: async_sessionmaker[AsyncSession],
-    ograg: OgRagService,
+    catalog: CatalogService,
     stopping: threading.Event,
     on_progress: Callable[[], None],
 ) -> None:
@@ -52,12 +51,12 @@ async def expire_abandoned_uploads(
                 )
                 if source_key is None:
                     continue
-                await delete_cad_file(ograg, session, cad_file_id)
+                await delete_cad_file(catalog.ograg, session, cad_file_id)
         except ConflictError:
             logger.warning(f"Could not expire CAD file {cad_file_id}, retrying later")
             continue
         # if the storage fails, the objects left are removed later as orphans
-        await asyncio.to_thread(delete_source_folders, [source_key])
+        await asyncio.to_thread(catalog.delete_source_folders, [source_key])
         expired += 1
 
     if expired:
@@ -66,6 +65,7 @@ async def expire_abandoned_uploads(
 
 async def delete_orphan_objects(
     sessions: async_sessionmaker[AsyncSession],
+    catalog: CatalogService,
     stopping: threading.Event,
     on_progress: Callable[[], None],
 ) -> None:
@@ -75,7 +75,7 @@ async def delete_orphan_objects(
     was deleted or failed.
     """
     cutoff = datetime.now(UTC) - ORPHAN_OBJECT_AGE
-    pages = list_objects(MACHINES_PREFIX)
+    pages = catalog.storage.list_objects(MACHINES_PREFIX)
     deleted = 0
     # listing fetches the pages lazily, so each page is fetched off the event loop
     while (
@@ -84,14 +84,15 @@ async def delete_orphan_objects(
     ):
         cad_file_ids: dict[str, str] = {}
         for obj in page:
-            key, modified = obj.get("Key"), obj.get("LastModified")
-            if key is None or modified is None or modified >= cutoff:
+            if obj.last_modified >= cutoff:
                 continue
-            cad_file_id = _get_cad_file_id(key)
+            cad_file_id = get_cad_file_id(obj.key)
             if cad_file_id is None:
-                logger.warning(f"Skipping object {key} outside of a CAD file folder")
+                logger.warning(
+                    f"Skipping object {obj.key} outside of a CAD file folder"
+                )
                 continue
-            cad_file_ids[key] = cad_file_id
+            cad_file_ids[obj.key] = cad_file_id
 
         if cad_file_ids:
             async with sessions() as session:
@@ -106,17 +107,9 @@ async def delete_orphan_objects(
             orphan_keys = [
                 key for key, cad_id in cad_file_ids.items() if cad_id not in kept_ids
             ]
-            await asyncio.to_thread(delete_objects, orphan_keys)
+            await asyncio.to_thread(catalog.storage.delete_objects, orphan_keys)
             deleted += len(orphan_keys)
         on_progress()
 
     if deleted:
         logger.info(f"Deleted {deleted} orphan objects")
-
-
-def _get_cad_file_id(key: str) -> str | None:
-    """The CAD file id in machines/{machine}/assembly-groups/{group}/cad-files/{cad_file}/..."""
-    parts = key.split("/")
-    if len(parts) < 7 or parts[2] != "assembly-groups" or parts[4] != "cad-files":
-        return None
-    return parts[5]

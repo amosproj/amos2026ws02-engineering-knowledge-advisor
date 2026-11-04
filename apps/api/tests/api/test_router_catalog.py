@@ -1,4 +1,4 @@
-from api.router_catalog import get_machine_status
+from services.catalog.service import get_machine_status
 
 
 def test_the_machine_status_is_the_most_urgent_file_status():

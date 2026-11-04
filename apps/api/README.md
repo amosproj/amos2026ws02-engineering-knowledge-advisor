@@ -75,7 +75,7 @@ uv run uvicorn main:app --loop asyncio:SelectorEventLoop
 
 ## Storage and background jobs
 
-Uploaded files are stored in S3 (MinIO in Docker). The `migrate` service applies the migrations, then creates the bucket if it does not exist yet (`python -m storage.s3`).
+Uploaded files are stored in S3 (MinIO in Docker). The `migrate` service applies the migrations, then creates the bucket if it does not exist yet (`python -m services.s3`).
 
 The `worker` service (`python -m worker`, code in `src/worker/`) checks the uploaded STEP files and, every hour, deletes abandoned uploads and orphan objects. It touches `/tmp/worker-heartbeat` every 10 s, and the container is reported unhealthy when the file is older than one minute.
 
