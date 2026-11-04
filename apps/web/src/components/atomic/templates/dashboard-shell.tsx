@@ -17,6 +17,7 @@ import {
     SidebarProvider,
     SidebarRail,
     SidebarTrigger,
+    useSidebar,
 } from '../organisms'
 
 type SidebarLinkTo = NonNullable<React.ComponentProps<typeof Link>['to']>
@@ -84,6 +85,16 @@ function NavSection({ items, pathname }: { items: readonly DashboardNavItem[]; p
     )
 }
 
+function CloseMobileSidebarOnNavigate({ pathname }: { pathname: string }) {
+    const { setOpenMobile } = useSidebar()
+
+    React.useEffect(() => {
+        setOpenMobile(false)
+    }, [pathname, setOpenMobile])
+
+    return null
+}
+
 export function DashboardShell({ navConfig, headerActions, children }: DashboardShellProps) {
     const pathname = useRouterState({ select: (state) => state.location.pathname })
 
@@ -93,6 +104,7 @@ export function DashboardShell({ navConfig, headerActions, children }: Dashboard
 
     return (
         <SidebarProvider>
+            <CloseMobileSidebarOnNavigate pathname={pathname} />
             <Sidebar collapsible="icon">
                 <SidebarHeader>
                     <Brand />
