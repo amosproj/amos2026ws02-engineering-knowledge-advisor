@@ -175,7 +175,8 @@ def test_writes_join_the_callers_transaction_and_roll_back_with_it():
             async with AsyncSession(engine) as session, session.begin():
                 await service.upsert_record(MACHINE_ID, MACHINE, tx=session)
                 await service.upsert_record(GROUP_ID, GROUP, tx=session)
-            assert sorted(await service.get_records()) == [GROUP_ID, MACHINE_ID]
+            stored: list[dict[str, Any]] = await service.get_records()
+            assert [rec["@id"] for rec in stored] == [GROUP_ID, MACHINE_ID]
 
             machine: dict[str, Any] = {**MACHINE, "identifier": OTHER_MACHINE_ID}
             with pytest.raises(RecordError, match=MISSING_MACHINE_ID):
@@ -191,7 +192,8 @@ def test_writes_join_the_callers_transaction_and_roll_back_with_it():
                     await service.upsert_record(
                         OTHER_MACHINE_ID, unstorable, tx=session
                     )
-            assert sorted(await service.get_records()) == [GROUP_ID, MACHINE_ID]
+            stored: list[dict[str, Any]] = await service.get_records()
+            assert [rec["@id"] for rec in stored] == [GROUP_ID, MACHINE_ID]
 
             # In the service's own transaction:
             result: DeleteResult = await service.delete_record(MACHINE_ID)
@@ -237,12 +239,9 @@ def test_the_records_api_commits_or_rolls_back_with_the_request():
         assert missing.status_code == 422
         assert_mentions(missing.json()["detail"], "appliesTo", ORPHAN_ID)
 
-        stored: dict[str, Any] = client.get(RECORDS_URL).json()
-        assert sorted(stored) == [
-            GROUP_ID,
-            ITEM_ID,
-            MACHINE_ID,
-        ]  # the failed ones left nothing
+        stored: list[dict[str, Any]] = client.get(RECORDS_URL).json()
+        # the failed ones left nothing
+        assert [rec["@id"] for rec in stored] == [GROUP_ID, ITEM_ID, MACHINE_ID]
 
         deleted: dict[str, Any] = client.delete(f"{RECORDS_URL}/{ITEM_ID}").json()
         assert deleted == {"deleted_ids": [ITEM_ID], "marked_ids": []}

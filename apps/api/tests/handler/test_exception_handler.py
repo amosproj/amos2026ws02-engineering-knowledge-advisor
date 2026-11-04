@@ -1,32 +1,59 @@
 import logging
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx2 import Response
+from pydantic import BaseModel
 
 from handler.exception_handler import register
-from model.problem import Problem, ProblemResponse
+from model.problem import Problem, ProblemException, ProblemResponse
 
 CONTENT_TYPE_PROBLEM_JSON: str = "application/problem+json"
 
 UNHANDLED_LOGGER_ID: str = "uvicorn.error"
 UNHANDLED_LOG_MESSAGE: str = "Unhandled exception"
 
+PROBLEM_ENDPOINT: str = "/problem"
+PROBLEM_VALUE: int = 42  # makes ``PROBLEM_ENDPOINT`` raise a 500 problem
+
+
+class ValuePayload(BaseModel):
+    value: int
+
+
+@pytest.fixture
+def problem_client() -> Iterator[TestClient]:
+    """Client of an app with the handlers and ``PROBLEM_ENDPOINT``."""
+    app = FastAPI()
+    register(app)
+
+    @app.post(PROBLEM_ENDPOINT)
+    def raise_problem(payload: ValuePayload) -> None:
+        if payload.value == PROBLEM_VALUE:
+            raise ProblemException(Problem.from_status(500))
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        yield client
+
 
 @pytest.mark.parametrize(
     ("request_endpoint", "request_body", "expected_status"),
     [
-        ("/api/v1/ping", {"ping": 42}, 500),
-        ("/api/v1/ping", {"ping": "nan"}, 422),
+        (PROBLEM_ENDPOINT, {"value": PROBLEM_VALUE}, 500),
+        (PROBLEM_ENDPOINT, {"value": "nan"}, 422),
         ("/does/not/exist", "any", 404),
     ],
 )
 def test_handler(
-    client, request_endpoint: str, request_body: dict[str, Any], expected_status: int
+    problem_client: TestClient,
+    request_endpoint: str,
+    request_body: dict[str, Any],
+    expected_status: int,
 ):
-    response: Response = client.post(request_endpoint, json=request_body)
+    response: Response = problem_client.post(request_endpoint, json=request_body)
     assert response.status_code == expected_status
     assert response.headers["content-type"] == CONTENT_TYPE_PROBLEM_JSON
 

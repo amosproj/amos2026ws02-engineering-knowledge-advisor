@@ -23,14 +23,3 @@ def test_health(app, client):
 
     response = client.get(paths[0])
     assert response.status_code == 200
-
-
-def test_ping(client):
-    response = client.post("/api/v1/ping", json={"ping": 41})
-    assert response.status_code == 200
-    assert response.json()["pong"] == 42
-
-
-def test_ping_invalid_body(client):
-    response = client.post("/api/v1/ping", json={"ping": "nan"})
-    assert response.status_code != 200

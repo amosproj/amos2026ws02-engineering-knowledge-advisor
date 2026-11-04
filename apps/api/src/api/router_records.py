@@ -10,11 +10,20 @@ from model.problem import Problem, ProblemException
 from services import JsonObject, Record
 from services.catalog import ASSEMBLY_GROUP, CAD_FILE, MACHINE
 from services.ograg.ontology import get_type
-from services.ograg.service import OgRagService
+from services.ograg.service import DeleteResult, OgRagService
 
 RECORD_ID_PATTERN: str = r"^[A-Za-z0-9][A-Za-z0-9._-]*$"
 RECORD_ID_MAX_LENGTH: int = 200
 
+RESPONSE_DETAIL_200_PUT: str = (
+    "The successfully stored record including validation drops."
+)
+RESPONSE_DETAIL_200_GET_ALL: str = "All records sorted by their id."
+RESPONSE_DETAIL_200_GET_REVIEW: str = "Records marked for manual user review."
+RESPONSE_DETAIL_200_GET: str = "The requested record."
+RESPONSE_DETAIL_200_DELETE: str = (
+    "The successfully deleted record including record ids marked for review."
+)
 RESPONSE_DETAIL_404: str = "No such record."
 RESPONSE_DETAIL_409: str = "Concurrent write. Please try again."
 RESPONSE_DETAIL_409_CATALOG: str = (
@@ -54,6 +63,7 @@ RecordId = Annotated[
 @v1_records_router.put(
     "/records/{record_id}",
     responses={
+        200: {"model": RecordWritten, "description": RESPONSE_DETAIL_200_PUT},
         422: {
             "model": Problem,
             "description": RESPONSE_DETAIL_422_INVALID_ONTOLOGY,
@@ -82,17 +92,32 @@ async def put_record(
         raise ProblemException(
             Problem.from_status(409, detail=RESPONSE_DETAIL_409_CATALOG)
         )
-    warnings = await service.upsert_record(record_id, submitted, session, author)
+    warnings: list[str] = await service.upsert_record(
+        record_id, submitted, session, author
+    )
     return RecordWritten(id=record_id, warnings=warnings)
 
 
-@v1_records_router.get("/records")
+@v1_records_router.get(
+    "/records",
+    responses={
+        200: {"model": Records, "description": RESPONSE_DETAIL_200_GET_ALL},
+    },
+)
 async def get_records(service: Service, session: Session) -> Records:
     """All validated records by id. WARNING: reads EVERY record."""
     return Records.model_validate(await service.get_records(session))
 
 
-@v1_records_router.get("/records/review")
+@v1_records_router.get(
+    "/records/review",
+    responses={
+        200: {
+            "model": list[RecordToReview],
+            "description": RESPONSE_DETAIL_200_GET_REVIEW,
+        },
+    },
+)
 async def get_records_to_review(
     service: Service, session: Session
 ) -> list[RecordToReview]:
@@ -109,6 +134,7 @@ async def get_records_to_review(
 @v1_records_router.get(
     "/records/{record_id}",
     responses={
+        200: {"model": RecordNode, "description": RESPONSE_DETAIL_200_GET},
         404: {"model": Problem, "description": RESPONSE_DETAIL_404},
         422: {"model": Problem, "description": RESPONSE_DETAIL_422_INVALID_REQUEST},
     },
@@ -126,6 +152,7 @@ async def get_record(
 @v1_records_router.delete(
     "/records/{record_id}",
     responses={
+        200: {"model": RecordsDeleted, "description": RESPONSE_DETAIL_200_DELETE},
         404: {"model": Problem, "description": RESPONSE_DETAIL_404},
         409: {
             "model": Problem,
@@ -140,7 +167,7 @@ async def delete_record(
     session: Session,
     delete_orphans: bool = False,
 ) -> RecordsDeleted:
-    """Delete a record and unlink it everywhere.
+    """Deletes a record and unlink it everywhere.
 
     Records left without a parent link are also deleted if ``delete_orphans`` is ``True``, otherwise marked for review.
     """
@@ -149,7 +176,9 @@ async def delete_record(
         raise ProblemException(
             Problem.from_status(409, detail=RESPONSE_DETAIL_409_CATALOG)
         )
-    result = await service.delete_record(record_id, session, delete_orphans)
+    result: DeleteResult = await service.delete_record(
+        record_id, session, delete_orphans
+    )
     if not result.deleted_ids:
         raise ProblemException(Problem.from_status(404, detail=RESPONSE_DETAIL_404))
     return RecordsDeleted(deleted_ids=result.deleted_ids, marked_ids=result.marked_ids)

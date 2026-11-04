@@ -153,9 +153,12 @@ class OgRagService:
         """Returns records marked for review."""
         return await self.store.get_records_to_review(tx)
 
-    async def get_records(self, tx: Tx | None = None) -> dict[str, JsonObject]:
+    async def get_records(self, tx: Tx | None = None) -> list[JsonObject]:
         """Returns all stored (validated) records."""
-        return {rec.id: rec.graph for rec in await self.store.get_all_records(tx)}
+        return [
+            {**rec.graph, JSONLD_ID: rec.id}
+            for rec in await self.store.get_all_records(tx)
+        ]
 
     async def _run_with_retries[T](
         self, write: Callable[[Tx], Awaitable[T]], tx: Tx | None

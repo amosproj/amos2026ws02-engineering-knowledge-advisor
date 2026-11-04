@@ -1,5 +1,6 @@
 """Catalog routes on a scratch Postgres, with an in-memory object storage."""
 
+import asyncio
 import os
 from collections.abc import AsyncIterator, Callable, Generator, Iterator
 from contextlib import asynccontextmanager
@@ -33,6 +34,8 @@ pytestmark = pytest.mark.skipif(
 API: str = "/api/v1"
 PROBLEM_JSON: str = "application/problem+json"
 SIZE: int = 300
+# async psycopg refuses default Windows ProactorEventLoop
+SELECTOR_LOOP: dict[str, Any] = {"loop_factory": asyncio.SelectorEventLoop}
 
 
 class FakeStorage(ObjectStorage):
@@ -128,7 +131,7 @@ def client(storage: FakeStorage) -> Iterator[TestClient]:
     register(app)
     register_service(app)
     app.include_router(v1_catalog_router)
-    with TestClient(app) as client:
+    with TestClient(app, backend_options=SELECTOR_LOOP) as client:
         yield client
 
 

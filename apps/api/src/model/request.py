@@ -25,10 +25,6 @@ StepFileName = Annotated[
 ]
 
 
-class TestRequest(BaseModel):
-    ping: int
-
-
 class RecordNode(BaseModel):
     """JSON-LD node of a record class. Properties as defined by the ontology. Links hold target ids.
     Every property besides ``@type`` and ``@id`` is kept as sent.
