@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Engineering Knowledge Advisor API",
-    "version": "0.1.1"
+    "version": "0.1.2"
   },
   "paths": {
     "/api/health/live": {
@@ -24,68 +24,6 @@
                   },
                   "type": "object",
                   "title": "Response 200 Health Api Health Live Get"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/ping": {
-      "post": {
-        "tags": [
-          "v1"
-        ],
-        "summary": "Test Ping",
-        "description": "Sample ping-pong endpoint with request and response bodies.",
-        "operationId": "test_ping_api_v1_ping_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TestRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful response.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TestResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -127,7 +65,7 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The successfully stored record including validation drops.",
             "content": {
               "application/json": {
                 "schema": {
@@ -181,7 +119,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The requested record.",
             "content": {
               "application/json": {
                 "schema": {
@@ -218,7 +156,7 @@
           "records"
         ],
         "summary": "Delete Record",
-        "description": "Delete a record and unlink it everywhere.\n\nRecords left without a parent link are also deleted if ``delete_orphans`` is ``True``, otherwise marked for review.",
+        "description": "Deletes a record and unlink it everywhere.\n\nRecords left without a parent link are also deleted if ``delete_orphans`` is ``True``, otherwise marked for review.",
         "operationId": "delete_record_api_v1_records__record_id__delete",
         "parameters": [
           {
@@ -245,7 +183,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The successfully deleted record including record ids marked for review.",
             "content": {
               "application/json": {
                 "schema": {
@@ -298,7 +236,7 @@
         "operationId": "get_records_api_v1_records_get",
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "All records sorted by their id.",
             "content": {
               "application/json": {
                 "schema": {
@@ -321,7 +259,7 @@
         "operationId": "get_records_to_review_api_v1_records_review_get",
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Records marked for manual user review.",
             "content": {
               "application/json": {
                 "schema": {
@@ -329,7 +267,7 @@
                     "$ref": "#/components/schemas/RecordToReview"
                   },
                   "type": "array",
-                  "title": "Response Get Records To Review Api V1 Records Review Get"
+                  "title": "Response 200 Get Records To Review Api V1 Records Review Get"
                 }
               }
             }
@@ -1811,12 +1749,12 @@
         "description": "Response of ``PUT /records/{id}``.\n\nAttributes:\n    warnings: validation drops"
       },
       "Records": {
-        "additionalProperties": {
+        "items": {
           "$ref": "#/components/schemas/RecordNode"
         },
-        "type": "object",
+        "type": "array",
         "title": "Records",
-        "description": "Response of ``GET /records``. Wraps map: record id -> validated node"
+        "description": "Response of ``GET /records``. Wraps list of validated nodes, sorted by id."
       },
       "RecordsDeleted": {
         "properties": {
@@ -1842,32 +1780,6 @@
         ],
         "title": "RecordsDeleted",
         "description": "Response of ``DELETE /records/{id}``.\n\nAttributes:\n    deleted_ids: id of deleted record + ids of deleted orphans\n    marked_ids: ids of records that lost their last parent link and were marked for review"
-      },
-      "TestRequest": {
-        "properties": {
-          "ping": {
-            "type": "integer",
-            "title": "Ping"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ping"
-        ],
-        "title": "TestRequest"
-      },
-      "TestResponse": {
-        "properties": {
-          "pong": {
-            "type": "integer",
-            "title": "Pong"
-          }
-        },
-        "type": "object",
-        "required": [
-          "pong"
-        ],
-        "title": "TestResponse"
       },
       "UploadForm": {
         "properties": {

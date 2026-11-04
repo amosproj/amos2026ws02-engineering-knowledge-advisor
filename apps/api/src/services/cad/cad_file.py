@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from cad.assembly_tree_node import AssemblyTreeNode
+from services.cad.assembly_tree_node import AssemblyTreeNode
 
 
 @dataclass

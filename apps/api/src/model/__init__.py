@@ -4,7 +4,6 @@ from model.request import CadFileChanges as CadFileChanges
 from model.request import MachineChanges as MachineChanges
 from model.request import MachineFields as MachineFields
 from model.request import RecordNode as RecordNode
-from model.request import TestRequest as TestRequest
 from model.request import UploadRequest as UploadRequest
 from model.response import AssemblyGroup as AssemblyGroup
 from model.response import CadFile as CadFile
@@ -16,5 +15,4 @@ from model.response import Records as Records
 from model.response import RecordsDeleted as RecordsDeleted
 from model.response import RecordToReview as RecordToReview
 from model.response import RecordWritten as RecordWritten
-from model.response import TestResponse as TestResponse
 from model.response import UploadForm as UploadForm

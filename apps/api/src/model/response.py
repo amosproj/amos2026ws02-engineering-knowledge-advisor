@@ -9,10 +9,6 @@ from model.request import RecordNode
 MachineStatus = Literal["empty", "uploading", "processing", "failed", "ready"]
 
 
-class TestResponse(BaseModel):
-    pong: int
-
-
 class RecordWritten(BaseModel):
     """Response of ``PUT /records/{id}``.
 
@@ -44,8 +40,8 @@ class RecordToReview(BaseModel):
     record: RecordNode
 
 
-class Records(RootModel[dict[str, RecordNode]]):
-    """Response of ``GET /records``. Wraps map: record id -> validated node"""
+class Records(RootModel[list[RecordNode]]):
+    """Response of ``GET /records``. Wraps list of validated nodes, sorted by id."""
 
 
 class UploadForm(BaseModel):

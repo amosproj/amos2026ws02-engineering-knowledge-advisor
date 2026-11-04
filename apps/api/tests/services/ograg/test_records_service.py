@@ -36,6 +36,10 @@ ITEM: dict[str, Any] = {
 }
 
 
+async def get_all_record_ids(service: OgRagService) -> list[str]:
+    return [str(rec["@id"]) for rec in await service.get_records()]
+
+
 async def get_stored_record(service: OgRagService, record_id: str) -> Record:
     """The get_stored_record record; fails the test if there is none."""
     record: Record | None = await service.store.get_record(record_id)
@@ -58,10 +62,19 @@ async def test_a_record_is_validated_and_stored():
     )
     assert len(warnings) == 1
     assert_mentions(warnings[0], "Machine", "colour")
-    assert await service.get_records() == {MACHINE_ID: {**MACHINE, "@id": MACHINE_ID}}
+    assert await service.get_records() == [{**MACHINE, "@id": MACHINE_ID}]
     record: Record = await get_stored_record(service, MACHINE_ID)
     assert record.input["colour"] == UNKNOWN["colour"]  # input is kept as submitted
     assert record.ontology_version == service.ontology.version
+
+
+async def test_returned_records_have_id():
+    store = MemoryRecordStore()
+    await store.save_records(
+        [Record(MACHINE_ID, "Machine", dict(MACHINE), dict(MACHINE), "v0")]
+    )
+    service: OgRagService = make_service(store=store)
+    assert await service.get_records() == [{**MACHINE, "@id": MACHINE_ID}]
 
 
 async def test_type_defaults_to_the_anchor_class():
@@ -85,7 +98,7 @@ async def test_records_that_do_not_fit_are_refused(
     with pytest.raises(RecordError) as raised:
         await service.upsert_record("X-1", node)
     assert_mentions(str(raised.value), *keywords)
-    assert await service.get_records() == {}
+    assert await service.get_records() == []
 
 
 async def test_a_link_to_a_missing_record_is_refused():
@@ -93,7 +106,7 @@ async def test_a_link_to_a_missing_record_is_refused():
     with pytest.raises(RecordError) as raised:
         await service.upsert_record(GROUP_ID, GROUP)
     assert_mentions(str(raised.value), "partOf", MACHINE_ID)
-    assert await service.get_records() == {}
+    assert await service.get_records() == []
 
 
 async def test_a_link_to_a_record_of_the_wrong_class_is_refused():
@@ -129,7 +142,7 @@ async def test_a_record_linking_to_itself_can_be_deleted():
     )
     result: DeleteResult = await service.delete_record(ITEM_ID)
     assert result == DeleteResult(deleted_ids=[ITEM_ID], marked_ids=[])
-    assert await service.get_records() == {}
+    assert await service.get_records() == []
 
 
 async def test_the_author_replaces_what_the_node_says():
@@ -143,7 +156,7 @@ async def test_text_the_store_cannot_keep_is_refused_and_nothing_is_written():
     service: OgRagService = await create_loaded_service()
     with pytest.raises(UnstorableValueError):
         await service.upsert_record("RC-02", {**MACHINE, "name": "nul \x00 byte"})
-    assert sorted(await service.get_records()) == [GROUP_ID, ITEM_ID, MACHINE_ID]
+    assert await get_all_record_ids(service) == [GROUP_ID, ITEM_ID, MACHINE_ID]
 
 
 async def test_delete_marks_records_that_lost_their_last_parent_link():
@@ -169,7 +182,7 @@ async def test_delete_orphans_deletes_them_recursively():
         [MACHINE_ID, GROUP_ID, ITEM_ID],
         [],
     )
-    assert await service.get_records() == {}
+    assert await service.get_records() == []
 
 
 async def test_a_record_with_another_parent_link_left_is_not_marked():
@@ -206,7 +219,7 @@ class FlakyStore(MemoryRecordStore):
 async def test_a_conflict_is_retried_in_the_services_own_transaction():
     service = OgRagService(load_ontology(), FlakyStore(failures=2))
     await service.upsert_record(MACHINE_ID, MACHINE)
-    assert MACHINE_ID in await service.get_records()
+    assert MACHINE_ID in await get_all_record_ids(service)
 
 
 async def test_a_conflict_in_the_callers_transaction_is_raised_at_once():

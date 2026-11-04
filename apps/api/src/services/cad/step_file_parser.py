@@ -13,10 +13,10 @@ from OCP.TopoDS import TopoDS_Shape
 from OCP.XCAFApp import XCAFApp_Application
 from OCP.XCAFDoc import XCAFDoc_DocumentTool, XCAFDoc_ShapeTool
 
-from cad.assembly_tree_node import AssemblyTreeNode
-from cad.cad_file import CadFile
-from cad.cad_file_parser import CadFileParser
-from cad.cad_file_parsing_error import CadFileParsingError
+from services.cad.assembly_tree_node import AssemblyTreeNode
+from services.cad.cad_file import CadFile
+from services.cad.cad_file_parsing_error import CadFileParsingError
+from services.cad_file_parser import CadFileParser
 
 
 class StepFileParser(CadFileParser):
