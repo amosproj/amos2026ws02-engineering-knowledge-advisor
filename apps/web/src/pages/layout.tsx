@@ -1,5 +1,5 @@
 import { Link, Outlet } from '@tanstack/react-router'
-import { Factory01Icon, Home02Icon, Settings05Icon } from '@hugeicons/core-free-icons'
+import { EngineIcon, Home02Icon, Settings05Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 
 import {
@@ -16,7 +16,7 @@ import { ImportIndicator } from './machines/components/import-indicator'
 const navConfig: DashboardNavConfig = {
     navMenu: [
         { title: 'Home', link: '/', icon: Home02Icon },
-        { title: 'Machines', link: '/machines', icon: Factory01Icon },
+        { title: 'Machines', link: '/machines', icon: EngineIcon },
     ],
     navFooter: [{ title: 'Settings', link: '/settings', icon: Settings05Icon }],
 }

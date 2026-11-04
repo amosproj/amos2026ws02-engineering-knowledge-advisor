@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Add01Icon, Factory01Icon, Search01Icon } from '@hugeicons/core-free-icons'
+import { Add01Icon, EngineIcon, Search01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 
 import {
@@ -26,8 +26,8 @@ import { machinesQuery, type Machine } from './query/machine-api'
 const POLL_MS = 3_000
 
 export function MachinesPage() {
-    const search = useSearch({ from: '/machines' })
-    const navigate = useNavigate({ from: '/machines' })
+    const search = useSearch({ from: '/machines/' })
+    const navigate = useNavigate({ from: '/machines/' })
 
     const {
         data: machines,
@@ -93,7 +93,7 @@ export function MachinesPage() {
                 <Empty className="border">
                     <EmptyHeader>
                         <EmptyMedia variant="icon">
-                            <HugeiconsIcon icon={Factory01Icon} strokeWidth={2} />
+                            <HugeiconsIcon icon={EngineIcon} strokeWidth={2} />
                         </EmptyMedia>
                         <EmptyTitle>No machines yet</EmptyTitle>
                         <EmptyDescription>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { Add01Icon } from '@hugeicons/core-free-icons'
+import { Add01Icon, ArrowLeft01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 
 import {
@@ -88,9 +88,16 @@ export function MachineDetailPage() {
 
     return (
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-2 py-6 md:py-10">
-            <Link to="/machines" className="text-muted-foreground text-sm hover:underline">
-                ← Machines
-            </Link>
+            <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground -ml-2 self-start"
+                nativeButton={false}
+                render={<Link to="/machines" />}
+            >
+                <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} data-icon="inline-start" />
+                Machines
+            </Button>
             <MachineHeader machine={machine} />
 
             <div className="flex items-center justify-between gap-4">

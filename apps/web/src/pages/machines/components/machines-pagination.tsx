@@ -54,7 +54,7 @@ type PageLinkProps = {
 
 function PageLink({ page, kind, isActive, disabled, children }: PageLinkProps) {
     const linkProps = useLinkProps({
-        from: '/machines',
+        from: '/machines/',
         to: '/machines',
         // Keeps the search while changing page
         search: (prev) => ({ ...prev, page: page > 1 ? page : undefined }),

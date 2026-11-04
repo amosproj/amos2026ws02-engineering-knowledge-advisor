@@ -1,9 +1,17 @@
 import * as React from 'react'
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useMatches, useRouterState } from '@tanstack/react-router'
 import { AiBrain01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 
 import { Separator } from '../atoms'
+import {
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
+} from '../molecules'
 import {
     Sidebar,
     SidebarContent,
@@ -36,6 +44,9 @@ export type DashboardNavConfig = {
     /** Items pinned at the bottom of the sidebar. */
     navFooter: readonly DashboardNavItem[]
 }
+
+/** Label of a route in the header breadcrumb, set through the route's `staticData.breadcrumb`. */
+export type RouteBreadcrumb = string | React.ComponentType<{ params: Record<string, string> }>
 
 type DashboardShellProps = {
     navConfig: DashboardNavConfig
@@ -85,6 +96,56 @@ function NavSection({ items, pathname }: { items: readonly DashboardNavItem[]; p
     )
 }
 
+function RouteBreadcrumbs() {
+    const crumbs = useMatches({
+        select: (matches) =>
+            matches.flatMap((match) =>
+                match.staticData.breadcrumb
+                    ? [
+                          {
+                              id: match.id,
+                              pathname: match.pathname,
+                              params: match.params as Record<string, string>,
+                              label: match.staticData.breadcrumb,
+                          },
+                      ]
+                    : [],
+            ),
+    })
+
+    if (crumbs.length === 0) return <span className="truncate text-sm font-medium">{APP_NAME}</span>
+
+    return (
+        <Breadcrumb className="min-w-0">
+            <BreadcrumbList className="flex-nowrap">
+                {crumbs.map(({ id, pathname, params, label: Label }, index) => {
+                    const label = typeof Label === 'string' ? Label : <Label params={params} />
+                    const isLast = index === crumbs.length - 1
+                    return (
+                        <React.Fragment key={id}>
+                            {index > 0 ? <BreadcrumbSeparator /> : null}
+                            <BreadcrumbItem className="min-w-0">
+                                {isLast ? (
+                                    <BreadcrumbPage className="truncate font-medium">
+                                        {label}
+                                    </BreadcrumbPage>
+                                ) : (
+                                    <BreadcrumbLink
+                                        className="truncate"
+                                        render={<Link to={pathname} />}
+                                    >
+                                        {label}
+                                    </BreadcrumbLink>
+                                )}
+                            </BreadcrumbItem>
+                        </React.Fragment>
+                    )
+                })}
+            </BreadcrumbList>
+        </Breadcrumb>
+    )
+}
+
 function CloseMobileSidebarOnNavigate({ pathname }: { pathname: string }) {
     const { setOpenMobile } = useSidebar()
 
@@ -97,10 +158,6 @@ function CloseMobileSidebarOnNavigate({ pathname }: { pathname: string }) {
 
 export function DashboardShell({ navConfig, headerActions, children }: DashboardShellProps) {
     const pathname = useRouterState({ select: (state) => state.location.pathname })
-
-    const activeTitle = [...navConfig.navMenu, ...navConfig.navFooter].find((item) =>
-        isActiveLink(item.link, pathname),
-    )?.title
 
     return (
         <SidebarProvider>
@@ -127,9 +184,7 @@ export function DashboardShell({ navConfig, headerActions, children }: Dashboard
                             orientation="vertical"
                             className="mr-2 data-vertical:h-4 data-vertical:self-auto"
                         />
-                        <span className="truncate text-sm font-medium">
-                            {activeTitle ?? APP_NAME}
-                        </span>
+                        <RouteBreadcrumbs />
                     </div>
                     {headerActions ? (
                         <div className="flex shrink-0 items-center gap-2 px-4">{headerActions}</div>
