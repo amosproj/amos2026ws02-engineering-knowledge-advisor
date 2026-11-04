@@ -16,6 +16,7 @@ The project uses a containerized web application architecture with a React front
 - [Testing the Services](#testing-the-services)
 - [Stopping the Application](#stopping-the-application)
 - [Development Workflow](#development-workflow)
+- [Testing Guidelines](#testing-guidelines)
 - [Software Bill of Materials](#software-bill-of-materials)
 - [Troubleshooting](#troubleshooting)
 - [Security Notes](#security-notes)
@@ -542,6 +543,10 @@ uv run --directory apps/api uvicorn main:app --reload --host 127.0.0.1 --port 80
 ```
 
 The local API runs at `http://127.0.0.1:8000`. Local execution requires any external services that the code actually uses to be configured and reachable.
+
+## Testing Guidelines
+
+Detailed instructions on automated tests, manual testing requirements, and available test environments can be found in [testing.md](Documentation/testing.md).
 
 ## Software Bill of Materials
 
