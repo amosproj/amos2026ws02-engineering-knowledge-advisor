@@ -15,6 +15,20 @@ from sqlalchemy import (
 )
 
 from db.model_base import ModelBase, get_ograg_tables
+from services.postgres.names import CommonColumn, TableName
+
+
+class CadUploadColumn(StrEnum):
+    CAD_FILE_ID = "cad_file_id"
+    STATUS = "status"
+    ERROR_CODE = "error_code"
+    SOURCE_KEY = "source_key"
+    PREVIEW_KEY = "preview_key"
+    MODEL_KEY = "model_key"
+    SIZE_BYTES = "size_bytes"
+    SHA256 = "sha256"
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
 
 
 class CadUploadStatus(StrEnum):
@@ -33,28 +47,31 @@ cad_uploads: Table = Table(
     "cad_uploads",
     ModelBase.metadata,
     Column(
-        "cad_file_id",
+        CadUploadColumn.CAD_FILE_ID,
         String,
-        ForeignKey("ograg_records.id", ondelete="CASCADE"),
+        ForeignKey(f"{TableName.RECORDS}.{CommonColumn.ID}", ondelete="CASCADE"),
         primary_key=True,
     ),
     Column(
-        "status",
+        CadUploadColumn.STATUS,
         String,
         nullable=False,
         server_default=CadUploadStatus.UPLOADING.value,
     ),
-    Column("error_code", String),
-    Column("source_key", String, nullable=False, unique=True),
-    Column("preview_key", String),
-    Column("model_key", String),
-    Column("size_bytes", BigInteger, nullable=False),
-    Column("sha256", CHAR(64)),
+    Column(CadUploadColumn.ERROR_CODE, String),
+    Column(CadUploadColumn.SOURCE_KEY, String, nullable=False, unique=True),
+    Column(CadUploadColumn.PREVIEW_KEY, String),
+    Column(CadUploadColumn.MODEL_KEY, String),
+    Column(CadUploadColumn.SIZE_BYTES, BigInteger, nullable=False),
+    Column(CadUploadColumn.SHA256, CHAR(64)),
     Column(
-        "created_at", DateTime(timezone=True), nullable=False, server_default=func.now()
+        CadUploadColumn.CREATED_AT,
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     ),
     Column(
-        "updated_at",
+        CadUploadColumn.UPDATED_AT,
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
@@ -67,14 +84,14 @@ cad_uploads: Table = Table(
     # the same content may be ready only once
     Index(
         SHA256_READY_INDEX,
-        "sha256",
+        CadUploadColumn.SHA256,
         unique=True,
         postgresql_where=text("status = 'ready'"),
     ),
     # the worker takes the oldest file waiting in processing
     Index(
         "ix_cad_uploads_processing",
-        "updated_at",
+        CadUploadColumn.UPDATED_AT,
         postgresql_where=text("status = 'processing'"),
     ),
 )

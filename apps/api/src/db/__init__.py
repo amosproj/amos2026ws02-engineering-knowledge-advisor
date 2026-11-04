@@ -1,3 +1,4 @@
+from db.cad_uploads import CadUploadColumn as CadUploadColumn
 from db.cad_uploads import CadUploadStatus as CadUploadStatus
 from db.cad_uploads import cad_uploads as cad_uploads
 from db.model_base import ModelBase as ModelBase

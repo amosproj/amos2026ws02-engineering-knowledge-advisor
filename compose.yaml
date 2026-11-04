@@ -100,21 +100,21 @@ services:
         condition: service_started
     restart: "no"
 
-  worker:
+  cad-file-worker:
     build:
       context: apps/api
       dockerfile: Dockerfile
       target: ${API_PROFILE:-prod}
       args:
         API_PROFILE: ${API_PROFILE:-prod}
-    command: ["uv", "run", "--no-sync", "python", "-m", "worker"]
+    command: ["uv", "run", "--no-sync", "python", "-m", "cad_file_worker"]
     environment: *api-environment
     depends_on:
       migrate:
         condition: service_completed_successfully
     healthcheck:
       # The worker touches this file at least every 10 s while its loop is alive
-      test: ["CMD-SHELL", "find /tmp/worker-heartbeat -mmin -1 | grep -q ."]
+      test: ["CMD-SHELL", "find /tmp/cad-file-worker-heartbeat -mmin -1 | grep -q ."]
       interval: 30s
       timeout: 5s
       retries: 3

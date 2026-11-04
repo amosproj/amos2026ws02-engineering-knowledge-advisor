@@ -10,11 +10,11 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import Row, insert, select, text, update
+from sqlalchemy import Result, Row, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db import CadUploadStatus, cad_uploads
+from db import CadUploadColumn, CadUploadStatus, cad_uploads
 from model import (
     AssemblyGroup,
     CadFile,
@@ -25,7 +25,7 @@ from model import (
     UploadForm,
 )
 from model.request import FileToUpload
-from services import Record
+from services import Json, Record
 from services.catalog import records
 from services.catalog.errors import (
     BusyError,
@@ -195,9 +195,11 @@ class CatalogService:
             source_key: str = get_source_key(machine_id, assembly_group_id, cad_file_id)
             await session.execute(
                 insert(cad_uploads).values(
-                    cad_file_id=cad_file_id,
-                    source_key=source_key,
-                    size_bytes=file.size,
+                    {
+                        CadUploadColumn.CAD_FILE_ID: cad_file_id,
+                        CadUploadColumn.SOURCE_KEY: source_key,
+                        CadUploadColumn.SIZE_BYTES: file.size,
+                    }
                 )
             )
             url, fields = self.storage.create_upload_form(source_key, file.size)
@@ -257,14 +259,19 @@ class CatalogService:
                 await session.execute(
                     update(cad_uploads)
                     .where(
-                        cad_uploads.c.cad_file_id == cad_file_id,
-                        cad_uploads.c.status == CadUploadStatus.UPLOADING,
+                        cad_uploads.c[CadUploadColumn.CAD_FILE_ID] == cad_file_id,
+                        cad_uploads.c[CadUploadColumn.STATUS]
+                        == CadUploadStatus.UPLOADING,
                     )
                     .values(
-                        status=CadUploadStatus.FAILED
-                        if mismatch
-                        else CadUploadStatus.PROCESSING,
-                        error_code="file_mismatch" if mismatch else None,
+                        {
+                            CadUploadColumn.STATUS: CadUploadStatus.FAILED
+                            if mismatch
+                            else CadUploadStatus.PROCESSING,
+                            CadUploadColumn.ERROR_CODE: "file_mismatch"
+                            if mismatch
+                            else None,
+                        }
                     )
                     .returning(*cad_uploads.c)
                 )
@@ -310,9 +317,11 @@ class CatalogService:
         """The CAD files with their upload state, oldest first."""
         if not cad_files:
             return []
-        rows = await session.execute(
+        rows: Result[Any] = await session.execute(
             select(cad_uploads).where(
-                cad_uploads.c.cad_file_id.in_([rec.id for rec in cad_files])
+                cad_uploads.c[CadUploadColumn.CAD_FILE_ID].in_(
+                    [rec.id for rec in cad_files]
+                )
             )
         )
         uploads: dict[str, Row[Any]] = {row.cad_file_id: row for row in rows}
@@ -338,7 +347,9 @@ async def _busy_after_lock_timeout(session: AsyncSession) -> AsyncIterator[None]
 async def _get_upload(session: AsyncSession, cad_file_id: str) -> Row[Any]:
     upload: Row[Any] | None = (
         await session.execute(
-            select(cad_uploads).where(cad_uploads.c.cad_file_id == cad_file_id)
+            select(cad_uploads).where(
+                cad_uploads.c[CadUploadColumn.CAD_FILE_ID] == cad_file_id
+            )
         )
     ).first()
     if upload is None:
@@ -349,9 +360,11 @@ async def _get_upload(session: AsyncSession, cad_file_id: str) -> Row[Any]:
 async def _get_source_keys(session: AsyncSession, cad_files: list[Record]) -> list[str]:
     if not cad_files:
         return []
-    rows = await session.execute(
-        select(cad_uploads.c.source_key).where(
-            cad_uploads.c.cad_file_id.in_([rec.id for rec in cad_files])
+    rows: Result[Any] = await session.execute(
+        select(cad_uploads.c[CadUploadColumn.SOURCE_KEY]).where(
+            cad_uploads.c[CadUploadColumn.CAD_FILE_ID].in_(
+                [rec.id for rec in cad_files]
+            )
         )
     )
     return list(rows.scalars())
@@ -392,5 +405,5 @@ def _get_name(record: Record) -> str:
 
 
 def _get_text(record: Record, field: str) -> str | None:
-    value = record.graph.get(field)
+    value: Json = record.graph.get(field)
     return None if value is None else str(value)

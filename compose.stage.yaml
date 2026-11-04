@@ -80,16 +80,16 @@ services:
         condition: service_started
     restart: "no"
 
-  worker:
-    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/${WORKER_IMAGE_NAME:-engineering-knowledge-advisor-worker}:${IMAGE_TAG:-development}
-    command: ["uv", "run", "--no-sync", "python", "-m", "worker"]
+  cad-file-worker:
+    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/${CAD_FILE_WORKER_IMAGE_NAME:-engineering-knowledge-advisor-cad-file-worker}:${IMAGE_TAG:-development}
+    command: ["uv", "run", "--no-sync", "python", "-m", "cad_file_worker"]
     environment: *api-environment
     depends_on:
       migrate:
         condition: service_completed_successfully
     healthcheck:
       # The worker touches this file at least every 10 s while its loop is alive
-      test: ["CMD-SHELL", "find /tmp/worker-heartbeat -mmin -1 | grep -q ."]
+      test: ["CMD-SHELL", "find /tmp/cad-file-worker-heartbeat -mmin -1 | grep -q ."]
       interval: 30s
       timeout: 5s
       retries: 3

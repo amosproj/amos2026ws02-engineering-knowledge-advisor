@@ -2,7 +2,7 @@ import hashlib
 
 import pytest
 
-from worker.step_file import scan_step_file
+from cad_file_worker.step_file import scan_step_file
 
 STEP = b"ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n"
 

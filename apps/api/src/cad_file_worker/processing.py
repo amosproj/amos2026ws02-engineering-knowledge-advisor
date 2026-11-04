@@ -1,19 +1,19 @@
 import asyncio
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import closing
 
 from psycopg import errors as pg_errors
-from sqlalchemy import func, select, update
+from sqlalchemy import Row, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from db import CadUploadStatus, cad_uploads
+from cad_file_worker.step_file import StepFileScan, scan_step_file
+from db import CadUploadColumn, CadUploadStatus, cad_uploads
 from db.cad_uploads import SHA256_READY_INDEX
 from logger import logger
 from services.catalog import CatalogService
-from worker.step_file import StepFileScan, scan_step_file
 
 CHUNK_SIZE = 8 * 1024 * 1024
 MAX_PROCESSING_SECONDS = 30 * 60
@@ -41,11 +41,17 @@ async def process_next_cad_upload(
     locked_id: str | None = None
     try:
         async with sessions() as session, session.begin():
-            upload = (
+            upload: Row[str, str] | None = (
                 await session.execute(
-                    select(cad_uploads.c.cad_file_id, cad_uploads.c.source_key)
-                    .where(cad_uploads.c.status == CadUploadStatus.PROCESSING)
-                    .order_by(cad_uploads.c.updated_at)
+                    select(
+                        cad_uploads.c[CadUploadColumn.CAD_FILE_ID],
+                        cad_uploads.c[CadUploadColumn.SOURCE_KEY],
+                    )
+                    .where(
+                        cad_uploads.c[CadUploadColumn.STATUS]
+                        == CadUploadStatus.PROCESSING
+                    )
+                    .order_by(cad_uploads.c[CadUploadColumn.UPDATED_AT])
                     .limit(1)
                     .with_for_update(skip_locked=True)
                 )
@@ -56,10 +62,10 @@ async def process_next_cad_upload(
             cad_file_id, source_key = upload.cad_file_id, upload.source_key
             locked_id = cad_file_id
             logger.info(f"Processing CAD file {cad_file_id}")
-            scan = await asyncio.to_thread(
+            scan: StepFileScan | None = await asyncio.to_thread(
                 _scan, catalog, source_key, stopping, on_progress
             )
-            error_code = await _save_outcome(session, cad_file_id, scan)
+            error_code: str | None = await _save_outcome(session, cad_file_id, scan)
     except StopRequested:
         raise
     except Exception:
@@ -83,7 +89,9 @@ def _scan(
     on_progress: Callable[[], None],
 ) -> StepFileScan | None:
     """Scan the uploaded file, None if it does not exist."""
-    chunks = catalog.storage.read_object(source_key, CHUNK_SIZE)
+    chunks: Generator[bytes] | None = catalog.storage.read_object(
+        source_key, CHUNK_SIZE
+    )
     if chunks is None:
         return None
     # closed also when stopping or timing out, to release the connection
@@ -94,7 +102,7 @@ def _scan(
 def _watch(
     chunks: Iterator[bytes], stopping: threading.Event, on_progress: Callable[[], None]
 ) -> Iterator[bytes]:
-    deadline = time.monotonic() + MAX_PROCESSING_SECONDS
+    deadline: float = time.monotonic() + MAX_PROCESSING_SECONDS
     for chunk in chunks:
         if stopping.is_set():
             raise StopRequested
@@ -117,11 +125,13 @@ async def _save_outcome(
             async with session.begin_nested():
                 await session.execute(
                     update(cad_uploads)
-                    .where(cad_uploads.c.cad_file_id == cad_file_id)
+                    .where(cad_uploads.c[CadUploadColumn.CAD_FILE_ID] == cad_file_id)
                     .values(
-                        status=CadUploadStatus.READY,
-                        sha256=scan.sha256,
-                        error_code=None,
+                        {
+                            CadUploadColumn.STATUS: CadUploadStatus.READY,
+                            CadUploadColumn.SHA256: scan.sha256,
+                            CadUploadColumn.ERROR_CODE: None,
+                        }
                     )
                 )
             return None
@@ -132,8 +142,13 @@ async def _save_outcome(
 
     await session.execute(
         update(cad_uploads)
-        .where(cad_uploads.c.cad_file_id == cad_file_id)
-        .values(status=CadUploadStatus.FAILED, error_code=error_code)
+        .where(cad_uploads.c[CadUploadColumn.CAD_FILE_ID] == cad_file_id)
+        .values(
+            {
+                CadUploadColumn.STATUS: CadUploadStatus.FAILED,
+                CadUploadColumn.ERROR_CODE: error_code,
+            }
+        )
     )
     return error_code
 
@@ -143,19 +158,19 @@ async def _move_to_back(
 ) -> None:
     """Move the file to the back of the queue so it does not block the other files."""
     async with sessions() as session, session.begin():
-        locked = await session.scalar(
-            select(cad_uploads.c.cad_file_id)
+        locked: str | None = await session.scalar(
+            select(cad_uploads.c[CadUploadColumn.CAD_FILE_ID])
             .where(
-                cad_uploads.c.cad_file_id == cad_file_id,
-                cad_uploads.c.status == CadUploadStatus.PROCESSING,
+                cad_uploads.c[CadUploadColumn.CAD_FILE_ID] == cad_file_id,
+                cad_uploads.c[CadUploadColumn.STATUS] == CadUploadStatus.PROCESSING,
             )
             .with_for_update(skip_locked=True)
         )
         if locked is not None:
             await session.execute(
                 update(cad_uploads)
-                .where(cad_uploads.c.cad_file_id == cad_file_id)
-                .values(updated_at=func.now())
+                .where(cad_uploads.c[CadUploadColumn.CAD_FILE_ID] == cad_file_id)
+                .values({CadUploadColumn.UPDATED_AT: func.now()})
             )
 
 

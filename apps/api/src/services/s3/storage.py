@@ -1,7 +1,7 @@
 import time
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import boto3
 from botocore.config import Config
@@ -19,6 +19,12 @@ from services.object_storage import ObjectStorage, ObjectStorageError, StoredObj
 
 if TYPE_CHECKING:  # the stubs are a dev dependency
     from types_boto3_s3 import S3Client
+    from types_boto3_s3.paginator import ListObjectsV2Paginator
+    from types_boto3_s3.type_defs import (
+        DeleteObjectsOutputTypeDef,
+        GetObjectOutputTypeDef,
+        HeadObjectOutputTypeDef,
+    )
 
 BUCKET_CHECK_ATTEMPTS = 30
 BUCKET_CHECK_DELAY_SECONDS = 2
@@ -84,7 +90,7 @@ class S3ObjectStorage(ObjectStorage):
 
     def create_upload_form(self, key: str, size: int) -> tuple[str, dict[str, str]]:
         with _storage_errors():
-            form = self._client.generate_presigned_post(
+            form: dict[str, Any] = self._client.generate_presigned_post(
                 Bucket=self._bucket,
                 Key=key,
                 Fields={"Content-Type": UPLOAD_CONTENT_TYPE},
@@ -99,7 +105,9 @@ class S3ObjectStorage(ObjectStorage):
     def get_object_size(self, key: str) -> int | None:
         with _storage_errors():
             try:
-                response = self._client.head_object(Bucket=self._bucket, Key=key)
+                response: HeadObjectOutputTypeDef = self._client.head_object(
+                    Bucket=self._bucket, Key=key
+                )
             except ClientError as error:
                 if _http_status(error) == 404:
                     return None
@@ -109,12 +117,14 @@ class S3ObjectStorage(ObjectStorage):
     def read_object(self, key: str, chunk_size: int) -> Generator[bytes] | None:
         with _storage_errors():
             try:
-                response = self._client.get_object(Bucket=self._bucket, Key=key)
+                response: GetObjectOutputTypeDef = self._client.get_object(
+                    Bucket=self._bucket, Key=key
+                )
             except ClientError as error:
                 if _http_status(error) == 404:
                     return None
                 raise
-        chunks = self._read_chunks(response["Body"], chunk_size)
+        chunks: Generator[bytes] = self._read_chunks(response["Body"], chunk_size)
         # started up to its try, so closing it before the first read still closes the body
         next(chunks)
         return chunks
@@ -128,7 +138,9 @@ class S3ObjectStorage(ObjectStorage):
             body.close()
 
     def list_objects(self, prefix: str) -> Iterator[list[StoredObject]]:
-        paginator = self._client.get_paginator("list_objects_v2")
+        paginator: ListObjectsV2Paginator = self._client.get_paginator(
+            "list_objects_v2"
+        )
         with _storage_errors():
             for page in paginator.paginate(
                 Bucket=self._bucket,
@@ -145,7 +157,7 @@ class S3ObjectStorage(ObjectStorage):
         for start in range(0, len(keys), DELETE_BATCH_SIZE):
             batch: list[str] = keys[start : start + DELETE_BATCH_SIZE]
             with _storage_errors():
-                response = self._client.delete_objects(
+                response: DeleteObjectsOutputTypeDef = self._client.delete_objects(
                     Bucket=self._bucket,
                     Delete={"Objects": [{"Key": key} for key in batch], "Quiet": True},
                 )
