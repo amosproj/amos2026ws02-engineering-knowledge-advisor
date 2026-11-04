@@ -6,7 +6,7 @@ repos:
         entry: uv run --project apps/api python scripts/generate_sbom.py --staged
         language: system
         pass_filenames: false
-        files: ^(apps/api/(pyproject\.toml|uv\.lock)|apps/web/(package\.json|package-lock\.json)|scripts/generate_sbom\.py|Documentation/sbom/.*\.json|\.pre-commit-config\.yaml)$
+        files: ^(apps/api/(pyproject\.toml|uv\.lock|\.python-version)|apps/web/(package\.json|package-lock\.json)|scripts/generate_sbom\.py|Documentation/sbom/.*\.json|\.pre-commit-config\.yaml)$
 
       - id: check-tool-versions
         name: Check Python, uv, npm and Node versions are in sync

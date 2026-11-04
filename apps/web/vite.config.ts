@@ -9,10 +9,23 @@ const envDir = fileURLToPath(new URL('../..', import.meta.url))
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, envDir, '')
+    const storageUploadPath = `/storage/${env.S3_BUCKET}`
 
     return {
         envDir,
-        plugins: [react(), tailwindcss()],
+        plugins: [
+            react(),
+            tailwindcss(),
+            {
+                name: 'allow-long-uploads',
+                configureServer(server) {
+                    // Node aborts requests not fully received after 300 s, too short for large STEP files
+                    if (server.httpServer && 'requestTimeout' in server.httpServer) {
+                        server.httpServer.requestTimeout = 0
+                    }
+                },
+            },
+        ],
         resolve: {
             alias: {
                 '@components': fileURLToPath(new URL('./src/components', import.meta.url)),
@@ -23,9 +36,19 @@ export default defineConfig(({ mode }) => {
             },
         },
         server: {
-            // Mirror the Nginx /api proxy so the app always calls a same-origin /api
+            watch: {
+                usePolling: env.WEB_PROFILE === 'dev',
+            },
+            // Mirror the Nginx proxies so the app always calls same-origin /api and /storage
             proxy: {
                 '/api': env.WEB_API_PROXY_TARGET || 'http://localhost:8000',
+                '/storage': {
+                    target: env.WEB_STORAGE_PROXY_TARGET || 'http://localhost:9000',
+                    rewrite: (path) => path.replace(/^\/storage/, ''),
+                    // Only presigned POST uploads may reach object storage
+                    bypass: (req) =>
+                        req.method === 'POST' && req.url === storageUploadPath ? undefined : false,
+                },
             },
         },
         test: {

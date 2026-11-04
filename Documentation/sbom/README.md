@@ -4,7 +4,7 @@ CycloneDX 1.5 inventories for the application dependencies of this repository.
 
 | File             | Source of truth                    | Contents                                       |
 | ---------------- | ---------------------------------- | ---------------------------------------------- |
-| `api.cdx.json`   | `apps/api/uv.lock`                 | Python packages resolved for the API            |
+| `api.cdx.json`   | `apps/api/uv.lock`                 | Python packages resolved for the API, with licenses |
 | `web.cdx.json`   | `apps/web/package-lock.json`       | npm packages resolved for the frontend          |
 
 ## Regeneration
@@ -14,10 +14,10 @@ The files are generated, not edited by hand:
 ```bash
 uv run --project apps/api python scripts/generate_sbom.py            # write the inventories
 uv run --project apps/api python scripts/generate_sbom.py --check    # fail if the committed files are stale
-uv run --project apps/api python scripts/generate_sbom.py --staged   # fail if the staged files are stale
+uv run --project apps/api python scripts/generate_sbom.py --staged   # fail if the staged files are stale, and write the updated files unstaged
 ```
 
-A pre-commit hook runs the `--staged` variant whenever dependency inputs change: it compares the inventories staged for the commit against freshly generated ones and blocks the commit if they differ. The CI workflow `sbom-check` runs the `--check` variant and fails the build on stale inventories.
+A pre-commit hook runs the `--staged` variant whenever dependency inputs change: it compares the inventories staged for the commit against freshly generated ones, and if they differ it writes the updated files to the working tree and blocks the commit. The CI workflow `sbom-check` runs the `--check` variant and fails the build on stale inventories.
 
 ## Pre-commit hook
 
@@ -28,9 +28,9 @@ uv tool install pre-commit
 pre-commit install
 ```
 
-The hook requires uv and npm on your `PATH`; uv provides the pinned Python. It only runs when `apps/api/pyproject.toml`, `apps/api/uv.lock`, `apps/web/package.json`, `apps/web/package-lock.json`, the generator script, or the SBOM files themselves are staged.
+The hook requires uv and npm on your `PATH`; uv provides the pinned Python, downloading it if no matching interpreter is installed. It needs network access the first time it reads the API package metadata (see [Licenses](#licenses)). It only runs when `apps/api/pyproject.toml`, `apps/api/uv.lock`, `apps/api/.python-version`, `apps/web/package.json`, `apps/web/package-lock.json`, the generator script, or the SBOM files themselves are staged.
 
-If the staged SBOMs are missing or outdated, the commit stops and nothing is committed. Regenerate the files, review them, stage them, and commit again:
+If the staged SBOMs are missing or outdated, the commit stops and nothing is committed. The hook writes the updated files without staging them, so they appear in your list of changes. If `apps/api/uv.lock` was stale, it is updated the same way, and the error message names every file to stage. Review them, stage them, and commit again:
 
 ```bash
 uv run --project apps/api python scripts/generate_sbom.py
@@ -50,7 +50,7 @@ Use the same uv and npm versions locally and in CI: npm records its generator ve
 | npm    | `packageManager` in `apps/web/package.json`       | `sbom-check` workflow                          |
 | Node   | `node-version` in the `sbom-check` workflow       | `apps/web/Dockerfile`                          |
 
-`scripts/check_tool_versions.py` fails if any of these disagree, or if `apps/api/Dockerfile` stops installing with `--no-dev` (the API SBOM only covers non-dev dependencies); it runs as a pre-commit hook and in CI. The generator also refuses to run with a local npm that differs from `packageManager`. To bump a version, update every place in its row.
+`scripts/check_tool_versions.py` fails if any pinned tool versions disagree, if Node is not using the latest-LTS alias in both workflows and the web Dockerfile, or if `apps/api/Dockerfile` stops installing with `--no-dev` (the API SBOM only covers non-dev dependencies); it runs as a pre-commit hook and in CI. The generator also refuses to run with a local npm that differs from `packageManager`. To bump a pinned version, update every place in its row.
 
 ## Underlying commands
 
@@ -69,6 +69,20 @@ uv export --locked --format cyclonedx1.5 --preview-features sbom-export --direct
 ```
 
 `--locked` fails if `uv.lock` does not match `pyproject.toml`, so a stale lockfile cannot produce an SBOM.
+
+## Licenses
+
+`npm sbom` reads licenses from `package.json`, so `web.cdx.json` contains them directly. `uv export` reads only `uv.lock`, which records no license data, so the generator adds licenses to `api.cdx.json` afterwards:
+
+1. Every exported component is installed with `uv pip install --no-deps --require-hashes --target <temp dir>`, pinned to its locked version and hashes and resolved for the API runtime (Python from `apps/api/.python-version`, Linux). Platform-specific packages such as `uvloop` and `tzdata` are therefore covered on any machine. The project environment is not touched.
+2. The license is read from the package metadata, in this order: an entry in `LICENSE_OVERRIDES`, the PEP 639 `License-Expression` field, a `License` field that names exactly one SPDX license, a single unambiguous `License ::` classifier.
+3. A single SPDX identifier is written as `license.id`; a compound expression as `expression`.
+
+Packages that cannot be resolved get no `licenses` entry and are reported as a warning. Resolve them by checking the license files shipped with the package and adding an entry to `LICENSE_OVERRIDES` in `scripts/generate_sbom.py`. Review the existing overrides when those packages are upgraded.
+
+The licenses come from the metadata the package authors publish. No manual legal review has been done.
+
+The wheels are downloaded from PyPI the first time and served from the uv cache afterwards, so generating the SBOM needs network access on a clean machine.
 
 ## Scope
 

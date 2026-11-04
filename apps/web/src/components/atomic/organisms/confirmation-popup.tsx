@@ -15,8 +15,10 @@ import {
 export type ConfirmationPopupProps = {
     title: string
     description: string
-    /** Element that opens the popup when clicked. */
-    children: React.ReactElement
+    /** Element that opens the popup when clicked. Without it, open the popup with `open`. */
+    children?: React.ReactElement
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
     onConfirm: () => void
     /** Called when the trigger is clicked, before the popup opens. */
     onClick?: () => void
@@ -37,11 +39,15 @@ export function ConfirmationPopup({
     onCancel,
     confirmLabel = 'Confirm',
     cancelLabel = 'Cancel',
+    open: controlledOpen,
+    onOpenChange,
 }: ConfirmationPopupProps) {
-    const [open, setOpen] = React.useState(false)
+    const [ownOpen, setOwnOpen] = React.useState(false)
+    const open = controlledOpen ?? ownOpen
 
     const handleOpenChange = (nextOpen: boolean) => {
-        setOpen(nextOpen)
+        setOwnOpen(nextOpen)
+        onOpenChange?.(nextOpen)
         if (!nextOpen) {
             onClose?.()
         }
@@ -49,7 +55,7 @@ export function ConfirmationPopup({
 
     return (
         <AlertDialog open={open} onOpenChange={handleOpenChange}>
-            <AlertDialogTrigger render={children} onClick={onClick} />
+            {children ? <AlertDialogTrigger render={children} onClick={onClick} /> : null}
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>{title}</AlertDialogTitle>

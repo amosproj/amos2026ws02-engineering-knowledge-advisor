@@ -13,10 +13,14 @@ dependencies = [
     "boto3>=1.43.116",
     "fastapi>=0.156.8",
     "starlette>=1.10.0",
+    "numpy>=2.5.4",
+    "pgvector>=0.5.1",
     "psycopg[binary]>=3.3.6",
     "pydantic-settings>=2.16.1",
-    "sqlalchemy>=2.1.5",
+    "sqlalchemy[asyncio]>=2.1.5",
     "uvicorn[standard]>=0.54.0",
+    "cadquery-ocp>=8.0.1.1.0",
+    "cadquery-ocp-stubs>=8.0.1.1.0",
 ]
 
 [build-system]
@@ -24,7 +28,7 @@ requires = ["uv_build>=0.13.4,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.uv]
-# Matches the Dockerfile and CI; uv export --format cyclonedx1.5 needs >=0.13.
+# uv export --format cyclonedx1.5 needs >=0.13
 required-version = "==0.13.5"
 
 [dependency-groups]
@@ -34,6 +38,7 @@ dev = [
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "ruff>=0.17.2",
+    "types-boto3[s3]>=1.43.123",
 ]
 
 [tool.pytest.ini_options]
@@ -42,8 +47,12 @@ testpaths = [ "tests" ]
 
 [tool.pyright]
 include = [ "src", "tests" ]
-extraPaths = [ "src", "../../scripts" ]
+extraPaths = [ "src", "tests", "../../scripts" ]
 pythonVersion = "3.13"
 
 [tool.ruff]
 src = [ "src" ]
+
+[tool.ruff.lint]
+# disallow Any in method signatures
+extend-select = [ "ANN401" ]  

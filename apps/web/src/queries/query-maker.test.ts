@@ -118,6 +118,16 @@ describe('queryMaker', () => {
         await expect(getTodo({ params: { id: '1' } })).rejects.toBeInstanceOf(NetworkError)
     })
 
+    it('throws a NetworkError when the connection drops while reading the body', async () => {
+        fetchMock.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            text: () => Promise.reject(new TypeError('network error')),
+        } as Response)
+
+        await expect(getTodo({ params: { id: '1' } })).rejects.toBeInstanceOf(NetworkError)
+    })
+
     it('rethrows an abort as is', async () => {
         const controller = new AbortController()
         controller.abort()

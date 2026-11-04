@@ -1,9 +1,17 @@
 import * as React from 'react'
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useMatches, useRouterState } from '@tanstack/react-router'
 import { AiBrain01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 
 import { Separator } from '../atoms'
+import {
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
+} from '../molecules'
 import {
     Sidebar,
     SidebarContent,
@@ -17,6 +25,7 @@ import {
     SidebarProvider,
     SidebarRail,
     SidebarTrigger,
+    useSidebar,
 } from '../organisms'
 
 type SidebarLinkTo = NonNullable<React.ComponentProps<typeof Link>['to']>
@@ -36,8 +45,12 @@ export type DashboardNavConfig = {
     navFooter: readonly DashboardNavItem[]
 }
 
+/** Label of a route in the header breadcrumb, set through the route's `staticData.breadcrumb`. */
+export type RouteBreadcrumb = string | React.ComponentType<{ params: Record<string, string> }>
+
 type DashboardShellProps = {
     navConfig: DashboardNavConfig
+    headerActions?: React.ReactNode
     children?: React.ReactNode
 }
 
@@ -83,15 +96,72 @@ function NavSection({ items, pathname }: { items: readonly DashboardNavItem[]; p
     )
 }
 
-export function DashboardShell({ navConfig, children }: DashboardShellProps) {
-    const pathname = useRouterState({ select: (state) => state.location.pathname })
+function RouteBreadcrumbs() {
+    const crumbs = useMatches({
+        select: (matches) =>
+            matches.flatMap((match) =>
+                match.staticData.breadcrumb
+                    ? [
+                          {
+                              id: match.id,
+                              pathname: match.pathname,
+                              params: match.params as Record<string, string>,
+                              label: match.staticData.breadcrumb,
+                          },
+                      ]
+                    : [],
+            ),
+    })
 
-    const activeTitle = [...navConfig.navMenu, ...navConfig.navFooter].find((item) =>
-        isActiveLink(item.link, pathname),
-    )?.title
+    if (crumbs.length === 0) return <span className="truncate text-sm font-medium">{APP_NAME}</span>
+
+    return (
+        <Breadcrumb className="min-w-0">
+            <BreadcrumbList className="flex-nowrap">
+                {crumbs.map(({ id, pathname, params, label: Label }, index) => {
+                    const label = typeof Label === 'string' ? Label : <Label params={params} />
+                    const isLast = index === crumbs.length - 1
+                    return (
+                        <React.Fragment key={id}>
+                            {index > 0 ? <BreadcrumbSeparator /> : null}
+                            <BreadcrumbItem className="min-w-0">
+                                {isLast ? (
+                                    <BreadcrumbPage className="truncate font-medium">
+                                        {label}
+                                    </BreadcrumbPage>
+                                ) : (
+                                    <BreadcrumbLink
+                                        className="truncate"
+                                        render={<Link to={pathname} />}
+                                    >
+                                        {label}
+                                    </BreadcrumbLink>
+                                )}
+                            </BreadcrumbItem>
+                        </React.Fragment>
+                    )
+                })}
+            </BreadcrumbList>
+        </Breadcrumb>
+    )
+}
+
+function CloseMobileSidebarOnNavigate({ pathname }: { pathname: string }) {
+    const { setOpenMobile } = useSidebar()
+
+    React.useEffect(() => {
+        setOpenMobile(false)
+    }, [pathname, setOpenMobile])
+
+    return null
+}
+
+export function DashboardShell({ navConfig, headerActions, children }: DashboardShellProps) {
+    const pathname = useRouterState({ select: (state) => state.location.pathname })
 
     return (
         <SidebarProvider>
+            <CloseMobileSidebarOnNavigate pathname={pathname} />
             <Sidebar collapsible="icon">
                 <SidebarHeader>
                     <Brand />
@@ -106,16 +176,19 @@ export function DashboardShell({ navConfig, children }: DashboardShellProps) {
                 </SidebarFooter>
                 <SidebarRail />
             </Sidebar>
-            <SidebarInset>
-                <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-                    <div className="flex items-center gap-2 px-4">
+            <SidebarInset className="min-w-0">
+                <header className="flex h-16 shrink-0 items-center justify-between gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+                    <div className="flex min-w-0 items-center gap-2 px-4">
                         <SidebarTrigger className="-ml-1" />
                         <Separator
                             orientation="vertical"
                             className="mr-2 data-vertical:h-4 data-vertical:self-auto"
                         />
-                        <span className="text-sm font-medium">{activeTitle ?? APP_NAME}</span>
+                        <RouteBreadcrumbs />
                     </div>
+                    {headerActions ? (
+                        <div className="flex shrink-0 items-center gap-2 px-4">{headerActions}</div>
+                    ) : null}
                 </header>
                 <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 pt-0">
                     {children}

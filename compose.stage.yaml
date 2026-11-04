@@ -1,0 +1,111 @@
+name: engineering-knowledge-advisor-stage
+
+x-api-environment: &api-environment
+  API_PROFILE: prod
+  API_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+  API_OGRAG_ONTOLOGY_PATH: ${API_OGRAG_ONTOLOGY_PATH}
+  API_S3_ENDPOINT_URL: http://minio:9000
+  API_S3_BUCKET: ${S3_BUCKET}
+  API_S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+  API_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  API_S3_REGION: ${S3_REGION}
+  API_S3_PUBLIC_URL: /storage
+
+services:
+  web:
+    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/${WEB_IMAGE_NAME:-engineering-knowledge-advisor-web}:${IMAGE_TAG:-development}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+    environment:
+      S3_BUCKET: ${S3_BUCKET}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/${API_IMAGE_NAME:-engineering-knowledge-advisor-api}:${IMAGE_TAG:-development}
+    environment: *api-environment
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      minio:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - uv
+        - run
+        - --no-sync
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/live', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/${MIGRATE_IMAGE_NAME:-engineering-knowledge-advisor-migrate}:${IMAGE_TAG:-development}
+    # Also creates the storage bucket when it does not exist yet
+    command:
+      - sh
+      - -c
+      - uv run --no-sync alembic upgrade head && uv run --no-sync python -m services.s3
+    environment: *api-environment
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    restart: "no"
+
+  cad-file-worker:
+    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/${CAD_FILE_WORKER_IMAGE_NAME:-engineering-knowledge-advisor-cad-file-worker}:${IMAGE_TAG:-development}
+    command: ["uv", "run", "--no-sync", "python", "-m", "cad_file_worker"]
+    environment: *api-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # The worker touches this file at least every 10 s while its loop is alive
+      test: ["CMD-SHELL", "find /tmp/cad-file-worker-heartbeat -mmin -1 | grep -q ."]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  minio:
+    image: chainguard/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  minio_data:
