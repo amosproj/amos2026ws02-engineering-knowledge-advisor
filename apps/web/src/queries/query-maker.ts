@@ -85,6 +85,7 @@ export function queryMaker<
         }
 
         let response: Response
+        let text: string
         try {
             response = await fetch(url, {
                 method: options.method,
@@ -95,13 +96,14 @@ export function queryMaker<
                 },
                 ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
             })
+            // The connection can also drop while the body is being read.
+            text = await response.text()
         } catch (error) {
             // Cancellation is not a failure: React Query handle the abort.
             if (input.signal?.aborted) throw error
             throw new NetworkError(error)
         }
 
-        const text = await response.text()
         let data: unknown
         if (text) {
             try {

@@ -9,6 +9,12 @@ FastAPI backend. Requires Python 3.13 and [uv](https://docs.astral.sh/uv/).
 | `API_PROFILE`             | `dev`, `prod`                            | `dev`                |
 | `API_DATABASE_URL`        | `postgresql+psycopg://user:pw@host/db`   | none (required)      |
 | `API_OGRAG_ONTOLOGY_PATH` | JSON-LD ontology file                    | none (required)      |
+| `API_S3_ENDPOINT_URL`     | S3 endpoint, e.g. `http://minio:9000`    | none (required)      |
+| `API_S3_BUCKET`           | bucket of the uploaded files             | none (required)      |
+| `API_S3_ACCESS_KEY`       | S3 access key                            | none (required)      |
+| `API_S3_SECRET_KEY`       | S3 secret key                            | none (required)      |
+| `API_S3_REGION`           | S3 region, e.g. `us-east-1`              | none (required)      |
+| `API_S3_PUBLIC_URL`       | where the browser reaches the storage, e.g. `/storage` | none (required) |
 
 Settings are read in this order:
 1. environment variables (prefix `API_`)
@@ -37,10 +43,14 @@ Loaded on start with the ontology. Invalid ontology stops the start.
 
 | Route                                               | What                                                      |
 |-----------------------------------------------------|-----------------------------------------------------------|
-| `PUT /api/v1/records/{id}`                          | Create or replace a record, links must be valid           |
+| `PUT /api/v1/records/{id}`                          | Create or replace a record, links must be valid. Not for machines, assembly groups and CAD files |
 | `GET /api/v1/records`                               | All records by id                                         |
 | `GET /api/v1/records/review`                        | Records that lost their last link and await a review      |
-| `DELETE /api/v1/records/{id}[?delete_orphans=true]` | Delete and unlink everywhere, records left without a link are marked for review (or deleted) |
+| `DELETE /api/v1/records/{id}[?delete_orphans=true]` | Delete and unlink everywhere, records left without a link are marked for review (or deleted). Not for machines, assembly groups and CAD files |
+
+## Machines, assembly groups and CAD files
+
+Stored as records (CadFile `partOf` AssemblyGroup `partOf` Machine), upload state in `cad_uploads`. Routes in the OpenAPI docs. Upload: register the files, `POST` each one with its form, then call `/complete`.
 
 ## Run
 
@@ -62,6 +72,12 @@ On Windows, async psycopg needs a selector event loop. Add this flag to any of t
 ```sh
 uv run uvicorn main:app --loop asyncio:SelectorEventLoop
 ```
+
+## Storage and background jobs
+
+Uploaded files are stored in S3 (MinIO in Docker). The `migrate` service applies the migrations, then creates the bucket if it does not exist yet (`python -m services.s3`).
+
+The `cad-file-worker` service (`python -m cad_file_worker`, code in `src/cad_file_worker/`) checks the uploaded STEP files and, every hour, deletes abandoned uploads and orphan objects. It touches `/tmp/cad-file-worker-heartbeat` every 10 s, and the container is reported unhealthy when the file is older than one minute.
 
 ## Test & Lint
 
@@ -110,14 +126,20 @@ Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. 
     "reuseStatus": "reuse candidate",
     "tag": ["tray", "drawer"]
   },
-  "hasCadFile": {
-    "name": "RC-01_input_tray.CATProduct",
-    "format": "CATIA V5"
-  },
   "hasComponent": [
     {"name": "Guide rail", "partId": "4711-0815", "quantity": 2},
     {"name": "Drawer slide", "partId": "4711-0900", "quantity": 1}
   ]
+}
+```
+
+### CadFile
+```json
+{
+  "@type": "CadFile",
+  "name": "RC-01_input_tray.step",
+  "format": "STEP",
+  "partOf": "AG-IT-003"
 }
 ```
 

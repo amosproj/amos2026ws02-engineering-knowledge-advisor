@@ -2,6 +2,12 @@ x-api-environment: &api-environment
   API_PROFILE: ${API_PROFILE:-prod}
   API_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
   API_OGRAG_ONTOLOGY_PATH: ${API_OGRAG_ONTOLOGY_PATH}
+  API_S3_ENDPOINT_URL: http://minio:9000
+  API_S3_BUCKET: ${S3_BUCKET}
+  API_S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+  API_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  API_S3_REGION: ${S3_REGION}
+  API_S3_PUBLIC_URL: /storage
 
 services:
   web:
@@ -17,6 +23,8 @@ services:
     environment:
       WEB_PROFILE: ${WEB_PROFILE:-prod}
       WEB_API_PROXY_TARGET: http://api:8000
+      WEB_STORAGE_PROXY_TARGET: http://minio:9000
+      S3_BUCKET: ${S3_BUCKET}
     volumes:
       - ./apps/web:/app
       - /app/node_modules
@@ -32,13 +40,7 @@ services:
       target: ${API_PROFILE:-prod}
       args:
         API_PROFILE: ${API_PROFILE:-prod}
-    environment:
-      <<: *api-environment
-      API_S3_ENDPOINT_URL: http://minio:9000
-      API_S3_BUCKET: ${S3_BUCKET}
-      API_S3_ACCESS_KEY: ${MINIO_ROOT_USER}
-      API_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-      API_S3_REGION: ${S3_REGION}
+    environment: *api-environment
     depends_on:
       db:
         condition: service_healthy
@@ -85,12 +87,39 @@ services:
       target: ${API_PROFILE:-prod}
       args:
         API_PROFILE: ${API_PROFILE:-prod}
-    command: ["uv", "run", "--no-sync", "alembic", "upgrade", "head"]
+    # Also creates the storage bucket when it does not exist yet
+    command:
+      - sh
+      - -c
+      - uv run --no-sync alembic upgrade head && uv run --no-sync python -m services.s3
     environment: *api-environment
     depends_on:
       db:
         condition: service_healthy
+      minio:
+        condition: service_started
     restart: "no"
+
+  cad-file-worker:
+    build:
+      context: apps/api
+      dockerfile: Dockerfile
+      target: ${API_PROFILE:-prod}
+      args:
+        API_PROFILE: ${API_PROFILE:-prod}
+    command: ["uv", "run", "--no-sync", "python", "-m", "cad_file_worker"]
+    environment: *api-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # The worker touches this file at least every 10 s while its loop is alive
+      test: ["CMD-SHELL", "find /tmp/cad-file-worker-heartbeat -mmin -1 | grep -q ."]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
 
   minio:
     image: chainguard/minio:latest

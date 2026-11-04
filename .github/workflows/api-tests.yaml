@@ -82,6 +82,13 @@ jobs:
         env:
           API_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/migrate
           API_OGRAG_ONTOLOGY_PATH: ${{ github.workspace }}/apps/api/ontology_v0.jsonld
+          # required by the settings, not used by the migrations
+          API_S3_ENDPOINT_URL: http://localhost:9000
+          API_S3_BUCKET: migrate
+          API_S3_ACCESS_KEY: migrate
+          API_S3_SECRET_KEY: migrate
+          API_S3_REGION: us-east-1
+          API_S3_PUBLIC_URL: /storage
         run: |
           psql -d postgres -c "CREATE DATABASE migrate"
           uv run --no-sync alembic upgrade head

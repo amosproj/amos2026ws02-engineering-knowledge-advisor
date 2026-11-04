@@ -20,11 +20,18 @@ NOTE: dict[str, Any] = {
 
 def test_record_classes_and_anchor_are_read():
     onto: Ontology = load_ontology()
-    assert onto.record_classes == ["Machine", "AssemblyGroup", "KnowledgeItem"]
+    assert onto.record_classes == [
+        "Machine",
+        "AssemblyGroup",
+        "CadFile",
+        "KnowledgeItem",
+    ]
     assert onto.anchor_class == "AssemblyGroup"
     assert onto.extractable_classes == ["KnowledgeItem"]
     assert onto.properties[("AssemblyGroup", "name")].identity
     assert onto.properties[("KnowledgeItem", "appliesTo")].is_parent_link
+    assert onto.properties[("CadFile", "partOf")].is_parent_link
+    assert onto.properties[("CadFile", "name")].identity
     assert onto.properties[("KnowledgeItem", "author")].author
     assert onto.get_identity_property_names()["AssemblyGroup"] == ["identifier", "name"]
 

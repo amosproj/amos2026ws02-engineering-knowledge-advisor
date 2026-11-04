@@ -56,6 +56,12 @@ GROUP: dict[str, Any] = {
     "partOf": MACHINE_ID,
 }
 ORPHAN: dict[str, Any] = {**GROUP, "partOf": MISSING_MACHINE_ID}
+ITEM_ID: str = "KI-1"
+ITEM: dict[str, Any] = {
+    "@type": "KnowledgeItem",
+    "statement": "Chamfer the nest.",
+    "appliesTo": [GROUP_ID],
+}
 # Async psycopg refuses Windows' default ProactorEventLoop.
 SELECTOR_LOOP: dict[str, Any] = {"loop_factory": asyncio.SelectorEventLoop}
 SELECT_OGRAG_TABLES: str = (
@@ -201,7 +207,13 @@ def test_the_records_api_commits_or_rolls_back_with_the_request():
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         engine: AsyncEngine = create_async_engine(URL)
         app.state.sessions = create_sessionmaker(engine)
-        app.state.ograg = create_service_on(engine, await create_fresh_tables(engine))
+        service: OgRagService = create_service_on(
+            engine, await create_fresh_tables(engine)
+        )
+        # machines and groups cannot be written through /records
+        await service.upsert_record(MACHINE_ID, MACHINE)
+        await service.upsert_record(GROUP_ID, GROUP)
+        app.state.ograg = service
         yield
         await engine.dispose()
 
@@ -213,25 +225,25 @@ def test_the_records_api_commits_or_rolls_back_with_the_request():
     with TestClient(
         app, raise_server_exceptions=False, backend_options=SELECTOR_LOOP
     ) as client:
-        assert (
-            client.put(f"{RECORDS_URL}/{MACHINE_ID}", json=MACHINE).status_code == 200
-        )
-        assert client.put(f"{RECORDS_URL}/{GROUP_ID}", json=GROUP).status_code == 200
+        assert client.put(f"{RECORDS_URL}/{ITEM_ID}", json=ITEM).status_code == 200
 
-        unstorable: dict[str, Any] = {**MACHINE, "name": UNSTORABLE_NAME}
-        bad: Response = client.put(f"{RECORDS_URL}/{OTHER_MACHINE_ID}", json=unstorable)
+        unstorable: dict[str, Any] = {**ITEM, "statement": UNSTORABLE_NAME}
+        bad: Response = client.put(f"{RECORDS_URL}/KI-2", json=unstorable)
         assert bad.status_code == 422
         assert bad.headers["content-type"] == PROBLEM_JSON
 
-        missing: Response = client.put(f"{RECORDS_URL}/{ORPHAN_ID}", json=ORPHAN)
+        orphan: dict[str, Any] = {**ITEM, "appliesTo": [ORPHAN_ID]}
+        missing: Response = client.put(f"{RECORDS_URL}/KI-3", json=orphan)
         assert missing.status_code == 422
-        assert_mentions(missing.json()["detail"], "partOf", MISSING_MACHINE_ID)
+        assert_mentions(missing.json()["detail"], "appliesTo", ORPHAN_ID)
 
         stored: dict[str, Any] = client.get(RECORDS_URL).json()
-        assert sorted(stored) == [GROUP_ID, MACHINE_ID]  # the failed ones left nothing
+        assert sorted(stored) == [
+            GROUP_ID,
+            ITEM_ID,
+            MACHINE_ID,
+        ]  # the failed ones left nothing
 
-        deleted: dict[str, Any] = client.delete(f"{RECORDS_URL}/{MACHINE_ID}").json()
-        assert deleted == {"deleted_ids": [MACHINE_ID], "marked_ids": [GROUP_ID]}
-        reviews: list[dict[str, Any]] = client.get(f"{RECORDS_URL}/review").json()
-        assert [rec["id"] for rec in reviews] == [GROUP_ID]
-        assert client.delete(f"{RECORDS_URL}/{MACHINE_ID}").status_code == 404
+        deleted: dict[str, Any] = client.delete(f"{RECORDS_URL}/{ITEM_ID}").json()
+        assert deleted == {"deleted_ids": [ITEM_ID], "marked_ids": []}
+        assert client.delete(f"{RECORDS_URL}/{ITEM_ID}").status_code == 404

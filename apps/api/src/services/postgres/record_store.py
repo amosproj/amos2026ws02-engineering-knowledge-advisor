@@ -161,6 +161,25 @@ class PgRecordStore(RecordStore):
             )
 
     @override
+    async def get_records_by_class(
+        self, cls: str, tx: PgTx | None = None
+    ) -> list[Record]:
+        async with get_transaction(self.engine, tx) as conn:
+            return await self._fetch_records(
+                conn, self.table.c[RecordColumn.CLS] == cls
+            )
+
+    @override
+    async def lock_record(self, record_id: str, tx: PgTx) -> None:
+        stmt: Select[Any] = (
+            select(self.table.c[CommonColumn.ID])
+            .where(self.table.c[CommonColumn.ID] == record_id)
+            .with_for_update()
+        )
+        async with get_transaction(self.engine, tx) as conn:
+            await conn.execute(stmt)
+
+    @override
     async def find_record_ids(
         self, cls: str, text: str, tx: PgTx | None = None
     ) -> list[str]:

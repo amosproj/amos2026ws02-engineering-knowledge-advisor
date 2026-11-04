@@ -147,7 +147,7 @@
             }
           },
           "409": {
-            "description": "Concurrent write. Please try again.",
+            "description": "Concurrent write, or a machine, assembly group or CAD file: they have their own endpoints.",
             "content": {
               "application/json": {
                 "schema": {
@@ -265,7 +265,7 @@
             }
           },
           "409": {
-            "description": "Concurrent write. Please try again.",
+            "description": "Concurrent write, or a machine, assembly group or CAD file: they have their own endpoints.",
             "content": {
               "application/json": {
                 "schema": {
@@ -336,10 +336,1339 @@
           }
         }
       }
+    },
+    "/api/v1/machines": {
+      "get": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Get Machines",
+        "description": "All machines, sorted by name.",
+        "operationId": "get_machines_api_v1_machines_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Machine"
+                  },
+                  "type": "array",
+                  "title": "Response Get Machines Api V1 Machines Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Post Machine",
+        "operationId": "post_machine_api_v1_machines_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MachineFields"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Machine"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/machines/{machine_id}": {
+      "get": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Get Machine",
+        "description": "The machine with its assembly groups and their CAD files.",
+        "operationId": "get_machine_api_v1_machines__machine_id__get",
+        "parameters": [
+          {
+            "name": "machine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Machine Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such machine, assembly group or CAD file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Patch Machine",
+        "description": "Changes the fields sent. ``null`` or blank clears an optional field.",
+        "operationId": "patch_machine_api_v1_machines__machine_id__patch",
+        "parameters": [
+          {
+            "name": "machine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Machine Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MachineChanges"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Machine"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such machine, assembly group or CAD file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Delete Machine Route",
+        "description": "Deletes the machine, its assembly groups and their CAD files. Cancels their uploads.",
+        "operationId": "delete_machine_route_api_v1_machines__machine_id__delete",
+        "parameters": [
+          {
+            "name": "machine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Machine Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No such machine, assembly group or CAD file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A CAD file is being processed. Please try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/machines/{machine_id}/assembly-groups": {
+      "post": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Post Assembly Group",
+        "operationId": "post_assembly_group_api_v1_machines__machine_id__assembly_groups_post",
+        "parameters": [
+          {
+            "name": "machine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Machine Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssemblyGroupFields"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyGroup"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such machine, assembly group or CAD file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assembly-groups/{assembly_group_id}": {
+      "get": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Get Assembly Group",
+        "operationId": "get_assembly_group_api_v1_assembly_groups__assembly_group_id__get",
+        "parameters": [
+          {
+            "name": "assembly_group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Assembly Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyGroup"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such machine, assembly group or CAD file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Patch Assembly Group",
+        "description": "Changes the fields sent. ``null`` or blank clears an optional field.",
+        "operationId": "patch_assembly_group_api_v1_assembly_groups__assembly_group_id__patch",
+        "parameters": [
+          {
+            "name": "assembly_group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Assembly Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssemblyGroupChanges"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssemblyGroup"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such machine, assembly group or CAD file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Delete Assembly Group Route",
+        "description": "Deletes the assembly group and its CAD files. Cancels their uploads.",
+        "operationId": "delete_assembly_group_route_api_v1_assembly_groups__assembly_group_id__delete",
+        "parameters": [
+          {
+            "name": "assembly_group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Assembly Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No such machine, assembly group or CAD file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A CAD file is being processed. Please try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assembly-groups/{assembly_group_id}/cad-files": {
+      "post": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Post Cad Files",
+        "description": "Registers CAD files and returns one upload form each.\n\nUpload each file with its form, then call ``POST /cad-files/{id}/complete``.",
+        "operationId": "post_cad_files_api_v1_assembly_groups__assembly_group_id__cad_files_post",
+        "parameters": [
+          {
+            "name": "assembly_group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Assembly Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CadFileUpload"
+                  },
+                  "title": "Response Post Cad Files Api V1 Assembly Groups  Assembly Group Id  Cad Files Post"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such machine, assembly group or CAD file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cad-files/{cad_file_id}": {
+      "get": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Get Cad File",
+        "operationId": "get_cad_file_api_v1_cad_files__cad_file_id__get",
+        "parameters": [
+          {
+            "name": "cad_file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Cad File Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CadFile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such machine, assembly group or CAD file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Patch Cad File",
+        "description": "Renames the CAD file.",
+        "operationId": "patch_cad_file_api_v1_cad_files__cad_file_id__patch",
+        "parameters": [
+          {
+            "name": "cad_file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Cad File Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CadFileChanges"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CadFile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such machine, assembly group or CAD file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Delete Cad File Route",
+        "description": "Deletes the CAD file. Cancels its upload.",
+        "operationId": "delete_cad_file_route_api_v1_cad_files__cad_file_id__delete",
+        "parameters": [
+          {
+            "name": "cad_file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Cad File Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No such machine, assembly group or CAD file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A CAD file is being processed. Please try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cad-files/{cad_file_id}/complete": {
+      "post": {
+        "tags": [
+          "v1",
+          "catalog"
+        ],
+        "summary": "Complete Cad File Upload",
+        "description": "Confirms that the file was uploaded and queues it for processing.",
+        "operationId": "complete_cad_file_upload_api_v1_cad_files__cad_file_id__complete_post",
+        "parameters": [
+          {
+            "name": "cad_file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Cad File Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CadFile"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such machine, assembly group or CAD file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Upload not found, file does not match or import failed (see error_code), or the file is being processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AssemblyGroup": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "machine_id": {
+            "type": "string",
+            "title": "Machine Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identifier"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "cad_files": {
+            "items": {
+              "$ref": "#/components/schemas/CadFile"
+            },
+            "type": "array",
+            "title": "Cad Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "machine_id",
+          "name",
+          "identifier",
+          "description",
+          "cad_files"
+        ],
+        "title": "AssemblyGroup"
+      },
+      "AssemblyGroupChanges": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "identifier": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identifier"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "title": "AssemblyGroupChanges",
+        "description": "Fields left out stay unchanged; null or blank clears an optional field."
+      },
+      "AssemblyGroupFields": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "identifier": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identifier"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "AssemblyGroupFields"
+      },
+      "CadFile": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "assembly_group_id": {
+            "type": "string",
+            "title": "Assembly Group Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CadUploadStatus"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "assembly_group_id",
+          "status",
+          "error_code",
+          "size_bytes",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CadFile"
+      },
+      "CadFileChanges": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CadFileChanges"
+      },
+      "CadFileUpload": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/UploadForm"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "upload"
+        ],
+        "title": "CadFileUpload"
+      },
+      "CadUploadStatus": {
+        "type": "string",
+        "enum": [
+          "uploading",
+          "processing",
+          "ready",
+          "failed"
+        ],
+        "title": "CadUploadStatus"
+      },
+      "FileToUpload": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "maxLength": 255,
+            "pattern": "(?i)^.+\\.(stp|step)$",
+            "title": "Filename"
+          },
+          "size": {
+            "type": "integer",
+            "maximum": 5368709120.0,
+            "minimum": 1.0,
+            "title": "Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "size"
+        ],
+        "title": "FileToUpload"
+      },
+      "Machine": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identifier"
+          },
+          "customer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "assembly_group_count": {
+            "type": "integer",
+            "title": "Assembly Group Count"
+          },
+          "cad_file_count": {
+            "type": "integer",
+            "title": "Cad File Count"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "empty",
+              "uploading",
+              "processing",
+              "failed",
+              "ready"
+            ],
+            "title": "Status",
+            "description": "Most urgent status of its CAD files: uploading, processing, failed, ready. empty without file."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "identifier",
+          "customer",
+          "description",
+          "assembly_group_count",
+          "cad_file_count",
+          "status"
+        ],
+        "title": "Machine"
+      },
+      "MachineChanges": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "identifier": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identifier"
+          },
+          "customer": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "title": "MachineChanges",
+        "description": "Fields left out stay unchanged; null or blank clears an optional field."
+      },
+      "MachineDetails": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identifier"
+          },
+          "customer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "assembly_group_count": {
+            "type": "integer",
+            "title": "Assembly Group Count"
+          },
+          "cad_file_count": {
+            "type": "integer",
+            "title": "Cad File Count"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "empty",
+              "uploading",
+              "processing",
+              "failed",
+              "ready"
+            ],
+            "title": "Status",
+            "description": "Most urgent status of its CAD files: uploading, processing, failed, ready. empty without file."
+          },
+          "assembly_groups": {
+            "items": {
+              "$ref": "#/components/schemas/AssemblyGroup"
+            },
+            "type": "array",
+            "title": "Assembly Groups"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "identifier",
+          "customer",
+          "description",
+          "assembly_group_count",
+          "cad_file_count",
+          "status",
+          "assembly_groups"
+        ],
+        "title": "MachineDetails"
+      },
+      "MachineFields": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "identifier": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identifier"
+          },
+          "customer": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "MachineFields"
+      },
       "Problem": {
         "properties": {
           "type": {
@@ -539,6 +1868,46 @@
           "pong"
         ],
         "title": "TestResponse"
+      },
+      "UploadForm": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "fields": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "fields"
+        ],
+        "title": "UploadForm",
+        "description": "Presigned POST form: send ``fields`` and then the file as ``file`` to ``url``."
+      },
+      "UploadRequest": {
+        "properties": {
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/FileToUpload"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "UploadRequest"
       }
     }
   }
