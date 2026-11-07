@@ -35,22 +35,54 @@ uv run --directory apps/api alembic revision --autogenerate -m "what changed"   
 uv run --directory apps/api alembic check                                       # models and migrations agree
 ```
 
-Text columns: `String` (`varchar` without a length) for ids and short values, `Text` for free form text. Postgres stores both the same way. To set a limit, use ``varchar(n)``.
+Text columns: `String` (`varchar` without a length) for ids and short values, `Text` for free form text. Postgres stores both the same way. To set a limit, use ``varchar(n)``. Table, column, index and constraint names live in `src/db/names.py`, tables in `src/db/tables.py`.
 
-## Knowledge records (OG-RAG)
+To rename a table or column:
+1. Change the enum value in `db/names.py`.
+2. Add a new revision that renames (`op.alter_column(table, old, new_column_name=new)`, `op.rename_table(old, new)`). Autogenerate writes DROP + ADD, which loses the data.
+3. Run `alembic check`.
 
-Loaded on start with the ontology. Invalid ontology stops the start.
+## Knowledge Records
 
-| Route                                               | What                                                      |
-|-----------------------------------------------------|-----------------------------------------------------------|
-| `PUT /api/v1/records/{id}`                          | Create or replace a record, links must be valid. Not for machines, assembly groups and CAD files |
-| `GET /api/v1/records`                               | All records by id                                         |
-| `GET /api/v1/records/review`                        | Records that lost their last link and await a review      |
-| `DELETE /api/v1/records/{id}[?delete_orphans=true]` | Delete and unlink everywhere, records left without a link are marked for review (or deleted). Not for machines, assembly groups and CAD files |
+Loaded on start with the ontology. Invalid ontology stops the start. JSON fields, query and path parameters are camelCase.
 
-## Machines, assembly groups and CAD files
+| Route                                               | What                                                                       |
+|-----------------------------------------------------|----------------------------------------------------------------------------|
+| `POST /api/v1/records`                              | Create a record with a generated id                                        |
+| `PUT /api/v1/records/{id}`                          | Upsert a record with client's id, links must be valid                      |
+| `PATCH /api/v1/records/{id}`                        | Change only sent properties (JSON Merge Patch / RFC 7396)                  |
+| `GET /api/v1/records[?cls=&parentId=&include=]`     | All records by id, or those of a class / with a parent link to `parentId`  |
+| `GET /api/v1/records/{id}[?include=]`               | One record                                                                 |
+| `GET /api/v1/records/{id}/tree[?depth=]`            | The record with every record below it                                      |
+| `GET /api/v1/records/{id}/ancestors[?depth=]`       | The record with its parents up to the top                                  |
+| `GET /api/v1/records/review`                        | Records that lost their last parent link and await review                  |
+| `DELETE /api/v1/records/{id}[?deleteOrphans=true]`  | Delete record, orphan records left without a parent link are marked for review or deleted |
+| `POST /api/v1/records/{id}/upload-form`             | Upload form for the file of an `og:file` record                            |
+| `POST /api/v1/records/{id}/complete`                | Confirm the upload, queue the file for processing                          |
+| `GET /api/v1/ontology`                              | Every class with its properties and annotations                            |
 
-Stored as records (CadFile `partOf` AssemblyGroup `partOf` Machine), upload state in `cad_uploads`. Routes in the OpenAPI docs. Upload: register the files, `POST` each one with its form, then call `/complete`.
+`include=status,children,upload` wraps each record as `{"record": ..., "status": ..., "children": [...], "upload": ...}`:
+- `status`: current most urgent upload status of its files and parents the file records point to
+- `children`: records whose parent link points to it, file records included
+- `upload`: upload metadata on file records
+
+### Parallel editing (If-Match)
+
+Postgres `xmin`: `ETag` header of `GET /records/{id}`, and a `version` field in write responses, include wrappers, `/tree`, `/ancestors` and `/records/review`.
+
+Send it back as `If-Match: "<version>"` with `PUT`, `PATCH` or `DELETE`. If someone saved the record in between, the answer is `412` and nothing changes. In that case the record should be read again.
+
+`If-Match: *` accepts any existing record. Without `If-Match` the write is not checked (imports, scripts).
+
+## Files
+
+A record of a class marked `og:file` (CadFile) carries one file, upload state in `cad_uploads`, the file in S3 under
+`files/{id}/`. The file bytes never pass the API:
+
+1. `POST /records` creates the record without file (status `empty`).
+2. `POST /records/{id}/upload-form` with `{"size": ...}` returns a presigned form.
+3. Client posts the file straight to S3 based on form, then `POST /records/{id}/complete`.
+4. Worker checks the file: `processing`, then `ready` or `failed`.
 
 ## Run
 
@@ -77,7 +109,7 @@ uv run uvicorn main:app --loop asyncio:SelectorEventLoop
 
 Uploaded files are stored in S3 (MinIO in Docker). The `migrate` service applies the migrations, then creates the bucket if it does not exist yet (`python -m services.s3`).
 
-The `cad-file-worker` service (`python -m cad_file_worker`, code in `src/cad_file_worker/`) checks the uploaded STEP files and, every hour, deletes abandoned uploads and orphan objects. It touches `/tmp/cad-file-worker-heartbeat` every 10 s, and the container is reported unhealthy when the file is older than one minute.
+The `cad-file-worker` service (`python -m cad_file_worker`, code in `src/cad_file_worker/`) checks the uploaded STEP files and, every hour, deletes abandoned uploads and orphan objects, but their records stay. It touches `/tmp/cad-file-worker-heartbeat` every 10 s, and the container is reported unhealthy when the file is older than one minute.
 
 ## Test & Lint
 
@@ -96,64 +128,110 @@ Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. 
 
 ## Sample data for API tests:
 
+`POST /records` is for generated IDs and takes the same bodies.
+
 ### Machine
+`PUT /records/RC-01`
 ```json
 {
   "@type": "Machine",
   "identifier": "RC-01",
   "name": "Robot cell",
   "description": "Robot cell for loading anodised aluminium housings",
-  "customer": "Example GmbH"
+  "customer": "Example GmbH",
+  "properties": {"size": 12}
 }
 ```
 
-### AsssemblyGroup
+### AssemblyGroup
+`PUT /records/AG-IT-003`
 ```json
- {
+{
   "@type": "AssemblyGroup",
   "identifier": "AG-IT-003",
   "name": "Input tray",
-  "partOf": "RC-01",
-  "hasCharacteristic": {
-    "function": "Feed parts to the robot",
-    "loadingMode": "drawer",
-    "payloadKg": 12,
-    "partSizeMinMm": 20,
-    "partSizeMaxMm": 80
-  },
-  "hasCategory": {
-    "functionArea": "Feeding and dosing",
-    "reuseStatus": "reuse candidate",
-    "tag": ["tray", "drawer"]
-  },
-  "hasComponent": [
-    {"name": "Guide rail", "partId": "4711-0815", "quantity": 2},
-    {"name": "Drawer slide", "partId": "4711-0900", "quantity": 1}
-  ]
+  "description": "Drawer tray that feeds anodised housings to the robot",
+  "rootOf": "RC-01",
+  "properties": {"path": "RC-01/AG-IT-003", "dimensions": 800}
+}
+```
+`PUT /records/AG-IT-003-01`
+```json
+{
+  "@type": "AssemblyGroup",
+  "identifier": "AG-IT-003-01",
+  "name": "Drawer slide",
+  "partOf": "AG-IT-003",
+  "properties": {"path": "RC-01/AG-IT-003/AG-IT-003-01"}
 }
 ```
 
 ### CadFile
+`PUT /records/CF-RC-01`
 ```json
 {
   "@type": "CadFile",
-  "name": "RC-01_input_tray.step",
+  "name": "RC-01.step",
   "format": "STEP",
-  "partOf": "AG-IT-003"
+  "timestamp": "2026-11-06T18:00:00Z",
+  "partOf": "RC-01"
 }
 ```
+`POST /records/CF-RC-01/upload-form`
+```json
+{"size": 1048576}
+```
+After upload: `POST /records/CF-RC-01/complete`.
 
 ### KnowledgeItem
+`PUT /records/KI-1`
 ```json
 {
   "@type": "KnowledgeItem",
   "itemType": "lesson learned",
-  "scope": "machine-specific",
-  "name": "Nest chamfer for anodised parts",
-  "statement": "Chamfer the nest edges, anodised parts jam on sharp edges.",
-  "reasoning": "The anodised layer scratches and the part tilts in the nest.",
-  "recommendation": "0.5 mm chamfer on all nest edges.",
-  "confidence": "established practice",
-  "appliesTo": ["AG-IT-003"]
+  "reference": "Walkthrough RC-01",
+  "properties": {
+    "name": "Nest chamfer for anodised parts",
+    "statement": "Chamfer the nest edges, anodised parts jam on sharp edges.",
+    "reasoning": "The anodised layer scratches and the part tilts in the nest.",
+    "consequence": "Parts jam and the cell stops.",
+    "recommendation": "0.5 mm chamfer on all nest edges.",
+    "confidence": "established practice"
+  },
+  "appliesTo": ["AG-IT-003-01"]
 }
 ```
+`PUT /records/KI-2`
+```json
+{
+  "@type": "KnowledgeItem",
+  "itemType": "design decision",
+  "properties": {
+    "name": "Drawer feeding instead of a conveyor",
+    "statement": "The cell is fed by drawers, not by a conveyor.",
+    "reasoning": "Small batches; the operator refills one drawer while the robot empties the other.",
+    "condition": "Batches below 500 parts per shift."
+  },
+  "appliesTo": ["AG-IT-003"],
+  "appliesToMachine": ["RC-01"]
+}
+```
+
+### Guideline
+`PUT /records/GL-1`
+```json
+{
+  "@type": "Guideline",
+  "description": "Above 3 m width, transport becomes very expensive.",
+  "reference": "Logistics handbook"
+}
+```
+
+### Misc
+- `PATCH /records/AG-IT-003` JSON Merge Patch with given body. Key by key, links and lists replaced as a whole.
+- `GET /records?cls=Machine&include=status,children`: machines with their upload status and direct children.
+- `GET /records?parentId=AG-IT-003`: records linking to `AG-IT-003`.
+- `GET /records/RC-01/tree`: tree from root.
+- `GET /records/KI-1/ancestors`: up to the root.
+- `DELETE /records/AG-IT-003`: deletes `AG-IT-003` and `AG-IT-003-01`, `KI-1` marked for review.
+- `GET /records/review`: every record maker for review.

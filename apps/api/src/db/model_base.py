@@ -2,7 +2,7 @@ from functools import lru_cache
 
 from sqlalchemy.orm import DeclarativeBase
 
-from services.postgres.tables import Tables, define_tables
+from db.tables import Tables, define_tables
 
 
 class ModelBase(DeclarativeBase):

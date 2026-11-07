@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sqlalchemy import (
+    CHAR,
+    BigInteger,
+    CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
@@ -18,7 +21,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.types import TypeEngine
 
-from services.postgres.names import (
+from db.names import (
+    PROCESSING_INDEX,
+    SHA256_READY_INDEX,
+    STATUS_CHECK,
+    CadUploadColumn,
+    CadUploadStatus,
     CommonColumn,
     LinkColumn,
     RecordColumn,
@@ -37,6 +45,7 @@ class Tables:
 
     records: Table
     links: Table
+    cad_uploads: Table
 
 
 def define_tables(metadata: MetaData | None = None) -> Tables:
@@ -51,6 +60,7 @@ def define_tables(metadata: MetaData | None = None) -> Tables:
         metadata,
         records=records,
         links=_define_links(metadata, records),
+        cad_uploads=_define_cad_uploads(metadata, records),
     )
 
 
@@ -66,7 +76,7 @@ def _create_owner_reference(
     primary_key: bool = False,
     index: bool = False,
 ) -> Column:
-    """Returns non-nullable column referencing ``owner``. Deleting ``owner`` row deletes this row due to ON DELETE CASCADE.
+    """Returns non-nullable column referencing ``owner``. Deleting ``owner`` row deletes this row (ON DELETE CASCADE).
 
     Args:
         name: name of column.
@@ -142,3 +152,56 @@ def _define_links(metadata: MetaData, records: Table) -> Table:
             index=True,
         ),
     )
+
+
+def _define_cad_uploads(metadata: MetaData, records: Table) -> Table:
+    # Upload state of each CadFile record. The file name lives in the record, the files in S3.
+    allowed_statuses: str = ", ".join(f"'{status}'" for status in CadUploadStatus)
+    cad_uploads = Table(
+        TableName.CAD_UPLOADS,
+        metadata,
+        _create_owner_reference(
+            CadUploadColumn.CAD_FILE_ID,
+            String,
+            records.c[CommonColumn.ID],
+            primary_key=True,
+        ),
+        Column(
+            CadUploadColumn.STATUS,
+            String,
+            nullable=False,
+            server_default=CadUploadStatus.UPLOADING.value,
+        ),
+        Column(CadUploadColumn.ERROR_CODE, String),
+        Column(CadUploadColumn.SOURCE_KEY, String, nullable=False, unique=True),
+        Column(CadUploadColumn.PREVIEW_KEY, String),
+        Column(CadUploadColumn.MODEL_KEY, String),
+        Column(CadUploadColumn.SIZE_BYTES, BigInteger, nullable=False),
+        Column(CadUploadColumn.SHA256, CHAR(64)),
+        _create_timestamp(CadUploadColumn.CREATED_AT),
+        Column(
+            CadUploadColumn.UPDATED_AT,
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=func.now(),
+            onupdate=func.now(),
+        ),
+        CheckConstraint(
+            f"{CadUploadColumn.STATUS} IN ({allowed_statuses})", name=STATUS_CHECK
+        ),
+    )
+    status: Column = cad_uploads.c[CadUploadColumn.STATUS]
+    # the same content may be ready only once
+    Index(
+        SHA256_READY_INDEX,
+        cad_uploads.c[CadUploadColumn.SHA256],
+        unique=True,
+        postgresql_where=status == CadUploadStatus.READY,
+    )
+    # the worker takes the oldest file waiting in processing
+    Index(
+        PROCESSING_INDEX,
+        cad_uploads.c[CadUploadColumn.UPDATED_AT],
+        postgresql_where=status == CadUploadStatus.PROCESSING,
+    )
+    return cad_uploads

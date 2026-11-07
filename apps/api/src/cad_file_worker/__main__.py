@@ -17,12 +17,16 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from cad_file_worker.cleanup import delete_orphan_objects, expire_abandoned_uploads
 from cad_file_worker.processing import StopRequested, process_next_cad_upload
 from config.settings import Settings, get_settings
-from db import create_engine, create_ograg_service, create_sessionmaker
+from db.session import (
+    create_catalog_service,
+    create_engine,
+    create_ograg_service,
+    create_sessionmaker,
+)
 from logger import logger
 from services import ConflictError
 from services.catalog import CatalogService
 from services.object_storage import ObjectStorageError
-from services.s3 import S3ObjectStorage
 
 PROCESSING_POLL_SECONDS = 2
 RETRY_PAUSE_SECONDS = 30
@@ -60,8 +64,8 @@ async def run() -> None:
     settings: Settings = get_settings()
     engine: AsyncEngine = create_engine(settings)
     sessions: async_sessionmaker[AsyncSession] = create_sessionmaker(engine)
-    catalog: CatalogService = CatalogService(
-        create_ograg_service(settings, engine), S3ObjectStorage(settings)
+    catalog: CatalogService = create_catalog_service(
+        settings, create_ograg_service(settings, engine)
     )
     heartbeat: Heartbeat = Heartbeat(HEARTBEAT_FILE)
     next_cleanup = 0.0
