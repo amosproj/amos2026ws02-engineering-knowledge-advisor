@@ -10,18 +10,21 @@ from sqlalchemy import (
     RowMapping,
     Select,
     Table,
+    Text,
+    cast,
     delete,
     func,
+    literal_column,
     select,
 )
 from sqlalchemy.dialects.postgresql import Insert, insert
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.sql.dml import ReturningDelete
 
+from db.names import CommonColumn, LinkColumn, RecordColumn, SystemColumn
+from db.tables import Tables
 from services import Json, Link, Record, RecordLinkedError, RecordStore
-from services.postgres.names import CommonColumn, LinkColumn, RecordColumn
 from services.postgres.shared import Conditions, Statements
-from services.postgres.tables import Tables
 from services.postgres.transaction import PgTx, get_batches, get_transaction
 from services.records import ERROR_STILL_LINKED
 
@@ -170,14 +173,14 @@ class PgRecordStore(RecordStore):
             )
 
     @override
-    async def lock_record(self, record_id: str, tx: PgTx) -> None:
+    async def lock_record(self, record_id: str, tx: PgTx) -> str | None:
         stmt: Select[Any] = (
-            select(self.table.c[CommonColumn.ID])
+            select(self._get_version_column())
             .where(self.table.c[CommonColumn.ID] == record_id)
             .with_for_update()
         )
         async with get_transaction(self.engine, tx) as conn:
-            await conn.execute(stmt)
+            return (await conn.execute(stmt)).scalar_one_or_none()
 
     @override
     async def find_record_ids(
@@ -263,9 +266,16 @@ class PgRecordStore(RecordStore):
 
     def _select_records(self) -> Select:
         """Returns select statement for all record columns, sorted by id."""
-        return select(*(self.table.c[col] for col in self.COLUMNS)).order_by(
-            self.table.c[CommonColumn.ID]
+        return select(
+            *(self.table.c[col] for col in self.COLUMNS), self._get_version_column()
+        ).order_by(self.table.c[CommonColumn.ID])
+
+    def _get_version_column(self) -> ColumnElement[str]:
+        """Returns the row's ``xmin`` as text. Postgres sets it with every write of the row."""
+        xmin: ColumnElement[Any] = literal_column(
+            f"{self.table.name}.{SystemColumn.XMIN}"
         )
+        return cast(xmin, Text).label(SystemColumn.XMIN)
 
     async def _fetch_records(
         self, conn: PgTx, *conditions: ColumnElement[bool]
@@ -314,4 +324,5 @@ class PgRecordStore(RecordStore):
             row[RecordColumn.ONTOLOGY_VERSION],
             tuple(links),
             row[RecordColumn.REVIEW],
+            row[SystemColumn.XMIN],
         )

@@ -25,4 +25,5 @@ from services.records import Link as Link
 from services.records import Record as Record
 from services.records import RecordLinkedError as RecordLinkedError
 from services.records import RecordStore as RecordStore
+from services.records import StaleVersionError as StaleVersionError
 from services.search import SearchMode as SearchMode

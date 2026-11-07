@@ -1,3 +1,8 @@
+from services.ograg.ontology.description import ClassDescription as ClassDescription
+from services.ograg.ontology.description import ClassLabel as ClassLabel
+from services.ograg.ontology.description import (
+    PropertyDescription as PropertyDescription,
+)
 from services.ograg.ontology.model import Ontology as Ontology
 from services.ograg.ontology.names import JSONLD_GRAPH as JSONLD_GRAPH
 from services.ograg.ontology.names import JSONLD_ID as JSONLD_ID
@@ -7,4 +12,5 @@ from services.ograg.ontology.names import get_local_name as get_local_name
 from services.ograg.ontology.names import get_type as get_type
 from services.ograg.ontology.names import to_list as to_list
 from services.ograg.ontology.parsing import OntologyError as OntologyError
+from services.ograg.ontology.property import EdgeType as EdgeType
 from services.ograg.ontology.property import Property as Property

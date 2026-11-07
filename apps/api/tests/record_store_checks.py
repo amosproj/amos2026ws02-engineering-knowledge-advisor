@@ -203,6 +203,17 @@ async def check_records_are_listed_by_class(store: RecordStore) -> None:
     assert await store.get_records_by_class("KnowledgeItem") == []
 
 
+async def check_every_save_gives_a_new_version(store: RecordStore) -> None:
+    await store.save_records([MACHINE])
+    first: Record = await get_stored_record(store, MACHINE_ID)
+    await store.save_records([MACHINE])
+    second: Record = await get_stored_record(store, MACHINE_ID)
+    assert first.version and second.version != first.version
+    async with store.open_transaction() as tx:
+        assert await store.lock_record(MACHINE_ID, tx) == second.version
+        assert await store.lock_record("missing", tx) is None
+
+
 Check = Callable[[RecordStore], Awaitable[None]]
 CHECKS: list[Check] = [
     check_links_are_saved_and_found_from_their_target,
@@ -214,5 +225,6 @@ CHECKS: list[Check] = [
     check_needs_review_lists_marked_records,
     check_text_the_database_cannot_store_is_refused,
     check_records_are_listed_by_class,
+    check_every_save_gives_a_new_version,
 ]
 CHECK_IDS: list[str] = [check.__name__.removeprefix("check_") for check in CHECKS]

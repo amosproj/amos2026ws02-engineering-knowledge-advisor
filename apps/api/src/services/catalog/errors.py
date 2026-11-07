@@ -22,6 +22,13 @@ class UploadNotFoundError(CadFileConflictError):
         super().__init__("The CAD file has not been uploaded.", "upload_not_found")
 
 
+class UploadExistsError(CadFileConflictError):
+    def __init__(self) -> None:
+        super().__init__(
+            "The file is being processed or is ready already.", "upload_exists"
+        )
+
+
 class ImportFailedError(CadFileConflictError):
     def __init__(self, error_code: str | None) -> None:
         super().__init__("The CAD file import failed.", error_code)

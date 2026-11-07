@@ -5,6 +5,7 @@ from http import HTTPStatus
 
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic.alias_generators import to_camel
 from starlette.background import BackgroundTask
 
 from services import JsonObject
@@ -67,7 +68,7 @@ class Problem(BaseModel):
                 "title": HTTPStatus(status).phrase,
                 "status": status,
                 "detail": detail,
-                **extensions,
+                **{to_camel(name): value for name, value in extensions.items()},
             }
         )
 

@@ -1,28 +1,20 @@
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, RootModel
+from pydantic.alias_generators import to_camel
 
 from services import JsonObject
 from services.ograg.ontology import JSONLD_ID, JSONLD_TYPE
 
-STEP_FILE_MAX_SIZE: int = 5 * 1024 * 1024 * 1024  # 5 GiB
-MAX_FILES_PER_UPLOAD: int = 5
+FILE_MAX_SIZE: int = 5 * 1024 * 1024 * 1024  # 5 GiB
 
-Name = Annotated[
-    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)
-]
-ShortText = Annotated[
-    str | None, StringConstraints(strip_whitespace=True, max_length=255)
-]
-Description = Annotated[
-    str | None, StringConstraints(strip_whitespace=True, max_length=1000)
-]
-StepFileName = Annotated[
-    str,
-    StringConstraints(
-        strip_whitespace=True, max_length=255, pattern=r"(?i)^.+\.(stp|step)$"
-    ),
-]
+
+class CamelModel(BaseModel):
+    """Model with camelCase JSON keys."""
+
+    model_config = ConfigDict(
+        alias_generator=to_camel, validate_by_name=True, serialize_by_alias=True
+    )
 
 
 class RecordNode(BaseModel):
@@ -48,46 +40,9 @@ class RecordNode(BaseModel):
         return self.model_dump(by_alias=True, exclude_unset=True, mode="json")
 
 
-class MachineFields(BaseModel):
-    name: Name
-    identifier: ShortText = None
-    customer: ShortText = None
-    description: Description = None
+class RecordChanges(RootModel[JsonObject]):
+    """JSON Merge Patch (RFC 7396) of a record. Class properties -> new value."""
 
 
-class MachineChanges(BaseModel):
-    """Fields left out stay unchanged; null or blank clears an optional field."""
-
-    name: Name | None = None
-    identifier: ShortText = None
-    customer: ShortText = None
-    description: Description = None
-
-
-class AssemblyGroupFields(BaseModel):
-    name: Name
-    identifier: ShortText = None
-    description: Description = None
-
-
-class AssemblyGroupChanges(BaseModel):
-    """Fields left out stay unchanged; null or blank clears an optional field."""
-
-    name: Name | None = None
-    identifier: ShortText = None
-    description: Description = None
-
-
-class CadFileChanges(BaseModel):
-    name: Name
-
-
-class FileToUpload(BaseModel):
-    filename: StepFileName
-    size: Annotated[int, Field(ge=1, le=STEP_FILE_MAX_SIZE)]
-
-
-class UploadRequest(BaseModel):
-    files: Annotated[
-        list[FileToUpload], Field(min_length=1, max_length=MAX_FILES_PER_UPLOAD)
-    ]
+class FileToUpload(CamelModel):
+    size: Annotated[int, Field(ge=1, le=FILE_MAX_SIZE, description="Size in bytes.")]
