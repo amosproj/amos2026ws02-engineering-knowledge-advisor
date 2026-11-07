@@ -45,4 +45,6 @@ class RecordChanges(RootModel[JsonObject]):
 
 
 class FileToUpload(CamelModel):
+    """Body of ``POST /records/{id}/upload-form``."""
+
     size: Annotated[int, Field(ge=1, le=FILE_MAX_SIZE, description="Size in bytes.")]

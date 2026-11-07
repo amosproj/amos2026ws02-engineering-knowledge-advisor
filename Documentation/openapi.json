@@ -593,7 +593,7 @@
       "get": {
         "tags": [
           "v1",
-          "records"
+          "files"
         ],
         "summary": "Get Record Tree",
         "description": "Returns record with every record linking to it through a parent link.",
@@ -668,7 +668,7 @@
       "get": {
         "tags": [
           "v1",
-          "records"
+          "files"
         ],
         "summary": "Get Record Ancestors",
         "description": "Returns record with its parents, their parents and so on.",
@@ -743,7 +743,7 @@
       "post": {
         "tags": [
           "v1",
-          "records"
+          "files"
         ],
         "summary": "Post Upload Form",
         "description": "Returns form to upload the file record's file with (object storage).\n\nRe-upload to replace running or failed upload. Call ``POST /records/{id}/complete`` after completed upload.",
@@ -819,7 +819,7 @@
       "post": {
         "tags": [
           "v1",
-          "records"
+          "files"
         ],
         "summary": "Complete Upload",
         "description": "Confirms file upload and queues it for processing.",
@@ -940,16 +940,19 @@
         "required": [
           "size"
         ],
-        "title": "FileToUpload"
+        "title": "FileToUpload",
+        "description": "Body of ``POST /records/{id}/upload-form``."
       },
       "FileUpload": {
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id"
+            "title": "Id",
+            "description": "File record id."
           },
           "status": {
-            "$ref": "#/components/schemas/UploadStatus"
+            "$ref": "#/components/schemas/UploadStatus",
+            "description": "Where the file is in its life cycle."
           },
           "errorCode": {
             "anyOf": [
@@ -960,21 +963,25 @@
                 "type": "null"
               }
             ],
-            "title": "Errorcode"
+            "title": "Errorcode",
+            "description": "Why the file failed, else null."
           },
           "sizeBytes": {
             "type": "integer",
-            "title": "Sizebytes"
+            "title": "Sizebytes",
+            "description": "Announced size, checked on complete."
           },
           "createdAt": {
             "type": "string",
             "format": "date-time",
-            "title": "Createdat"
+            "title": "Createdat",
+            "description": "When the upload form was requested."
           },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
-            "title": "Updatedat"
+            "title": "Updatedat",
+            "description": "Last status change."
           }
         },
         "type": "object",
@@ -1018,23 +1025,27 @@
           {
             "type": "null"
           }
-        ]
+        ],
+        "description": "Any JSON value."
       },
       "JsonObject": {
         "additionalProperties": {
           "$ref": "#/components/schemas/Json"
         },
-        "type": "object"
+        "type": "object",
+        "description": "JSON object."
       },
       "OntologyClass": {
         "properties": {
           "displayName": {
             "type": "string",
-            "title": "Displayname"
+            "title": "Displayname",
+            "description": "Name to show."
           },
           "comment": {
             "type": "string",
-            "title": "Comment"
+            "title": "Comment",
+            "description": "What it means."
           },
           "record": {
             "type": "boolean",
@@ -1117,11 +1128,13 @@
           },
           "displayName": {
             "type": "string",
-            "title": "Displayname"
+            "title": "Displayname",
+            "description": "Name to show."
           },
           "comment": {
             "type": "string",
-            "title": "Comment"
+            "title": "Comment",
+            "description": "What it means."
           },
           "enum": {
             "items": {
@@ -1167,7 +1180,8 @@
               "$ref": "#/components/schemas/SearchMode"
             },
             "type": "array",
-            "title": "Search"
+            "title": "Search",
+            "description": "How values are searched."
           }
         },
         "type": "object",
@@ -1253,7 +1267,8 @@
       "RecordAncestors": {
         "properties": {
           "record": {
-            "$ref": "#/components/schemas/RecordNode"
+            "$ref": "#/components/schemas/RecordNode",
+            "description": "Validated record. Links hold target ids."
           },
           "version": {
             "type": "string",
@@ -1346,14 +1361,17 @@
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id"
+            "title": "Id",
+            "description": "Record id."
           },
           "review": {
             "type": "string",
-            "title": "Review"
+            "title": "Review",
+            "description": "Why the record needs a review."
           },
           "record": {
-            "$ref": "#/components/schemas/RecordNode"
+            "$ref": "#/components/schemas/RecordNode",
+            "description": "Validated record. Links hold target ids."
           },
           "version": {
             "type": "string",
@@ -1374,7 +1392,8 @@
       "RecordTree": {
         "properties": {
           "record": {
-            "$ref": "#/components/schemas/RecordNode"
+            "$ref": "#/components/schemas/RecordNode",
+            "description": "Validated record. Links hold target ids."
           },
           "version": {
             "type": "string",
@@ -1429,7 +1448,8 @@
       "RecordView": {
         "properties": {
           "record": {
-            "$ref": "#/components/schemas/RecordNode"
+            "$ref": "#/components/schemas/RecordNode",
+            "description": "Validated record. Links hold target ids."
           },
           "version": {
             "type": "string",
@@ -1491,14 +1511,16 @@
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id"
+            "title": "Id",
+            "description": "Record id."
           },
           "warnings": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Warnings"
+            "title": "Warnings",
+            "description": "Validation drops: what was left out."
           },
           "version": {
             "type": "string",
@@ -1530,14 +1552,16 @@
               "type": "string"
             },
             "type": "array",
-            "title": "Deletedids"
+            "title": "Deletedids",
+            "description": "The record and every record deleted with it."
           },
           "markedIds": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Markedids"
+            "title": "Markedids",
+            "description": "Records that lost their last parent link, marked for review."
           }
         },
         "type": "object",
@@ -1562,14 +1586,16 @@
         "properties": {
           "url": {
             "type": "string",
-            "title": "Url"
+            "title": "Url",
+            "description": "Where to post the form."
           },
           "fields": {
             "additionalProperties": {
               "type": "string"
             },
             "type": "object",
-            "title": "Fields"
+            "title": "Fields",
+            "description": "Form fields, sent before the file."
           }
         },
         "type": "object",
@@ -1588,7 +1614,8 @@
           "ready",
           "failed"
         ],
-        "title": "UploadStatus"
+        "title": "UploadStatus",
+        "description": "Where an uploaded file is in its life cycle."
       }
     }
   }

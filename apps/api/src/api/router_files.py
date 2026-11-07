@@ -45,7 +45,7 @@ RESPONSE_DETAIL_503: str = "File storage cannot be reached. Please try again."
 ERROR_FILE_MISMATCH: str = "Uploaded file does not match the announced size."
 
 v1_files_router: APIRouter = (
-    ApiRouterBuilder().version("v1").add_tags(["records"]).build()
+    ApiRouterBuilder().version("v1").add_tags(["files"]).build()
 )
 
 

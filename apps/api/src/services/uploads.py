@@ -13,6 +13,8 @@ from services.database import ConflictError, Tx
 
 
 class UploadStatus(StrEnum):
+    """Where an uploaded file is in its life cycle."""
+
     UPLOADING = "uploading"
     PROCESSING = "processing"
     READY = "ready"
