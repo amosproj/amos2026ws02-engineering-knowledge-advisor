@@ -110,8 +110,8 @@ class TreeNode:
 
 
 @dataclass(frozen=True)
-class _UploadStates:
-    """Result of ``CatalogService._get_upload_states``.
+class UploadStates:
+    """Result of ``CatalogService.get_upload_states``.
 
     Attributes:
         uploads: file id -> upload.
@@ -164,10 +164,6 @@ class CatalogService:
             return await self.ograg.store.get_all_records(session)
         return await self.ograg.store.get_records_by_class(cls, session)
 
-    async def get_children(self, session: Tx, record_id: str) -> list[Record]:
-        """The records whose parent links point to the record, file records included, sorted by id."""
-        return await records.get_children(self.ograg, session, [record_id])
-
     def is_file_record(self, record: Record) -> bool:
         """Whether ``record``'s class carries a file (``og:file``)."""
         return record.cls in self.ograg.ontology.file_classes
@@ -180,10 +176,56 @@ class CatalogService:
         )
 
     async def get_status(self, session: Tx, record_id: str) -> UploadStatus | None:
-        """The most urgent upload status of the record's files (``_get_upload_states``), ``None`` without upload."""
+        """The most urgent upload status of the record's files (``get_upload_states``), ``None`` without upload."""
         record: Record = await self.get_record(session, record_id)
-        states: _UploadStates = await self._get_upload_states(session, [record])
+        states: UploadStates = await self.get_upload_states(session, [record])
         return states.statuses.get(record_id)
+
+    async def get_upload_states(self, session: Tx, found: list[Record]) -> UploadStates:
+        """Returns the uploads and the upload status per record of ``found``.
+
+        File record: its own status. Other records: the most urgent of the file records linking straight to them.
+        """
+        parent_ids: list[str] = [
+            rec.id
+            for rec in found
+            if self.has_status(rec) and not self.is_file_record(rec)
+        ]
+        children: list[Record] = await records.get_children(
+            self.ograg, session, parent_ids
+        )
+        file_records: dict[str, Record] = {
+            rec.id: rec for rec in found + children if self.is_file_record(rec)
+        }
+        uploads: dict[str, Upload] = await self.uploads.get_uploads(
+            list(file_records), session
+        )
+        statuses_by_id: dict[str, list[UploadStatus]] = {}
+        for file_id, upload in uploads.items():
+            owner_ids: list[str] = [
+                file_id,
+                *self._get_parent_ids(file_records[file_id], parent_ids),
+            ]
+            for owner_id in owner_ids:
+                statuses_by_id.setdefault(owner_id, []).append(upload.status)
+        return UploadStates(
+            uploads=uploads,
+            statuses={
+                rec_id: get_files_status(statuses)
+                for rec_id, statuses in statuses_by_id.items()
+            },
+        )
+
+    async def get_children_by_parent_id(
+        self, session: Tx, parents: list[Record]
+    ) -> dict[str, list[Record]]:
+        """Parent id -> the records whose parent links point to it, sorted by id. One read for all ``parents``."""
+        parent_ids: list[str] = [rec.id for rec in parents]
+        children_by_parent_id: dict[str, list[Record]] = {}
+        for child in await records.get_children(self.ograg, session, parent_ids):
+            for parent_id in self._get_parent_ids(child, parent_ids):
+                children_by_parent_id.setdefault(parent_id, []).append(child)
+        return children_by_parent_id
 
     async def get_upload(self, session: Tx, file_id: str) -> Upload | None:
         """Returns the upload of file record ``file_id``, or ``None``."""
@@ -206,18 +248,12 @@ class CatalogService:
         Raises:
             NotFoundError: no record ``record_id``.
         """
-
-        async def get_children_by_parent_id(
-            parents: list[Record],
-        ) -> dict[str, list[Record]]:
-            parent_ids: list[str] = [rec.id for rec in parents]
-            children_by_parent_id: dict[str, list[Record]] = {}
-            for child in await records.get_children(self.ograg, session, parent_ids):
-                for parent_id in self._get_parent_ids(child, parent_ids):
-                    children_by_parent_id.setdefault(parent_id, []).append(child)
-            return children_by_parent_id
-
-        return await self._walk(session, record_id, depth, get_children_by_parent_id)
+        return await self._walk(
+            session,
+            record_id,
+            depth,
+            lambda parents: self.get_children_by_parent_id(session, parents),
+        )
 
     async def get_ancestors(
         self, session: Tx, record_id: str, depth: int | None = None
@@ -441,7 +477,7 @@ class CatalogService:
             level_records = next_records
             level += 1
 
-        states: _UploadStates = await self._get_upload_states(
+        states: UploadStates = await self.get_upload_states(
             session, list(found.values())
         )
 
@@ -490,43 +526,6 @@ class CatalogService:
         if upload is None:
             raise UploadNotFoundError()
         return upload
-
-    async def _get_upload_states(
-        self, session: Tx, found: list[Record]
-    ) -> _UploadStates:
-        """Returns the uploads and the upload status per record of ``found``.
-
-        File record: its own status. Other records: the most urgent of the file records linking straight to them.
-        """
-        parent_ids: list[str] = [
-            rec.id
-            for rec in found
-            if self.has_status(rec) and not self.is_file_record(rec)
-        ]
-        children: list[Record] = await records.get_children(
-            self.ograg, session, parent_ids
-        )
-        file_records: dict[str, Record] = {
-            rec.id: rec for rec in found + children if self.is_file_record(rec)
-        }
-        uploads: dict[str, Upload] = await self.uploads.get_uploads(
-            list(file_records), session
-        )
-        statuses_by_id: dict[str, list[UploadStatus]] = {}
-        for file_id, upload in uploads.items():
-            owner_ids: list[str] = [
-                file_id,
-                *self._get_parent_ids(file_records[file_id], parent_ids),
-            ]
-            for owner_id in owner_ids:
-                statuses_by_id.setdefault(owner_id, []).append(upload.status)
-        return _UploadStates(
-            uploads=uploads,
-            statuses={
-                rec_id: get_files_status(statuses)
-                for rec_id, statuses in statuses_by_id.items()
-            },
-        )
 
     @asynccontextmanager
     async def _busy_after_lock_timeout(self, session: Tx) -> AsyncIterator[None]:
