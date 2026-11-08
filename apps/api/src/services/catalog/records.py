@@ -1,171 +1,245 @@
-"""Machines, their assembly groups and the CAD files of these groups, stored as records.
+"""Records of any record class, created, changed and deleted along the ontology's parent links.
 
-Hierarchy: CadFile -partOf-> AssemblyGroup -partOf-> Machine. Every function runs in the caller's
-transaction and does not commit: a failure must roll back the whole operation.
+Every function runs in the caller's transaction and does not commit: a failure must roll back the
+whole operation.
 """
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping, Sequence
+from graphlib import CycleError, TopologicalSorter
 from uuid import uuid4
 
-from services import Json, JsonObject, Link, Record, Tx
+from services import Json, JsonObject, Record, Tx
 from services.catalog.errors import NotFoundError
-from services.ograg.ontology import get_local_name
+from services.ograg.ontology import Ontology, get_local_name
 from services.ograg.service import DeleteResult, OgRagService, RecordError
 
-MACHINE: str = "Machine"
-ASSEMBLY_GROUP: str = "AssemblyGroup"
-CAD_FILE: str = "CadFile"
-PART_OF: str = "partOf"
-CAD_FORMAT: str = "STEP"
+ERROR_NOT_FOUND: str = "no record {record_id!r}"
+ERROR_NOT_FOUND_OF_CLASS: str = "no {cls} {record_id!r}"
+ERROR_UNKNOWN_PROPERTY: str = "{cls} has no property {field!r}"
 
-EDITABLE_FIELDS: dict[str, tuple[str, ...]] = {
-    MACHINE: ("name", "description", "customer", "identifier"),
-    ASSEMBLY_GROUP: ("name", "description", "identifier"),
-    CAD_FILE: ("name",),
-}
-
-ERROR_NOT_FOUND: str = "no {cls} {record_id!r}"
-ERROR_NAME_REQUIRED: str = "name must not be empty"
-ERROR_NOT_EDITABLE: str = "{cls} has no editable field {field!r}"
-
-type Fields = Mapping[str, str | None]
+type Fields = Mapping[str, Json]
 
 
-async def create_machine(ograg: OgRagService, tx: Tx, fields: Fields) -> str:
-    return await _create(ograg, tx, MACHINE, fields, parent_id=None)
-
-
-async def create_assembly_group(
-    ograg: OgRagService, tx: Tx, machine_id: str, fields: Fields
-) -> str:
-    await get_record(ograg, tx, MACHINE, machine_id)
-    return await _create(ograg, tx, ASSEMBLY_GROUP, fields, parent_id=machine_id)
-
-
-async def create_cad_file(
-    ograg: OgRagService, tx: Tx, assembly_group_id: str, name: str
-) -> str:
-    await get_record(ograg, tx, ASSEMBLY_GROUP, assembly_group_id)
-    return await _create(
-        ograg, tx, CAD_FILE, {"name": name}, parent_id=assembly_group_id
-    )
+async def create_record(
+    ograg: OgRagService,
+    tx: Tx,
+    node: Mapping[str, Json],
+) -> tuple[str, list[str]]:
+    """Stores ``node`` as a new record. Returns created id and validation warnings."""
+    record_id: str = uuid4().hex
+    warnings: list[str] = await ograg.upsert_record(record_id, node, tx)
+    return record_id, warnings
 
 
 async def update_record(
-    ograg: OgRagService, tx: Tx, cls: str, record_id: str, changes: Fields
-) -> None:
-    """Changes only the fields given in ``changes``. ``None`` or blank clears an optional field."""
+    ograg: OgRagService,
+    tx: Tx,
+    record_id: str,
+    changes: Fields,
+    expected_versions: Collection[str] | None = None,
+) -> list[str]:
+    """Applies ``changes`` to the stored record as a JSON Merge Patch (RFC 7396), then validates the whole record.
+
+    Nested objects are merged key by key. Anything else, links and lists included, replaces the stored value. ``None``
+    or blank text removes a key.
+
+    Args:
+        ograg: record service.
+        tx: transaction.
+        record_id: record to change.
+        changes: properties of the record's class -> new value.
+        expected_versions: versions to match (``OgRagService.check_version``).
+
+    Returns:
+        Validation warnings.
+
+    Raises:
+        NotFoundError: no record ``record_id``.
+        RecordError: a key is not a property of the record's class, or the result is invalid.
+        StaleVersionError: record has none of ``expected_versions``.
+    """
     # the row lock makes concurrent updates of this record wait instead of overwriting each other
     await ograg.store.lock_record(record_id, tx)
-    record: Record = await get_record(ograg, tx, cls, record_id)
+    record: Record = await get_record(ograg, tx, record_id)
+    for field in changes:
+        if (record.cls, get_local_name(field)) not in ograg.ontology.properties:
+            raise RecordError(
+                ERROR_UNKNOWN_PROPERTY.format(cls=record.cls, field=field)
+            )
+
     # the generic records endpoint also accepts prefixed names such as og:name
-    node: JsonObject = {
-        get_local_name(key): value for key, value in record.input.items()
-    }
-    cleaned: dict[str, str | None] = _clean_fields(cls, changes)
-    for field, value in cleaned.items():
-        if value is None:
-            node.pop(field, None)
-        else:
-            node[field] = value
-    _check_name(node)
-    await ograg.upsert_record(record_id, node, tx)
+    node: Json = _merge_patch(_to_local_names(record.input), dict(changes))
+    assert isinstance(node, dict)  # a patch object merged into an object
+    return await ograg.upsert_record(record_id, node, tx, expected_versions)
 
 
-async def delete_machine(ograg: OgRagService, tx: Tx, machine_id: str) -> list[str]:
-    """Deletes the machine with its assembly groups and their CAD files. Returns the deleted ids."""
-    # locked first, so no group can be added while its groups are listed and deleted
-    await ograg.store.lock_record(machine_id, tx)
-    await get_record(ograg, tx, MACHINE, machine_id)
-    deleted_ids: list[str] = []
-    for group in await list_children(ograg, tx, machine_id, ASSEMBLY_GROUP):
-        deleted_ids += await delete_assembly_group(ograg, tx, group.id)
-    return deleted_ids + await _delete(ograg, tx, machine_id)
+async def get_record(
+    ograg: OgRagService, tx: Tx, record_id: str, cls: str | None = None
+) -> Record:
+    """Returns the record ``record_id``.
 
-
-async def delete_assembly_group(
-    ograg: OgRagService, tx: Tx, assembly_group_id: str
-) -> list[str]:
-    """Deletes the assembly group with its CAD files. Returns the deleted ids."""
-    await ograg.store.lock_record(assembly_group_id, tx)
-    await get_record(ograg, tx, ASSEMBLY_GROUP, assembly_group_id)
-    deleted_ids: list[str] = []
-    for cad_file in await list_children(ograg, tx, assembly_group_id, CAD_FILE):
-        deleted_ids += await _delete(ograg, tx, cad_file.id)
-    return deleted_ids + await _delete(ograg, tx, assembly_group_id)
-
-
-async def delete_cad_file(ograg: OgRagService, tx: Tx, cad_file_id: str) -> list[str]:
-    await get_record(ograg, tx, CAD_FILE, cad_file_id)
-    return await _delete(ograg, tx, cad_file_id)
-
-
-async def get_record(ograg: OgRagService, tx: Tx, cls: str, record_id: str) -> Record:
+    Raises:
+        NotFoundError: no such record, or it is not a ``cls`` (if given).
+    """
     record: Record | None = await ograg.store.get_record(record_id, tx)
-    if record is None or record.cls != cls:
-        raise NotFoundError(ERROR_NOT_FOUND.format(cls=cls, record_id=record_id))
+    if record is None or (cls is not None and record.cls != cls):
+        message: str = (
+            ERROR_NOT_FOUND.format(record_id=record_id)
+            if cls is None
+            else ERROR_NOT_FOUND_OF_CLASS.format(cls=cls, record_id=record_id)
+        )
+        raise NotFoundError(message)
     return record
 
 
-async def list_machines(ograg: OgRagService, tx: Tx) -> list[Record]:
-    return await ograg.store.get_records_by_class(MACHINE, tx)
-
-
-async def list_children(
-    ograg: OgRagService, tx: Tx, parent_id: str, cls: str
+async def get_children(
+    ograg: OgRagService,
+    tx: Tx,
+    parent_ids: Sequence[str],
+    *,
+    dependents_only: bool = False,
 ) -> list[Record]:
-    """Returns the records of class ``cls`` that are part of ``parent_id``, sorted by id.
+    """Returns the records whose parent links point to any of ``parent_ids``, sorted by id.
 
-    Knowledge items also link to machines and groups, but not through ``partOf``.
+    Args:
+        ograg: record service.
+        tx: transaction.
+        parent_ids: ids of the parents.
+        dependents_only: only parent links marked ``og:deleteWithParent`` count.
     """
-    linking: list[Record] = await ograg.store.get_linking_records([parent_id], tx)
+    if not parent_ids:
+        return []
+    targets: set[str] = set(parent_ids)
+    linking: list[Record] = await ograg.store.get_linking_records(parent_ids, tx)
     return [
         rec
         for rec in linking
-        if rec.cls == cls and Link(PART_OF, parent_id) in rec.links
+        if any(
+            link.target_id in targets
+            and link.property_name
+            in _get_parent_link_names(ograg.ontology, rec.cls, dependents_only)
+            for link in rec.links
+        )
     ]
 
 
-async def _create(
-    ograg: OgRagService, tx: Tx, cls: str, fields: Fields, parent_id: str | None
-) -> str:
-    node: JsonObject = {
-        field: value
-        for field, value in _clean_fields(cls, fields).items()
-        if value is not None
-    }
-    _check_name(node)
-    if cls == CAD_FILE:
-        node["format"] = CAD_FORMAT
-    if parent_id is not None:
-        node[PART_OF] = parent_id
-    record_id: str = uuid4().hex
-    await ograg.upsert_record(record_id, {"@type": cls, **node}, tx)
-    return record_id
+async def lock_tree(ograg: OgRagService, tx: Tx, record_id: str) -> list[Record]:
+    """Locks the record and everything deleted with it, top-down. Returns them parents first.
 
-
-async def _delete(ograg: OgRagService, tx: Tx, record_id: str) -> list[str]:
-    # knowledge items that lose their last link are kept and marked for review
-    result: DeleteResult = await ograg.delete_record(
-        record_id, tx, delete_orphans=False
-    )
-    return result.deleted_ids
-
-
-def _clean_fields(cls: str, fields: Fields) -> dict[str, str | None]:
-    """Returns ``fields`` stripped, blank values as ``None``.
+    A parent is locked before its children are listed, so no child can be added meanwhile.
+    A record goes with the tree only if all its ``og:deleteWithParent`` links point into it: one with such a parent
+    outside the tree stays, and so does what hangs only below it.
 
     Raises:
-        RecordError: a field cannot be edited for ``cls``.
+        NotFoundError: no record ``record_id``.
     """
-    cleaned: dict[str, str | None] = {}
-    for field, value in fields.items():
-        if field not in EDITABLE_FIELDS[cls]:
-            raise RecordError(ERROR_NOT_EDITABLE.format(cls=cls, field=field))
-        cleaned[field] = (value or "").strip() or None
-    return cleaned
+    await ograg.store.lock_record(record_id, tx)
+    tree: list[Record] = [await get_record(ograg, tx, record_id)]
+    seen_ids: set[str] = {record_id}
+    position: int = 0
+    while position < len(tree):
+        parent: Record = tree[position]
+        position += 1
+        for child in await get_children(ograg, tx, [parent.id], dependents_only=True):
+            if child.id in seen_ids:
+                continue
+            await ograg.store.lock_record(child.id, tx)
+            seen_ids.add(child.id)
+            tree.append(child)
+    return _drop_records_with_other_parents(ograg.ontology, tree)
 
 
-def _check_name(node: Mapping[str, Json]) -> None:
-    if not str(node.get("name") or "").strip():
-        raise RecordError(ERROR_NAME_REQUIRED)
+async def delete_tree(
+    ograg: OgRagService,
+    tx: Tx,
+    tree: Sequence[Record],
+    delete_orphans: bool = False,
+) -> DeleteResult:
+    """Deletes the records of ``tree`` (from ``lock_tree``), children first.
+
+    Records that lose their last parent link otherwise are marked for review, or deleted if
+    ``delete_orphans`` is ``True``.
+    """
+    result = DeleteResult()
+    for rec in reversed(tree):
+        deleted: DeleteResult = await ograg.delete_record(
+            rec.id, tx, delete_orphans=delete_orphans
+        )
+        result.deleted_ids.extend(deleted.deleted_ids)
+        result.marked_ids.extend(deleted.marked_ids)
+    return result
+
+
+def _drop_records_with_other_parents(
+    onto: Ontology, tree: list[Record]
+) -> list[Record]:
+    """Returns ``tree`` without the records that keep an ``og:deleteWithParent`` parent outside it, and without what
+    hangs only below those. The first record stays; the rest come parents first.
+
+    One pass over the records sorted parents first: a record stays in the tree if all its such parents do. A loop of
+    such links (old data) can't be sorted: then only the first record is returned, nothing is deleted with it.
+    """
+    root: Record = tree[0]
+    by_id: dict[str, Record] = {rec.id: rec for rec in tree}
+    parent_ids_by_id: dict[str, set[str]] = {
+        rec.id: {
+            link.target_id
+            for link in rec.links
+            if link.property_name in onto.get_delete_with_parent_names(rec.cls)
+        }
+        for rec in tree[1:]
+    }
+    try:
+        ordered_ids: list[str] = list(
+            TopologicalSorter(
+                {
+                    record_id: parent_ids & by_id.keys()
+                    for record_id, parent_ids in parent_ids_by_id.items()
+                }
+            ).static_order()
+        )
+    except CycleError:
+        return [root]
+    kept_ids: set[str] = {root.id}
+    for record_id in ordered_ids:
+        if record_id != root.id and parent_ids_by_id[record_id] <= kept_ids:
+            kept_ids.add(record_id)
+    return [root] + [
+        by_id[record_id]
+        for record_id in ordered_ids
+        if record_id != root.id and record_id in kept_ids
+    ]
+
+
+def _get_parent_link_names(onto: Ontology, cls: str, dependents_only: bool) -> set[str]:
+    if dependents_only:
+        return onto.get_delete_with_parent_names(cls)
+    return onto.get_parent_link_names(cls)
+
+
+def _to_local_names(value: Json) -> Json:
+    """Returns ``value`` with every object key as its local name, e.g. ``og:name`` as ``name``, at any depth."""
+    if isinstance(value, dict):
+        return {get_local_name(key): _to_local_names(val) for key, val in value.items()}
+    if isinstance(value, list):
+        return [_to_local_names(val) for val in value]
+    return value
+
+
+def _merge_patch(target: Json, patch: Json) -> Json:
+    """Returns ``target`` changed by ``patch`` (RFC 7396): objects merge key by key, anything else replaces.
+
+    ``None`` or blank text removes a key; a nested object left empty is removed too. Texts are stripped.
+    """
+    if not isinstance(patch, dict):
+        return patch.strip() if isinstance(patch, str) else patch
+    merged: JsonObject = dict(target) if isinstance(target, dict) else {}
+    for raw_key, value in patch.items():
+        key: str = get_local_name(raw_key)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            merged.pop(key, None)
+            continue
+        merged[key] = _merge_patch(merged.get(key), _to_local_names(value))
+        if merged[key] == {}:
+            del merged[key]
+    return merged

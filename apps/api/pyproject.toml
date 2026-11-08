@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.1.0"
+version = "0.2.1"
 description = "The backend API of the Engineering Knowledge Advisor. Exposes endpoints to interact with knowledge databases and LLMs."
 readme = "README.md"
 authors = [

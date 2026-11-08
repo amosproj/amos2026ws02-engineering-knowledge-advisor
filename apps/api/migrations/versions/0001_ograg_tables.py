@@ -1,6 +1,6 @@
 """Creates the OG-RAG tables (records and their links).
 
-Generated from ``services.postgres.tables``.
+Generated from ``db.tables``.
 
 Revision ID: 0001
 Revises:

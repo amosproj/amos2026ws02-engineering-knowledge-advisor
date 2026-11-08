@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 
 from services import (
@@ -11,6 +11,7 @@ from services import (
     Link,
     Record,
     RecordStore,
+    StaleVersionError,
     Tx,
 )
 from services.ograg.ontology import (
@@ -23,6 +24,7 @@ from services.ograg.ontology import (
     get_type,
     to_list,
 )
+from services.records import ANY_VERSION, ERROR_STALE_VERSION
 
 log = logging.getLogger(__name__)
 # write in service's transaction is retried after a ConflictError
@@ -32,6 +34,10 @@ LINK_WRONG_CLASS: str = "is a {cls}"
 ERROR_UNREACHABLE: str = "unreachable"
 ERROR_NOT_RECORD_CLASS: str = "a record must be one of {classes}, not {cls!r}"
 ERROR_NO_PROPERTIES: str = "record has no {cls} properties"
+ERROR_IDENTITY_REQUIRED: str = "a {cls} needs a non-blank value in one of {prop_names}"
+ERROR_PARENT_LOOP: str = (
+    "{cls} {record_id!r} would become its own ancestor through {prop_names}"
+)
 ERROR_CLASS_CHANGED: str = (
     "{record_id!r} is a {old_cls}, delete it before storing a {new_cls}"
 )
@@ -95,7 +101,7 @@ class OgRagService:
         record_id: str,
         node: Mapping[str, Json],
         tx: Tx | None = None,
-        author: str | None = None,
+        expected_versions: Collection[str] | None = None,
     ) -> list[str]:
         """Validates ``node`` and update-or-inserts it as a record. Saving a record clears its ``review``.
 
@@ -103,7 +109,7 @@ class OgRagService:
             record_id: becomes the ``node``'s ``@id``.
             node: JSON-LD node of a record class (``@type``, defaults to anchor class). Undefined properties are dropped. Links hold the target's id (or ``{"@id": ...}``).
             tx: transaction, or ``None``.
-            author: ``og:author``, replaces ``node``'s value.
+            expected_versions: versions to match (``check_version``).
 
         Returns:
             Warnings: validation drops.
@@ -113,15 +119,44 @@ class OgRagService:
                 - class is not a record class
                 - id belongs to a record of another class
                 - no valid property is left
+                - class has identity properties, but none holds a non-blank value
                 - or a link points to a missing record or one of the wrong class.
             UnstorableValueError: store cannot store given value.
             ConflictError: detected concurrent write. If ``tx`` wasn't ``None``, raises immediately without retry.
+            StaleVersionError: record has none of ``expected_versions``.
         """
         cls: str = self._get_record_class(node)
-        submitted: JsonObject = self._get_submitted(record_id, cls, node, author)
+        submitted: JsonObject = self._get_submitted(record_id, cls, node)
         record, warnings = self._validate_record(record_id, cls, submitted)
-        await self._run_with_retries(lambda own: self._write_record(record, own), tx)
+        await self._run_with_retries(
+            lambda own: self._write_record(record, own, expected_versions), tx
+        )
         return warnings
+
+    async def check_version(
+        self, record_id: str, expected_versions: Collection[str] | None, tx: Tx
+    ) -> None:
+        """Locks the record and checks its version (``If-Match``).
+
+        Args:
+            record_id: record id.
+            expected_versions: versions to match, ``ANY_VERSION`` matches any. ``None`` skips the check.
+            tx: transaction, holds the lock.
+
+        Raises:
+            StaleVersionError: other version, or no such record.
+        """
+        if expected_versions is None:
+            return
+        current: str | None = await self.store.lock_record(record_id, tx)
+        if current is None or not (
+            ANY_VERSION in expected_versions or current in expected_versions
+        ):
+            raise StaleVersionError(
+                ERROR_STALE_VERSION.format(
+                    record_id=record_id, expected_versions=sorted(expected_versions)
+                )
+            )
 
     async def delete_record(
         self, record_id: str, tx: Tx | None = None, delete_orphans: bool = False
@@ -189,23 +224,10 @@ class OgRagService:
         return cls
 
     def _get_submitted(
-        self, record_id: str, cls: str, node: Mapping[str, Json], author: str | None
+        self, record_id: str, cls: str, node: Mapping[str, Json]
     ) -> JsonObject:
-        """Returns unvalidated ``node``, with ``cls``, ``record_id`` and, if given, ``author``, to be kept as stored input."""
-        submitted: JsonObject = {**node, JSONLD_TYPE: cls, JSONLD_ID: record_id}
-        if author is not None:
-            submitted.update(
-                {name: author for name in self._get_author_property_names(cls)}
-            )
-        return submitted
-
-    def _get_author_property_names(self, cls: str) -> list[str]:
-        """Returns property names of ``cls`` that hold the author."""
-        return [
-            prop.name
-            for (domain, _), prop in self.ontology.properties.items()
-            if domain == cls and prop.author
-        ]
+        """Returns unvalidated ``node``, with ``cls`` and ``record_id``, to be kept as stored input."""
+        return {**node, JSONLD_TYPE: cls, JSONLD_ID: record_id}
 
     def _validate_record(
         self, record_id: str, cls: str, submitted: JsonObject
@@ -220,19 +242,44 @@ class OgRagService:
             raise RecordError(
                 "; ".join(warnings) or ERROR_NO_PROPERTIES.format(cls=cls)
             )
+        self._check_identity(cls, graph)
         links: tuple[Link, ...] = tuple(self.ontology.get_links(graph))
         return Record(
             record_id, cls, graph, submitted, self.ontology.version, links
         ), warnings
 
-    async def _write_record(self, record: Record, tx: Tx) -> None:
+    def _check_identity(self, cls: str, graph: Mapping[str, Json]) -> None:
+        """
+        Raises:
+            RecordError: ``cls`` has identity properties, but none holds a non-blank value in ``graph``.
+        """
+        identity_property_names: list[str] = (
+            self.ontology.get_identity_property_names().get(cls, [])
+        )
+        if identity_property_names and not any(
+            str(val).strip()
+            for prop_name in identity_property_names
+            if graph.get(prop_name) is not None
+            for val in to_list(graph[prop_name])
+        ):
+            raise RecordError(
+                ERROR_IDENTITY_REQUIRED.format(
+                    cls=cls, prop_names=identity_property_names
+                )
+            )
+
+    async def _write_record(
+        self, record: Record, tx: Tx, expected_versions: Collection[str] | None
+    ) -> None:
         """Locks, checks, saves and indexes the ``record``. All in ``tx``.
 
         Shared locks on parents. Do **NOT** lock link targets, otherwise two items that link each other can deadlock.
         """
+        await self.check_version(record.id, expected_versions, tx)
         await self._check_class_is_kept(record, tx)
         for link in record.links:
             await self._check_link_target(record, link, tx)
+        await self._check_no_parent_loop(record, tx)
         await self.store.save_records([record], tx)
 
     async def _check_class_is_kept(self, record: Record, tx: Tx) -> None:
@@ -273,6 +320,41 @@ class OgRagService:
                     expected_cls=expected_cls,
                 )
             )
+
+    async def _check_no_parent_loop(self, record: Record, tx: Tx) -> None:
+        """Walks up the parent links to ``record``'s own class (a tree, e.g. groups in groups).
+
+        Locks the record and every ancestor on the way. Two writes that would close a loop together then wait for each
+        other, and the database stops one of them (``ConflictError``); its retry sees the other's parent and refuses.
+
+        Raises:
+            RecordError: ``record`` would become its own ancestor.
+        """
+        prop_names: list[str] = sorted(
+            name
+            for name in self.ontology.get_parent_link_names(record.cls)
+            if self.ontology.properties[record.cls, name].range == record.cls
+        )
+        if not prop_names:
+            return
+        await self.store.lock_record(record.id, tx)
+        pending_ids: list[str] = _get_target_ids(record, prop_names)
+        seen_ids: set[str] = set()
+        while pending_ids:
+            ancestor_id: str = pending_ids.pop()
+            if ancestor_id == record.id:
+                raise RecordError(
+                    ERROR_PARENT_LOOP.format(
+                        cls=record.cls, record_id=record.id, prop_names=prop_names
+                    )
+                )
+            if ancestor_id in seen_ids:
+                continue
+            seen_ids.add(ancestor_id)
+            await self.store.lock_record(ancestor_id, tx)
+            ancestor: Record | None = await self.store.get_record(ancestor_id, tx)
+            if ancestor is not None:
+                pending_ids += _get_target_ids(ancestor, prop_names)
 
     async def _get_class_of(
         self, record_id: str, writing: Record, tx: Tx
@@ -383,3 +465,8 @@ class OgRagService:
             if prop is not None and prop.is_parent_link:
                 parent_ids.setdefault(link.target_id)
         return list(parent_ids)
+
+
+def _get_target_ids(record: Record, prop_names: list[str]) -> list[str]:
+    """Returns the targets of ``record``'s links held by ``prop_names``."""
+    return [link.target_id for link in record.links if link.property_name in prop_names]

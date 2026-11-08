@@ -20,7 +20,7 @@ def validate_payload(payload: Json) -> tuple[dict[str, Any], list[str]]:
         {
             "@type": "AssemblyGroup",
             "name": GROUP_NAME,
-            "hasCharacteristic": {"payloadKg": payload},
+            "properties": {"dimensions": payload},
         }
     )
 
@@ -31,7 +31,7 @@ def test_links_are_kept_as_ids():
         {
             "@type": "KnowledgeItem",
             "@id": ITEM_ID,
-            "statement": "Chamfer the nest.",
+            "properties": {"statement": "Chamfer the nest."},
             "appliesTo": [GROUP_ID, {"@id": OTHER_GROUP_ID}],
         },
         "KnowledgeItem",
@@ -40,7 +40,7 @@ def test_links_are_kept_as_ids():
     assert graph["appliesTo"] == [GROUP_ID, OTHER_GROUP_ID]
     assert onto.is_link(onto.properties[("KnowledgeItem", "appliesTo")])
     # A nested node, not a record:
-    assert not onto.is_link(onto.properties[("AssemblyGroup", "hasCharacteristic")])
+    assert not onto.is_link(onto.properties[("AssemblyGroup", "properties")])
     expected: list[Link] = [
         Link("appliesTo", GROUP_ID),
         Link("appliesTo", OTHER_GROUP_ID),
@@ -75,12 +75,13 @@ def test_allowed_values_are_matched_ignoring_case_and_others_dropped():
     graph, warnings = load_ontology().validate_node(
         {
             "@type": "KnowledgeItem",
-            "scope": "Global",
             "itemType": "requirment",
-            "statement": "x",
+            "properties": {"confidence": "Rule of Thumb", "statement": "x"},
         }
     )
-    assert graph["scope"] == "global"  # the ontology's spelling
+    # the ontology's spelling, also in a nested node
+    nested: Json = graph["properties"]
+    assert isinstance(nested, dict) and nested["confidence"] == "rule of thumb"
     assert "itemType" not in graph
     assert len(warnings) == 1
     assert_mentions(warnings[0], "itemType", "requirment")
@@ -93,7 +94,7 @@ def test_allowed_values_are_matched_ignoring_case_and_others_dropped():
 def test_numbers_are_stored_as_numbers(payload: Json, stored: float):
     graph, warnings = validate_payload(payload)
     assert warnings == []
-    kept: Json = graph["hasCharacteristic"]["payloadKg"]
+    kept: Json = graph["properties"]["dimensions"]
     assert kept == stored and type(kept) is type(stored)
 
 
@@ -105,9 +106,9 @@ def test_text_that_looks_like_a_number_stays_text():
 @pytest.mark.parametrize("payload", ["12 kg", "12,5", "nan", "inf", True])
 def test_a_number_property_drops_what_is_no_number(payload: Json):
     graph, warnings = validate_payload(payload)
-    assert "hasCharacteristic" not in graph  # nothing else was left in it
+    assert "properties" not in graph  # nothing else was left in it
     assert len(warnings) == 1
-    assert_mentions(warnings[0], "payloadKg", str(payload))
+    assert_mentions(warnings[0], "dimensions", str(payload))
 
 
 def test_text_is_kept_as_given_the_store_decides_what_it_can_store():

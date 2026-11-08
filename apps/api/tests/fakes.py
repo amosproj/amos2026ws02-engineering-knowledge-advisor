@@ -1,13 +1,18 @@
 import json
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator, Generator, Iterator, Sequence
 from contextlib import asynccontextmanager
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, override
 
 from services import Record, RecordLinkedError, RecordStore, Tx, UnstorableValueError
+from services.catalog import CatalogService
+from services.object_storage import ObjectStorage, StoredObject
 from services.ograg.ontology import Ontology, to_list
 from services.ograg.service import OgRagService
 from services.records import ERROR_STILL_LINKED
+from services.uploads import Upload, UploadStatus, UploadStore
 
 ONTOLOGY_PATH: Path = Path(__file__).parents[1] / "ontology_v0.jsonld"
 ERROR_ESCAPE_SEQUENCE: str = (
@@ -43,6 +48,7 @@ class MemoryRecordStore(RecordStore):
 
     def __init__(self, identity_property_names: dict[str, list[str]] | None = None):
         self.rows: dict[str, Record] = {}
+        self.saves: int = 0
         self.identity_property_names: dict[str, list[str]] = (
             identity_property_names or {}
         )
@@ -60,8 +66,9 @@ class MemoryRecordStore(RecordStore):
                     [(link.property_name, link.target_id) for link in rec.links],
                 ]
             )
+        self.saves += 1
         for rec in records:
-            self.rows[rec.id] = rec
+            self.rows[rec.id] = replace(rec, version=str(self.saves))
 
     @override
     async def get_record(self, record_id: str, tx: Tx | None = None) -> Record | None:
@@ -132,8 +139,10 @@ class MemoryRecordStore(RecordStore):
         return [rec for rec in await self.get_all_records() if rec.cls == cls]
 
     @override
-    async def lock_record(self, record_id: str, tx: Tx) -> None:
-        pass  # nothing runs concurrently in memory
+    async def lock_record(self, record_id: str, tx: Tx) -> str | None:
+        # nothing runs concurrently in memory
+        found: Record | None = self.rows.get(record_id)
+        return None if found is None else found.version
 
     @override
     async def find_record_ids(
@@ -182,4 +191,143 @@ def make_service(
         store
         if store is not None
         else MemoryRecordStore(ontology.get_identity_property_names()),
+    )
+
+
+class MemoryUploadStore(UploadStore):
+    """Uploads by file id. Nothing runs concurrently in memory, so nothing is locked."""
+
+    def __init__(self) -> None:
+        self.uploads: dict[str, Upload] = {}
+
+    @override
+    @asynccontextmanager
+    async def limit_lock_wait(self, tx: Tx) -> AsyncGenerator[None]:
+        yield
+
+    @override
+    async def start_upload(
+        self, file_id: str, source_key: str, size_bytes: int, tx: Tx
+    ) -> Upload | None:
+        current: Upload | None = self.uploads.get(file_id)
+        if current is not None and current.status in (
+            UploadStatus.PROCESSING,
+            UploadStatus.READY,
+        ):
+            return None
+        now: datetime = datetime.now(UTC)
+        self.uploads[file_id] = Upload(
+            file_id, UploadStatus.UPLOADING, None, source_key, size_bytes, now, now
+        )
+        return self.uploads[file_id]
+
+    @override
+    async def delete_upload(self, file_id: str, tx: Tx) -> None:
+        self.uploads.pop(file_id, None)
+
+    @override
+    async def get_uploads(self, file_ids: Sequence[str], tx: Tx) -> dict[str, Upload]:
+        return {
+            file_id: self.uploads[file_id]
+            for file_id in file_ids
+            if file_id in self.uploads
+        }
+
+    @override
+    async def finish_upload(
+        self, file_id: str, error_code: str | None, tx: Tx
+    ) -> Upload | None:
+        current: Upload | None = self.uploads.get(file_id)
+        if current is None or current.status != UploadStatus.UPLOADING:
+            return None
+        status: UploadStatus = (
+            UploadStatus.PROCESSING if error_code is None else UploadStatus.FAILED
+        )
+        self.uploads[file_id] = Upload(
+            file_id,
+            status,
+            error_code,
+            current.source_key,
+            current.size_bytes,
+            current.created_at,
+            datetime.now(UTC),
+        )
+        return self.uploads[file_id]
+
+    @override
+    async def lock_next_to_process(self, tx: Tx) -> Upload | None:
+        raise NotImplementedError
+
+    @override
+    async def set_ready(self, file_id: str, sha256: str, tx: Tx) -> None:
+        raise NotImplementedError
+
+    @override
+    async def set_failed(self, file_id: str, error_code: str, tx: Tx) -> None:
+        raise NotImplementedError
+
+    @override
+    async def move_to_back(self, file_id: str, tx: Tx) -> None:
+        raise NotImplementedError
+
+    @override
+    async def get_abandoned_ids(self, max_age: timedelta, tx: Tx) -> list[str]:
+        raise NotImplementedError
+
+    @override
+    async def lock_abandoned(
+        self, file_id: str, max_age: timedelta, tx: Tx
+    ) -> Upload | None:
+        raise NotImplementedError
+
+    @override
+    async def get_kept_ids(self, file_ids: Sequence[str], tx: Tx) -> set[str]:
+        raise NotImplementedError
+
+
+class MemoryStorage(ObjectStorage):
+    """Object sizes by key. Upload forms point to ``/storage/test`` and carry the key."""
+
+    def __init__(self) -> None:
+        self.sizes: dict[str, int] = {}
+        self.deleted_keys: list[str] = []
+
+    @override
+    def ensure_bucket(self) -> None:
+        raise NotImplementedError
+
+    @override
+    def create_upload_form(self, key: str, size: int) -> tuple[str, dict[str, str]]:
+        return "/storage/test", {"key": key}
+
+    @override
+    def get_object_size(self, key: str) -> int | None:
+        return self.sizes.get(key)
+
+    @override
+    def read_object(self, key: str, chunk_size: int) -> Generator[bytes] | None:
+        raise NotImplementedError
+
+    @override
+    def list_objects(self, prefix: str) -> Iterator[list[StoredObject]]:
+        raise NotImplementedError
+
+    @override
+    def delete_objects(self, keys: list[str]) -> None:
+        raise NotImplementedError
+
+    @override
+    def delete_folders_quietly(self, prefixes: list[str]) -> None:
+        for key in list(self.sizes):
+            if key.startswith(tuple(prefixes)):
+                self.deleted_keys.append(key)
+                del self.sizes[key]
+
+
+def make_catalog(ograg: OgRagService | None = None) -> CatalogService:
+    """A catalog on ``ograg`` (or ``make_service()``) with the upload state and the files in memory."""
+    return CatalogService(
+        ograg if ograg is not None else make_service(),
+        MemoryUploadStore(),
+        MemoryStorage(),
     )
