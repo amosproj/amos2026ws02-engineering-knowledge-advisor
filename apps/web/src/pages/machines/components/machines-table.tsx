@@ -15,10 +15,9 @@ const COLUMNS = 6
 
 type MachinesTableProps = {
     machines: Machine[] | undefined
-    onOpen: (machineId: string) => void
 }
 
-export function MachinesTable({ machines, onOpen }: MachinesTableProps) {
+export function MachinesTable({ machines }: MachinesTableProps) {
     return (
         <Table>
             <TableHeader>
@@ -34,19 +33,9 @@ export function MachinesTable({ machines, onOpen }: MachinesTableProps) {
             <TableBody>
                 {machines
                     ? machines.map((machine) => (
-                          // The name button carries the keyboard access, the row only widens the click area
-                          <TableRow
-                              key={machine.id}
-                              className="cursor-pointer"
-                              onClick={() => onOpen(machine.id)}
-                          >
+                          <TableRow key={machine.id}>
                               <TableCell className="max-w-64">
-                                  <button
-                                      type="button"
-                                      className="focus-visible:ring-ring/50 block max-w-full truncate rounded-sm text-left font-medium hover:underline focus-visible:ring-[3px] focus-visible:outline-none"
-                                  >
-                                      {machine.name}
-                                  </button>
+                                  <p className="truncate font-medium">{machine.name}</p>
                                   {machine.description ? (
                                       <p className="text-muted-foreground truncate">
                                           {machine.description}

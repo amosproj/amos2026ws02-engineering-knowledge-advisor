@@ -16,15 +16,6 @@ const cadFileSchema = z.object({
     updated_at: z.string(),
 })
 
-const assemblyGroupSchema = z.object({
-    id: z.string(),
-    machine_id: z.string(),
-    name: z.string(),
-    identifier: z.string().nullable(),
-    description: z.string().nullable(),
-    cad_files: z.array(cadFileSchema),
-})
-
 const machineSchema = z.object({
     id: z.string(),
     name: z.string(),
@@ -36,10 +27,6 @@ const machineSchema = z.object({
     status: z.enum(['empty', 'uploading', 'processing', 'failed', 'ready']),
 })
 
-const machineDetailsSchema = machineSchema.extend({
-    assembly_groups: z.array(assemblyGroupSchema),
-})
-
 // null clears an optional field
 const machineBody = z.object({
     name: z.string(),
@@ -47,8 +34,6 @@ const machineBody = z.object({
     customer: z.string().nullable(),
     description: z.string().nullable(),
 })
-
-const assemblyGroupBody = machineBody.omit({ customer: true })
 
 const uploadSchema = z.object({
     id: z.string(),
@@ -58,10 +43,8 @@ const uploadSchema = z.object({
 
 export type CadFile = z.output<typeof cadFileSchema>
 export type CadFileStatus = CadFile['status']
-export type AssemblyGroup = z.output<typeof assemblyGroupSchema>
 export type Machine = z.output<typeof machineSchema>
 export type MachineStatus = Machine['status']
-export type MachineDetails = z.output<typeof machineDetailsSchema>
 export type RegisteredCadFile = z.output<typeof uploadSchema>
 
 export const createMachine = queryMaker({
@@ -77,13 +60,6 @@ export const listMachines = queryMaker({
     response: z.array(machineSchema),
 })
 
-export const getMachine = queryMaker({
-    method: 'GET',
-    path: '/v1/machines/:id',
-    params: idParams,
-    response: machineDetailsSchema,
-})
-
 export const updateMachine = queryMaker({
     method: 'PATCH',
     path: '/v1/machines/:id',
@@ -95,29 +71,6 @@ export const updateMachine = queryMaker({
 export const deleteMachine = queryMaker({
     method: 'DELETE',
     path: '/v1/machines/:id',
-    params: idParams,
-    response: z.void(),
-})
-
-export const createAssemblyGroup = queryMaker({
-    method: 'POST',
-    path: '/v1/machines/:id/assembly-groups',
-    params: idParams,
-    body: assemblyGroupBody,
-    response: assemblyGroupSchema,
-})
-
-export const updateAssemblyGroup = queryMaker({
-    method: 'PATCH',
-    path: '/v1/assembly-groups/:id',
-    params: idParams,
-    body: assemblyGroupBody,
-    response: assemblyGroupSchema,
-})
-
-export const deleteAssemblyGroup = queryMaker({
-    method: 'DELETE',
-    path: '/v1/assembly-groups/:id',
     params: idParams,
     response: z.void(),
 })
@@ -144,14 +97,6 @@ export const getCadFile = queryMaker({
     response: cadFileSchema,
 })
 
-export const renameCadFile = queryMaker({
-    method: 'PATCH',
-    path: '/v1/cad-files/:id',
-    params: idParams,
-    body: z.object({ name: z.string() }),
-    response: cadFileSchema,
-})
-
 export const deleteCadFile = queryMaker({
     method: 'DELETE',
     path: '/v1/cad-files/:id',
@@ -166,9 +111,3 @@ export const machinesQuery = queryOptions({
     queryKey: machinesQueryKey,
     queryFn: ({ signal }) => listMachines({ signal }),
 })
-
-export const machineQuery = (id: string) =>
-    queryOptions({
-        queryKey: [...machinesQueryKey, id],
-        queryFn: ({ signal }) => getMachine({ params: { id }, signal }),
-    })

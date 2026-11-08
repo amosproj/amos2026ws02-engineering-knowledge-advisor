@@ -55,9 +55,6 @@ export function MachinesPage() {
         }
     }, [machines, isFetching, page, search.page, navigate])
 
-    const openMachine = (machineId: string) =>
-        void navigate({ to: '/machines/$machineId', params: { machineId } })
-
     const newMachineButton = (
         <Button>
             <HugeiconsIcon icon={Add01Icon} strokeWidth={2} data-icon="inline-start" />
@@ -71,10 +68,7 @@ export function MachinesPage() {
                 <div>
                     <h1 className="font-heading text-2xl font-semibold tracking-tight">Machines</h1>
                 </div>
-                <MachineFormDialog
-                    trigger={newMachineButton}
-                    onCreated={(machine) => openMachine(machine.id)}
-                />
+                <MachineFormDialog trigger={newMachineButton} />
             </div>
 
             {isError && !machines ? (
@@ -96,9 +90,7 @@ export function MachinesPage() {
                             <HugeiconsIcon icon={EngineIcon} strokeWidth={2} />
                         </EmptyMedia>
                         <EmptyTitle>No machines yet</EmptyTitle>
-                        <EmptyDescription>
-                            Create a machine, then import the STEP files of its assembly groups.
-                        </EmptyDescription>
+                        <EmptyDescription>Create a machine to get started.</EmptyDescription>
                     </EmptyHeader>
                 </Empty>
             ) : (
@@ -124,7 +116,7 @@ export function MachinesPage() {
                         <p className="text-muted-foreground text-sm">No machine matches.</p>
                     ) : (
                         <>
-                            <MachinesTable machines={pageMachines} onOpen={openMachine} />
+                            <MachinesTable machines={pageMachines} />
                             <MachinesPagination page={page} pageCount={pageCount} />
                         </>
                     )}

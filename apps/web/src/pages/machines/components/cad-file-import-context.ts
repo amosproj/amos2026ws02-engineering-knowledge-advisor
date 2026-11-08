@@ -33,10 +33,3 @@ export function useCadFileImport() {
 export function isCancellable(item: ImportItem) {
     return item.phase === 'queued' || item.phase === 'uploading'
 }
-
-/** Whether a file of these groups still uploads from this tab: deleting them now would let it land later. */
-export function hasPendingUpload(items: ImportItem[], assemblyGroupIds: string[]) {
-    return items.some(
-        (item) => isCancellable(item) && assemblyGroupIds.includes(item.assemblyGroupId),
-    )
-}

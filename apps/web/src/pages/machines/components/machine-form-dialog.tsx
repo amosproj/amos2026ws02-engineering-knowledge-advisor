@@ -14,30 +14,26 @@ type MachineFormDialogProps = {
     trigger?: React.ReactElement
     open?: boolean
     onOpenChange?: (open: boolean) => void
-    onCreated?: (machine: Machine) => void
 }
 
-export function MachineFormDialog({ machine, onCreated, ...dialogProps }: MachineFormDialogProps) {
+export function MachineFormDialog({ machine, ...dialogProps }: MachineFormDialogProps) {
     return (
         <FormDialog
             title={machine ? 'Edit machine' : 'New machine'}
             description="Only the name is required."
             {...dialogProps}
         >
-            {(dialog) => (
-                <MachineFormBody machine={machine} onCreated={onCreated} dialog={dialog} />
-            )}
+            {(dialog) => <MachineFormBody machine={machine} dialog={dialog} />}
         </FormDialog>
     )
 }
 
 type MachineFormBodyProps = {
     machine?: Machine
-    onCreated?: (machine: Machine) => void
     dialog: FormDialogControls
 }
 
-function MachineFormBody({ machine, onCreated, dialog }: MachineFormBodyProps) {
+function MachineFormBody({ machine, dialog }: MachineFormBodyProps) {
     const [error, setError] = useState<string | null>(null)
 
     const save = useMutation({
@@ -69,7 +65,6 @@ function MachineFormBody({ machine, onCreated, dialog }: MachineFormBodyProps) {
                     title: machine ? 'Machine saved' : 'Machine created',
                     description: saved.name,
                 })
-                if (!machine) onCreated?.(saved)
             } catch (saveError) {
                 setError(errorMessage(saveError))
             } finally {
