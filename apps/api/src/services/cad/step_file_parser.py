@@ -1,3 +1,5 @@
+import re
+
 from pathlib import Path
 
 from OCP.Bnd import Bnd_Box
@@ -42,12 +44,19 @@ class StepFileParser(CadFileParser):
         roots = Sequence_TDF_Label()
         shape_tool.GetFreeShapes(roots)
 
+        if len(roots) != 1:
+            raise CadFileParsingError(
+                f"Expected exactly one root node, but found {len(roots)}"
+            )
+
+        _AUTO_GENERATED_NAME_RE = re.compile(r"^=>\[.*\]")
+
         def label_name(label: TDF_Label) -> str | None:
             name_attr = TDataStd_Name()
-
             if label.FindAttribute(TDataStd_Name.GetID_s(), name_attr):
-                return name_attr.Get().ToExtString()
-
+                name = name_attr.Get().ToExtString()
+                if not _AUTO_GENERATED_NAME_RE.match(name):
+                    return name
             return None
 
         def get_dimensions(
@@ -70,10 +79,12 @@ class StepFileParser(CadFileParser):
 
             return xmax - xmin, ymax - ymin, zmax - zmin
 
-        def visit(label: TDF_Label, depth: int = 0) -> AssemblyTreeNode:
+        def visit(label: TDF_Label, depth: int = 0) -> AssemblyTreeNode | None:
             name: str | None = label_name(label)
             if not name:
-                raise CadFileParsingError("No name found for label")
+                if depth == 0:
+                    raise CadFileParsingError("No name found for root label")
+                return None
 
             dims: tuple[float | int, float | int, float | int] = get_dimensions(label)
 
@@ -92,13 +103,14 @@ class StepFileParser(CadFileParser):
                 if not shape_tool.GetReferredShape_s(occurrence, definition):
                     definition = occurrence
 
-                occurrence_name: str | None = label_name(occurrence) or label_name(
-                    definition
-                )
-                if not occurrence_name:
-                    raise CadFileParsingError("No name found for occurrence")
+                child_node: AssemblyTreeNode | None = visit(definition, depth + 1)
+                if child_node is None:
+                    continue
 
-                child_node: AssemblyTreeNode = visit(definition, depth + 1)
+                occurrence_name: str | None = label_name(occurrence)
+                if occurrence_name is None:
+                    continue
+
                 child_node.identifier = occurrence_name
                 nodes.append(child_node)
 
@@ -106,9 +118,11 @@ class StepFileParser(CadFileParser):
                 identifier=name, kind="assembly", dimensions=dims, children=nodes
             )
 
+        root_node = visit(roots.Value(1))
+        if root_node is None:
+            raise CadFileParsingError("No name found for root label")
+
         return CadFile(
             identifier=file_identifier,
-            root_nodes=[
-                visit(roots.Value(index)) for index in range(1, roots.Length() + 1)
-            ],
+            root_node=root_node,
         )
