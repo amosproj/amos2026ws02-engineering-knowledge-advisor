@@ -1,7 +1,6 @@
 from db.model_base import ModelBase as ModelBase
 from db.model_base import get_ograg_tables as get_ograg_tables
 from db.names import PROCESSING_INDEX as PROCESSING_INDEX
-from db.names import SHA256_READY_INDEX as SHA256_READY_INDEX
 from db.names import STATUS_CHECK as STATUS_CHECK
 from db.names import CadUploadColumn as CadUploadColumn
 from db.names import CadUploadStatus as CadUploadStatus

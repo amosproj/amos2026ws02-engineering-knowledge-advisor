@@ -48,10 +48,6 @@ class LockTimeoutError(ConflictError):
     """A row stayed locked longer than the store waits (``UploadStore.limit_lock_wait``)."""
 
 
-class DuplicateFileError(ConflictError):
-    """A file with the same content is ready already."""
-
-
 class UploadStore(ABC):
     """Upload state per file record. A file record's upload is deleted with the record."""
 
@@ -105,11 +101,7 @@ class UploadStore(ABC):
 
     @abstractmethod
     async def set_ready(self, file_id: str, sha256: str, tx: Tx) -> None:
-        """Marks the file ``ready`` with its content hash.
-
-        Raises:
-            DuplicateFileError: a file with the same content is ready already. ``tx`` stays usable.
-        """
+        """Marks the file ``ready`` with its content hash."""
         ...
 
     @abstractmethod

@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import (
 
 from db import CommonColumn, RecordColumn, TableName, Tables, define_tables
 from services.postgres.upload_store import PgUploadStore
-from services.uploads import DuplicateFileError, Upload, UploadStatus
+from services.uploads import Upload, UploadStatus
 
 URL: str = os.environ.get("API_TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif(
@@ -133,20 +133,16 @@ def test_the_worker_takes_the_oldest_waiting_file_and_skips_locked_ones():
     run_async(run_check)
 
 
-def test_the_same_content_is_ready_only_once():
+def test_the_same_content_may_be_ready_twice():
     async def run_check() -> None:
         async with open_store(FIRST_ID, SECOND_ID) as (store, sessions):
             await finish(store, sessions, FIRST_ID, SECOND_ID)
             async with sessions() as session, session.begin():
                 await store.set_ready(FIRST_ID, SHA256, session)
-                with pytest.raises(DuplicateFileError):
-                    await store.set_ready(SECOND_ID, SHA256, session)
-                # the transaction stays usable
-                await store.set_failed(SECOND_ID, "duplicate_file", session)
+                await store.set_ready(SECOND_ID, SHA256, session)
 
-            assert (await get_upload(store, sessions, FIRST_ID)).status == "ready"
-            second: Upload = await get_upload(store, sessions, SECOND_ID)
-            assert (second.status, second.error_code) == ("failed", "duplicate_file")
+            for file_id in (FIRST_ID, SECOND_ID):
+                assert (await get_upload(store, sessions, file_id)).status == "ready"
 
     run_async(run_check)
 

@@ -54,8 +54,5 @@ class CadUploadStatus(StrEnum):
     FAILED = "failed"
 
 
-SHA256_READY_INDEX: str = (
-    f"uq_{TableName.CAD_UPLOADS}_{CadUploadColumn.SHA256}_{CadUploadStatus.READY}"
-)
 PROCESSING_INDEX: str = f"ix_{TableName.CAD_UPLOADS}_{CadUploadStatus.PROCESSING}"
 STATUS_CHECK: str = f"ck_{TableName.CAD_UPLOADS}_{CadUploadColumn.STATUS}"

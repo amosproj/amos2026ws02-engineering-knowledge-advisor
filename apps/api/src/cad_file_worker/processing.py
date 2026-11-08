@@ -9,14 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from cad_file_worker.step_file import StepFileScan, scan_step_file
 from logger import logger
 from services.catalog import CatalogService
-from services.uploads import DuplicateFileError, Upload, UploadStore
+from services.uploads import Upload, UploadStore
 
 CHUNK_SIZE = 8 * 1024 * 1024
 MAX_PROCESSING_SECONDS = 30 * 60
 
 UPLOAD_NOT_FOUND = "upload_not_found"
 INVALID_STEP_FILE = "invalid_step_file"
-DUPLICATE_FILE = "duplicate_file"
 
 
 class StopRequested(Exception):
@@ -108,11 +107,8 @@ async def _save_outcome(
     elif not scan.is_valid:
         error_code = INVALID_STEP_FILE
     else:
-        try:
-            await uploads.set_ready(cad_file_id, scan.sha256, session)
-            return None
-        except DuplicateFileError:
-            error_code = DUPLICATE_FILE
+        await uploads.set_ready(cad_file_id, scan.sha256, session)
+        return None
 
     await uploads.set_failed(cad_file_id, error_code, session)
     return error_code
