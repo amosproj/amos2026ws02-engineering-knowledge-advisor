@@ -108,7 +108,6 @@ class Worker:
     async def add_file(self, content: bytes | None, name: str = "tray.step") -> str:
         """Creates a machine with a CAD file record and uploads ``content``. ``None`` uploads nothing."""
         async with self.sessions() as session, session.begin():
-            # a machine takes one CAD file
             self.machine_id = (
                 await self.catalog.create_record(
                     session, {"@type": "Machine", "name": "Robot cell"}

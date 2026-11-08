@@ -1,12 +1,12 @@
 import { HttpError, NetworkError } from '@queries/query-errors'
 
-import { cadFileErrorMessage, errorMessage } from '../models/machine-errors'
+import { cadFileErrorMessage, errorCode, errorMessage } from '../models/machine-errors'
 import {
-    completeCadFile,
-    deleteCadFile,
+    completeUpload,
+    deleteRecord,
     getCadFile,
-    type CadFile,
-    type RegisteredCadFile,
+    requestUploadForm,
+    type CadFileView,
 } from '../query/machine-api'
 import { uploadFile } from './upload-file'
 
@@ -29,40 +29,40 @@ type ImportOptions = {
     signal: AbortSignal
 }
 
-/** Upload a registered CAD file, confirm it and wait for the end of its processing. */
 export async function importCadFile(
-    cadFile: RegisteredCadFile,
+    cadFileId: string,
     file: File,
     { onProgress, onUploaded, signal }: ImportOptions,
 ): Promise<ImportResult> {
-    const { id, upload } = cadFile
     try {
-        await uploadFile(upload.url, upload.fields, file, { onProgress, signal })
+        const form = await requestUploadForm({
+            params: { id: cadFileId },
+            body: { size: file.size },
+            signal,
+        })
+        await uploadFile(form.url, form.fields, file, { onProgress, signal })
     } catch (error) {
-        if (!signal.aborted) return remove(id, failed(error))
+        if (!signal.aborted) return failed(error)
     }
     // Also when the cancel lands as the upload succeeds
     if (signal.aborted) {
-        return signal.reason === CANCELLED ? remove(id, { status: 'cancelled' }) : stopped
+        return signal.reason === CANCELLED ? remove(cadFileId) : stopped
     }
 
     onUploaded()
-    let state: CadFile
+    let status: string
     try {
-        state = await completeWithRetry(id, signal)
+        status = (await completeWithRetry(cadFileId, signal)).status
     } catch (error) {
-        if (signal.aborted) return stopped
-        // The file would otherwise stay uploading on the server until it expires
-        if (errorCode(error) === 'upload_not_found') return remove(id, failed(error))
-        return failed(error)
+        return signal.aborted ? stopped : failed(error)
     }
 
     const deadline = new AbortController()
     const timer = setTimeout(() => deadline.abort(), MAX_PROCESSING_MS)
     try {
         const result = await waitForProcessing(
-            id,
-            state,
+            cadFileId,
+            status,
             AbortSignal.any([signal, deadline.signal]),
         )
         return result ?? (signal.aborted ? stopped : { status: 'processing_timeout' })
@@ -74,30 +74,38 @@ export async function importCadFile(
 /** Poll until the file is ready or failed, null once `signal` aborts. */
 async function waitForProcessing(
     id: string,
-    state: CadFile,
+    status: string,
     signal: AbortSignal,
 ): Promise<ImportResult | null> {
-    while (state.status !== 'ready' && state.status !== 'failed') {
+    let view: CadFileView | undefined
+    while (status !== 'ready' && status !== 'failed') {
         await delay(2_000, signal)
         if (signal.aborted) return null
         try {
-            state = await getCadFile({ params: { id }, signal })
+            view = await getCadFile({
+                params: { id },
+                search: { include: 'status,upload' },
+                signal,
+            })
         } catch (error) {
             if (signal.aborted) return null
             if (!isTransient(error)) return failed(error)
+            continue
         }
+        if (!view.upload) return { status: 'failed', message: 'The CAD file was removed.' }
+        status = view.upload.status
     }
 
-    return state.status === 'ready'
+    return status === 'ready'
         ? { status: 'ready' }
-        : { status: 'failed', message: cadFileErrorMessage(state.error_code) }
+        : { status: 'failed', message: cadFileErrorMessage(view?.upload?.errorCode) }
 }
 
 /** A completion is safe to repeat: it returns the current state once the file left uploading. */
 async function completeWithRetry(id: string, signal: AbortSignal) {
     for (let attempt = 1; ; attempt++) {
         try {
-            return await completeCadFile({ params: { id }, signal })
+            return await completeUpload({ params: { id }, signal })
         } catch (error) {
             if (!(isTransient(error) || isBusy(error)) || attempt === 3) throw error
             await delay(attempt * 1_000, signal)
@@ -105,10 +113,9 @@ async function completeWithRetry(id: string, signal: AbortSignal) {
     }
 }
 
-/** Delete the file on the server, then report `result`. */
-async function remove(id: string, result: ImportResult): Promise<ImportResult> {
+async function remove(id: string): Promise<ImportResult> {
     try {
-        await deleteCadFile({ params: { id } })
+        await deleteRecord({ params: { id } })
     } catch (error) {
         if (!(error instanceof HttpError && error._tag === 'NotFound')) {
             return {
@@ -117,19 +124,13 @@ async function remove(id: string, result: ImportResult): Promise<ImportResult> {
             }
         }
     }
-    return result
+    return { status: 'cancelled' }
 }
 
 const stopped: ImportResult = { status: 'stopped' }
 
 function failed(error: unknown): ImportResult {
-    const code = errorCode(error)
-    return { status: 'failed', message: code ? cadFileErrorMessage(code) : errorMessage(error) }
-}
-
-function errorCode(error: unknown) {
-    const code = error instanceof HttpError ? error.problem?.error_code : undefined
-    return typeof code === 'string' ? code : undefined
+    return { status: 'failed', message: errorMessage(error) }
 }
 
 function isTransient(error: unknown) {

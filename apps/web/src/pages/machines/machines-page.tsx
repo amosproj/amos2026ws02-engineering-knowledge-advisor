@@ -21,7 +21,7 @@ import { MachineFormDialog } from './components/machine-form-dialog'
 import { MachinesPagination } from './components/machines-pagination'
 import { MachinesTable } from './components/machines-table'
 import { MACHINES_PER_PAGE } from './models/machines-search-model'
-import { machinesQuery, type Machine } from './query/machine-api'
+import { machinesQuery, type MachineView } from './query/machine-api'
 
 const POLL_MS = 3_000
 
@@ -37,7 +37,7 @@ export function MachinesPage() {
     } = useQuery({
         ...machinesQuery,
         refetchOnWindowFocus: true,
-        refetchInterval: (query) => (query.state.data?.some(isBusy) ? POLL_MS : false),
+        refetchInterval: (query) => (query.state.data?.some(isProcessing) ? POLL_MS : false),
     })
 
     const query = search.q?.trim().toLowerCase() ?? ''
@@ -126,12 +126,12 @@ export function MachinesPage() {
     )
 }
 
-function isBusy(machine: Machine) {
-    return machine.status === 'uploading' || machine.status === 'processing'
+function isProcessing(machine: MachineView) {
+    return machine.status === 'processing'
 }
 
-function matches(machine: Machine, query: string) {
-    return [machine.name, machine.identifier, machine.customer].some((text) =>
+function matches({ record }: MachineView, query: string) {
+    return [record.name, record.identifier, record.customer].some((text) =>
         text?.toLowerCase().includes(query),
     )
 }

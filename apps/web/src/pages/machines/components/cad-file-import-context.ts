@@ -1,25 +1,28 @@
 import * as React from 'react'
 
-export type ImportPhase =
-    'queued' | 'uploading' | 'processing' | 'ready' | 'failed' | 'cancelled' | 'processing_timeout'
+export type ImportPhase = 'uploading' | 'processing'
 
 export type ImportItem = {
+    machineId: string
     cadFileId: string
-    assemblyGroupId: string
     name: string
     size: number
     phase: ImportPhase
     percent: number
-    message?: string
+}
+
+export type ImportTarget = {
+    machineId: string
+    file: File
+    reuseId?: string
+    replaceId?: string
 }
 
 type CadFileImportContextValue = {
-    // Files of the imports started in this tab, until they are all done
     items: ImportItem[]
-    // Resolves once the files are registered, the uploads then continue in the background.
-    startImport: (assemblyGroupId: string, files: File[]) => Promise<void>
-    // Only while the file is queued or uploading
-    cancelImport: (cadFileId: string) => void
+    // Resolves once the CAD file record is ready, the upload then continues in the background.
+    startImport: (target: ImportTarget) => Promise<void>
+    cancelImport: (machineId: string) => void
 }
 
 export const CadFileImportContext = React.createContext<CadFileImportContextValue | null>(null)
@@ -28,8 +31,4 @@ export function useCadFileImport() {
     const context = React.useContext(CadFileImportContext)
     if (!context) throw new Error('useCadFileImport must be used within CadFileImportProvider')
     return context
-}
-
-export function isCancellable(item: ImportItem) {
-    return item.phase === 'queued' || item.phase === 'uploading'
 }

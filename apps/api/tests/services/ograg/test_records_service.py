@@ -252,7 +252,6 @@ async def test_a_machine_takes_one_cad_file():
     assert_mentions(str(raised.value), MACHINE_ID, "CadFile", "partOf")
     assert await service.store.get_record("CF-2") is None
 
-    # saving the file again keeps its own place
     await service.upsert_record("CF-1", {**cad_file(MACHINE_ID), "name": "v2.step"})
 
 

@@ -1,16 +1,29 @@
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { FieldGroup, toast, useAppForm } from '@components'
 
-import { errorMessage } from '../models/machine-errors'
-import { machineFormSchema, orNull, type MachineForm } from '../models/machine-model'
-import { createMachine, machinesQueryKey, updateMachine, type Machine } from '../query/machine-api'
+import { errorMessage, isStale } from '../models/machine-errors'
+import {
+    STEP_FILE_ACCEPT,
+    STEP_FILE_MAX_SIZE,
+    machineFormSchema,
+    orNull,
+    toSize,
+    type MachineForm,
+} from '../models/machine-model'
+import {
+    createMachine,
+    machinesQueryKey,
+    updateMachine,
+    type MachineView,
+} from '../query/machine-api'
+import { useCadFileImport } from './cad-file-import-context'
 import { DialogForm, FormDialog, FormDialogFooter, type FormDialogControls } from './form-dialog'
 
 type MachineFormDialogProps = {
     // Edited machine, a new machine without it
-    machine?: Machine
+    machine?: MachineView
     trigger?: React.ReactElement
     open?: boolean
     onOpenChange?: (open: boolean) => void
@@ -20,7 +33,11 @@ export function MachineFormDialog({ machine, ...dialogProps }: MachineFormDialog
     return (
         <FormDialog
             title={machine ? 'Edit machine' : 'New machine'}
-            description="Only the name is required."
+            description={
+                machine
+                    ? 'Only the name is required.'
+                    : 'Only the name is required. The STEP file uploads in the background, keep this tab open until it is uploaded.'
+            }
             {...dialogProps}
         >
             {(dialog) => <MachineFormBody machine={machine} dialog={dialog} />}
@@ -29,27 +46,57 @@ export function MachineFormDialog({ machine, ...dialogProps }: MachineFormDialog
 }
 
 type MachineFormBodyProps = {
-    machine?: Machine
+    machine?: MachineView
     dialog: FormDialogControls
 }
 
 function MachineFormBody({ machine, dialog }: MachineFormBodyProps) {
+    const queryClient = useQueryClient()
+    const { startImport } = useCadFileImport()
     const [error, setError] = useState<string | null>(null)
+    // Version of the form values: a refetch while editing must not hide a concurrent save
+    const [version] = useState(machine?.version)
 
-    const save = useMutation({
-        mutationFn: (value: MachineForm) => {
-            const body = {
+    const refresh = () => void queryClient.invalidateQueries({ queryKey: machinesQueryKey })
+
+    const save = async (value: MachineForm) => {
+        if (machine) {
+            await updateMachine({
+                params: { id: machine.record['@id'] },
+                headers: { 'If-Match': `"${version}"` },
+                body: {
+                    name: value.name,
+                    identifier: orNull(value.identifier),
+                    customer: orNull(value.customer),
+                    description: orNull(value.description),
+                    properties: { size: toSize(value.size) },
+                },
+            })
+            return
+        }
+        const size = toSize(value.size)
+        const created = await createMachine({
+            body: {
+                '@type': 'Machine',
                 name: value.name,
-                identifier: orNull(value.identifier),
-                customer: orNull(value.customer),
-                description: orNull(value.description),
-            }
-            return machine
-                ? updateMachine({ params: { id: machine.id }, body })
-                : createMachine({ body })
-        },
-        meta: { invalidates: [machinesQueryKey] },
-    })
+                identifier: value.identifier || undefined,
+                customer: value.customer || undefined,
+                description: value.description || undefined,
+                properties: size === null ? undefined : { size },
+            },
+        })
+        if (!value.file) return
+        try {
+            await startImport({ machineId: created.id, file: value.file })
+        } catch (importError) {
+            toast.add({
+                type: 'error',
+                title: 'The upload did not start',
+                description: errorMessage(importError),
+                timeout: 0,
+            })
+        }
+    }
 
     const form = useAppForm({
         defaultValues: toForm(machine),
@@ -58,15 +105,22 @@ function MachineFormBody({ machine, dialog }: MachineFormBodyProps) {
             setError(null)
             dialog.setBusy(true)
             try {
-                const saved = await save.mutateAsync(machineFormSchema.parse(value))
+                const parsed = machineFormSchema.parse(value)
+                await save(parsed)
+                refresh()
                 dialog.close()
                 toast.add({
                     type: 'success',
                     title: machine ? 'Machine saved' : 'Machine created',
-                    description: saved.name,
+                    description: parsed.name,
                 })
             } catch (saveError) {
-                setError(errorMessage(saveError))
+                if (isStale(saveError)) {
+                    refresh()
+                    setError('Someone changed this machine meanwhile. Close and open it again.')
+                } else {
+                    setError(errorMessage(saveError))
+                }
             } finally {
                 dialog.setBusy(false)
             }
@@ -94,11 +148,33 @@ function MachineFormBody({ machine, dialog }: MachineFormBodyProps) {
                             <form.AppField name="customer">
                                 {(field) => <field.InputForm label="Customer" autoComplete="off" />}
                             </form.AppField>
+                            <form.AppField name="size">
+                                {(field) => (
+                                    <field.InputForm
+                                        label="Size"
+                                        inputMode="decimal"
+                                        autoComplete="off"
+                                    />
+                                )}
+                            </form.AppField>
                             <form.AppField name="description">
                                 {(field) => (
                                     <field.TextareaForm label="Description" autoComplete="off" />
                                 )}
                             </form.AppField>
+                            {machine ? null : (
+                                <form.AppField name="file">
+                                    {(field) => (
+                                        <field.FileUploadForm
+                                            label="STEP file"
+                                            description="Optional, it can also be uploaded later."
+                                            mode="single"
+                                            accept={STEP_FILE_ACCEPT}
+                                            maxSize={STEP_FILE_MAX_SIZE}
+                                        />
+                                    )}
+                                </form.AppField>
+                            )}
                         </FieldGroup>
                         <FormDialogFooter
                             error={error}
@@ -112,11 +188,14 @@ function MachineFormBody({ machine, dialog }: MachineFormBodyProps) {
     )
 }
 
-function toForm(machine: Machine | undefined): MachineForm {
+function toForm(machine: MachineView | undefined): MachineForm {
+    const record = machine?.record
     return {
-        name: machine?.name ?? '',
-        identifier: machine?.identifier ?? '',
-        customer: machine?.customer ?? '',
-        description: machine?.description ?? '',
+        name: record?.name ?? '',
+        identifier: record?.identifier ?? '',
+        customer: record?.customer ?? '',
+        description: record?.description ?? '',
+        size: record?.properties?.size?.toString() ?? '',
+        file: null,
     }
 }
