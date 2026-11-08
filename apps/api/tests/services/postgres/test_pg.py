@@ -28,7 +28,12 @@ from handler.service_exception_handler import register as register_service
 from services import Lane, SearchMode, UnstorableValueError
 from services.catalog import CatalogService
 from services.ograg.ontology import Ontology
-from services.ograg.service import DeleteResult, OgRagService, RecordError
+from services.ograg.service import (
+    DeleteResult,
+    OgRagService,
+    ParentLimitError,
+    RecordError,
+)
 from services.postgres.record_store import PgRecordStore
 from services.postgres.upload_store import PgUploadStore
 
@@ -205,6 +210,36 @@ def test_writes_join_the_callers_transaction_and_roll_back_with_it():
             # In the service's own transaction:
             result: DeleteResult = await service.delete_record(MACHINE_ID)
             assert (result.deleted_ids, result.marked_ids) == ([MACHINE_ID], [GROUP_ID])
+        finally:
+            await engine.dispose()
+
+    run_async(run_check)
+
+
+def test_two_cad_files_written_at_once_take_one_place():
+    async def run_check() -> None:
+        engine: AsyncEngine = create_async_engine(URL)
+        service: OgRagService = create_service_on(
+            engine, await create_fresh_tables(engine)
+        )
+        cad_file: dict[str, Any] = {
+            "@type": "CadFile",
+            "name": "cell.step",
+            "partOf": MACHINE_ID,
+        }
+        try:
+            await service.upsert_record(MACHINE_ID, MACHINE)
+            async with AsyncSession(engine) as session, session.begin():
+                await service.upsert_record("CF-1", cad_file, tx=session)
+                second: asyncio.Task[list[str]] = asyncio.create_task(
+                    service.upsert_record("CF-2", cad_file)
+                )
+                await asyncio.sleep(0.5)
+                # waits for the machine's lock until the first file is committed
+                assert not second.done()
+            with pytest.raises(ParentLimitError):
+                await second
+            assert await service.store.get_record("CF-2") is None
         finally:
             await engine.dispose()
 

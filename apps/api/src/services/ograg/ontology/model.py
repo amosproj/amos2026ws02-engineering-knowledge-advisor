@@ -100,6 +100,7 @@ class Ontology:
                 - ``og:guidelineWhen`` is not on a record class or names a property its class doesn't have.
                 - ``og:file`` is not on a record class
                 - ``og:deleteWithParent`` is not on a ``parent`` edge
+                - ``og:maxPerParent`` is not on a ``parent`` edge, or not a positive integer
         """
         declared: Declarations = parse_document(document)
         return cls(
@@ -284,6 +285,7 @@ class Ontology:
             link=self.is_link(prop),
             edge=(prop.edge or EdgeType.SIMPLE) if self.is_link(prop) else None,
             delete_with_parent=prop.delete_with_parent,
+            max_per_parent=prop.max_per_parent,
             nested=self.is_nested(prop),
             identity=prop.identity,
             search=prop.search or (),

@@ -6,7 +6,12 @@ from fakes import MemoryRecordStore, build_ontology_with, load_ontology, make_se
 from helpers import assert_mentions
 
 from services import ConflictError, Json, Record, Tx, UnstorableValueError
-from services.ograg.service import DeleteResult, OgRagService, RecordError
+from services.ograg.service import (
+    DeleteResult,
+    OgRagService,
+    ParentLimitError,
+    RecordError,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -232,6 +237,35 @@ async def test_assembly_groups_form_a_tree():
     assert finger.graph["partOf"] == ["AG-2"]
     # moving a group within the tree is fine
     await service.upsert_record("AG-3", {"name": "Finger", "partOf": GROUP_ID})
+
+
+def cad_file(machine_id: str) -> dict[str, Any]:
+    return {"@type": "CadFile", "name": "cell.step", "partOf": machine_id}
+
+
+async def test_a_machine_takes_one_cad_file():
+    service: OgRagService = await create_loaded_service()
+    await service.upsert_record("CF-1", cad_file(MACHINE_ID))
+    with pytest.raises(ParentLimitError) as raised:
+        await service.upsert_record("CF-2", cad_file(MACHINE_ID))
+    assert raised.value.error_code == "max_per_parent"
+    assert_mentions(str(raised.value), MACHINE_ID, "CadFile", "partOf")
+    assert await service.store.get_record("CF-2") is None
+
+    # saving the file again keeps its own place
+    await service.upsert_record("CF-1", {**cad_file(MACHINE_ID), "name": "v2.step"})
+
+
+async def test_a_cad_file_moves_only_to_a_machine_without_one():
+    service: OgRagService = await create_loaded_service()
+    await service.upsert_record("RC-02", {**MACHINE, "identifier": "RC-02"})
+    await service.upsert_record("CF-1", cad_file(MACHINE_ID))
+    await service.upsert_record("CF-2", cad_file("RC-02"))
+    with pytest.raises(ParentLimitError):
+        await service.upsert_record("CF-2", cad_file(MACHINE_ID))
+
+    await service.delete_record("CF-1")
+    await service.upsert_record("CF-2", cad_file(MACHINE_ID))
 
 
 @pytest.mark.parametrize(

@@ -28,6 +28,7 @@ from services.ograg.ontology.names import (
     OG_GUIDELINE,
     OG_GUIDELINE_WHEN,
     OG_IDENTITY,
+    OG_MAX_PER_PARENT,
     OG_PARENT_LINK,
     OG_PROVENANCE,
     OG_RECORD,
@@ -60,6 +61,8 @@ ERROR_FILE_NOT_RECORD: str = (
     f'file classes must be record classes ("{OG_RECORD}": true): {{classes}}'
 )
 ERROR_DELETE_WITH_PARENT_NOT_PARENT_EDGE: str = f"{OG_DELETE_WITH_PARENT!r} on {{domain}}.{{name}}, which is not a {EdgeType.PARENT.value!r} edge"
+ERROR_MAX_PER_PARENT_NOT_PARENT_EDGE: str = f"{OG_MAX_PER_PARENT!r} on {{domain}}.{{name}}, which is not a {EdgeType.PARENT.value!r} edge"
+ERROR_MAX_PER_PARENT_NOT_POSITIVE: str = f"property {{domain}}.{{name}} needs a positive integer in {OG_MAX_PER_PARENT!r}, found {{found!r}}"
 ERROR_LABEL_NOT_TEXT: str = "{name!r} needs a text in {key!r}, found {found!r}"
 ERROR_ITEM_WITHOUT_KEY: str = "ontology item has no {key!r}: {item}"
 ERROR_PROPERTY_WITHOUT_KEY: str = "property {name!r} has no {key!r}"
@@ -338,6 +341,7 @@ class Declarations:
             provenance=item.get(OG_PROVENANCE) is True,
             allowed=tuple(map(str, allowed)),
             delete_with_parent=item.get(OG_DELETE_WITH_PARENT) is True,
+            max_per_parent=self._parse_max_per_parent(domain, name, item),
             display_name=_get_label(item, name, DISPLAY_NAME),
             comment=_get_label(item, name, COMMENT),
         )
@@ -371,6 +375,24 @@ class Declarations:
                 )
             )
         return EdgeType(found)
+
+    def _parse_max_per_parent(
+        self, domain: str, name: str, item: Mapping[str, Json]
+    ) -> int | None:
+        """
+        Raises:
+            OntologyError: ``og:maxPerParent`` is not a positive integer.
+        """
+        found: Json = item.get(OG_MAX_PER_PARENT)
+        if found is None:
+            return None
+        if isinstance(found, bool) or not isinstance(found, int) or found < 1:
+            raise OntologyError(
+                ERROR_MAX_PER_PARENT_NOT_POSITIVE.format(
+                    domain=domain, name=name, found=found
+                )
+            )
+        return found
 
     def _parse_search_modes(
         self, domain: str, name: str, modes: Json
@@ -489,6 +511,14 @@ class Declarations:
             if prop.delete_with_parent and not prop.is_parent_link:
                 raise OntologyError(
                     ERROR_DELETE_WITH_PARENT_NOT_PARENT_EDGE.format(
+                        domain=prop.domain, name=prop.name
+                    )
+                )
+
+            # only parent links limit the records of a parent
+            if prop.max_per_parent is not None and not prop.is_parent_link:
+                raise OntologyError(
+                    ERROR_MAX_PER_PARENT_NOT_PARENT_EDGE.format(
                         domain=prop.domain, name=prop.name
                     )
                 )

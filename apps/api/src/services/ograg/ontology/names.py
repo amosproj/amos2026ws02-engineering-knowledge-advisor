@@ -11,6 +11,7 @@ Property annotations:
 - ``og:identity``: copied as context into facts of records that link to it
 - ``og:edgeType``: ``parent`` (link to record's parent, losing last one marks record for review) or ``simple`` (default)
 - ``og:deleteWithParent``: whether deleting parent deletes the record too (``parent`` edge)
+- ``og:maxPerParent``: most records of the class one parent may have through this link (``parent`` edge)
 - ``og:search``: ``semantic``, ``lexical`` or ``filter``: text default is ``semantic``, numbers work only with ``filter``
 - ``og:provenance``: filled with source document id of a record
 
@@ -62,6 +63,7 @@ OG_EDGE_TYPE: str = "og:edgeType"
 # replaced by og:edgeType; refused with a hint so old files don't turn parent links into simple ones
 OG_PARENT_LINK: str = "og:parentLink"
 OG_DELETE_WITH_PARENT: str = "og:deleteWithParent"
+OG_MAX_PER_PARENT: str = "og:maxPerParent"
 OG_SEARCH: str = "og:search"
 OG_PROVENANCE: str = "og:provenance"
 OG_ALLOWED_VALUES: str = "og:allowedValues"

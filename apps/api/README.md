@@ -77,7 +77,7 @@ Send it back as `If-Match: "<version>"` with `PUT`, `PATCH` or `DELETE`. If some
 ## Files
 
 A record of a class marked `og:file` (CadFile) carries one file, upload state in `cad_uploads`, the file in S3 under
-`files/{id}/`. The file bytes never pass the API:
+`files/{id}/`. A machine has one CAD file (`og:maxPerParent`), a second one answers `409` with `max_per_parent`. The file bytes never pass the API:
 
 1. `POST /records` creates the record without file (status `empty`).
 2. `POST /records/{id}/upload-form` with `{"size": ...}` returns a presigned form.

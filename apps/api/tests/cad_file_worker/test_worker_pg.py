@@ -106,8 +106,14 @@ class Worker:
         self.machine_id: str = ""
 
     async def add_file(self, content: bytes | None, name: str = "tray.step") -> str:
-        """Creates a CAD file record and uploads ``content``. ``None`` uploads nothing."""
+        """Creates a machine with a CAD file record and uploads ``content``. ``None`` uploads nothing."""
         async with self.sessions() as session, session.begin():
+            # a machine takes one CAD file
+            self.machine_id = (
+                await self.catalog.create_record(
+                    session, {"@type": "Machine", "name": "Robot cell"}
+                )
+            ).record.id
             file_id: str = (
                 await self.catalog.create_record(
                     session,
@@ -175,12 +181,6 @@ async def open_worker() -> AsyncIterator[Worker]:
             async_sessionmaker(engine, expire_on_commit=False),
             CatalogService(ograg, PgUploadStore(tables), ContentStorage()),
         )
-        async with worker.sessions() as session, session.begin():
-            worker.machine_id = (
-                await worker.catalog.create_record(
-                    session, {"@type": "Machine", "name": "Robot cell"}
-                )
-            ).record.id
         yield worker
     finally:
         await engine.dispose()

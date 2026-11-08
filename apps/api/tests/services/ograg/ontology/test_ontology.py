@@ -80,6 +80,7 @@ def test_describe_lists_every_class_with_its_properties():
     assert part_of.range == "Machine"
     assert part_of.link and part_of.edge is EdgeType.PARENT
     assert part_of.delete_with_parent
+    assert part_of.max_per_parent == 1
     assert not part_of.nested
     assert cad_file.properties["timestamp"].range == "DateTime"
 
