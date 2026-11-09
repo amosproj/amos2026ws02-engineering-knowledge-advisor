@@ -6,6 +6,7 @@ import threading
 from collections.abc import AsyncIterator, Callable, Coroutine, Generator, Iterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -22,6 +23,8 @@ from cad_file_worker import cleanup
 from cad_file_worker.cleanup import delete_orphan_objects, expire_abandoned_uploads
 from cad_file_worker.processing import process_next_cad_upload
 from db import TableName, Tables, define_tables
+from services.cad.cad_file import CadFile
+from services.cad_file_parser import CadFileParser
 from services.catalog import CatalogService, PresignedForm
 from services.object_storage import ObjectStorage, StoredObject
 from services.ograg.ontology import Ontology
@@ -45,6 +48,13 @@ SELECT_OGRAG_TABLES: str = (
 LONG_AGO: datetime = datetime(2020, 1, 1, tzinfo=UTC)
 
 type Sessions = async_sessionmaker[AsyncSession]
+
+
+class NoOpParser(CadFileParser):
+    """Parser that returns None — tests validate only, don't parse."""
+
+    def parse_file(self, file_identifier: str, path: str | Path) -> CadFile | None:  # type: ignore[return-value]
+        return None
 
 
 class ContentStorage(ObjectStorage):
@@ -137,7 +147,7 @@ class Worker:
 
     async def process(self) -> bool:
         return await process_next_cad_upload(
-            self.sessions, self.catalog, threading.Event(), lambda: None
+            self.sessions, self.catalog, NoOpParser(), threading.Event(), lambda: None
         )
 
     async def get_upload(self, file_id: str) -> Upload | None:

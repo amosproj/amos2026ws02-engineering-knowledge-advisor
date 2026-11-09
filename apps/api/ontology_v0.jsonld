@@ -15,6 +15,7 @@
     {"@id": "og:MachineProperties", "@type": "rdfs:Class", "displayName": "Machine properties", "comment": "Further properties of a machine."},
     {"@id": "og:AssemblyGroup", "@type": "rdfs:Class", "displayName": "Assembly group", "comment": "Anchor entity. A mechanical assembly group (Baugruppe) of a machine, which may contain further assembly groups; search results group by it. Stored as a record.", "og:record": true, "og:anchor": true},
     {"@id": "og:AssemblyProperties", "@type": "rdfs:Class", "displayName": "Assembly group properties", "comment": "Further properties of an assembly group."},
+    {"@id": "og:Dimensions", "@type": "rdfs:Class", "displayName": "Dimensions", "comment": "3D bounding box dimensions of an assembly group."},
     {"@id": "og:CadFile", "@type": "rdfs:Class", "displayName": "CAD file", "comment": "The CAD model of a machine. Stored as a record, the file itself lives in object storage.", "og:record": true, "og:file": true},
     {"@id": "og:KnowledgeItem", "@type": "rdfs:Class", "displayName": "Knowledge item", "comment": "One piece of engineering knowledge about specific machines or assembly groups: a requirement, consideration, design decision or lesson learned. Stored as a record and extracted from documents.", "og:record": true, "og:extractable": true},
     {"@id": "og:KnowledgeProperties", "@type": "rdfs:Class", "displayName": "Knowledge item properties", "comment": "The content of a knowledge item."},
@@ -26,14 +27,18 @@
     {"@id": "og:customer", "@type": "rdf:Property", "domain": "og:Machine", "range": "schema:Text", "displayName": "customer", "comment": "The customer the machine was built for."},
     {"@id": "og:properties", "@type": "rdf:Property", "domain": "og:Machine", "range": "og:MachineProperties", "displayName": "properties", "comment": "Further properties of the machine."},
 
-    {"@id": "og:size", "@type": "rdf:Property", "domain": "og:MachineProperties", "range": "schema:Number", "displayName": "size", "comment": "Size of the machine."},
+    {"@id": "og:dimensions", "@type": "rdf:Property", "domain": "og:MachineProperties", "range": "og:Dimensions", "displayName": "dimensions", "comment": "3D bounding box dimensions of the machine."},
 
     {"@id": "og:properties", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:AssemblyProperties", "displayName": "properties", "comment": "Further properties of the assembly group."},
     {"@id": "og:rootOf", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:Machine", "displayName": "root of", "comment": "The machine whose top assembly group this is.", "og:edgeType": "parent", "og:deleteWithParent": true},
     {"@id": "og:partOf", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:AssemblyGroup", "displayName": "part of", "comment": "The assembly group this one belongs to.", "og:edgeType": "parent", "og:deleteWithParent": true},
 
     {"@id": "og:path", "@type": "rdf:Property", "domain": "og:AssemblyProperties", "range": "schema:Text", "displayName": "path", "comment": "Path of the assembly group, e.g. in the CAD assembly tree.", "og:search": ["lexical"]},
-    {"@id": "og:dimensions", "@type": "rdf:Property", "domain": "og:AssemblyProperties", "range": "schema:Number", "displayName": "dimensions", "comment": "Dimensions of the assembly group."},
+    {"@id": "og:dimensions", "@type": "rdf:Property", "domain": "og:AssemblyProperties", "range": "og:Dimensions", "displayName": "dimensions", "comment": "3D bounding box dimensions of the assembly group."},
+
+    {"@id": "og:width", "@type": "rdf:Property", "domain": "og:Dimensions", "range": "schema:Number", "displayName": "width", "comment": "Width dimension in millimeters."},
+    {"@id": "og:height", "@type": "rdf:Property", "domain": "og:Dimensions", "range": "schema:Number", "displayName": "height", "comment": "Height dimension in millimeters."},
+    {"@id": "og:depth", "@type": "rdf:Property", "domain": "og:Dimensions", "range": "schema:Number", "displayName": "depth", "comment": "Depth dimension in millimeters."},
 
     {"@id": "og:name", "@type": "rdf:Property", "domain": "og:CadFile", "range": "schema:Text", "displayName": "name", "comment": "File name, e.g. RC-01.step.", "og:search": ["semantic", "lexical"]},
     {"@id": "og:format", "@type": "rdf:Property", "domain": "og:CadFile", "range": "schema:Text", "displayName": "format", "comment": "CAD system or file format, e.g. STEP or CATIA V5."},

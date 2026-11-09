@@ -9,6 +9,13 @@ COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /bin/
 # Set the application directory
 WORKDIR /app
 
+# Install system dependencies required by OpenCASCADE/OCP (CAD parser)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libfontconfig1 \
+    libfreetype6 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Configure uv for predictable container installs
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \

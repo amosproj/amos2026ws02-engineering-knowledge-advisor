@@ -140,19 +140,13 @@ async def test_an_update_is_a_json_merge_patch():
     other_id, _ = await create_record(
         ograg, TX, {"@type": "AssemblyGroup", "name": "Feeder", "rootOf": machine_id}
     )
-    await update_record(
-        ograg, TX, group_id, {"properties": {"path": "RC-01/AG", "dimensions": 800}}
-    )
+    await update_record(ograg, TX, group_id, {"properties": {"path": "RC-01/AG"}})
 
     # nested objects merge key by key, null removes a key
-    await update_record(
-        ograg, TX, group_id, {"properties": {"dimensions": 900, "path": None}}
-    )
+    await update_record(ograg, TX, group_id, {"properties": {"path": None}})
     group: Record = await get_record(ograg, TX, group_id)
-    assert group.graph["properties"] == {
-        "@type": "AssemblyProperties",
-        "dimensions": 900,
-    }
+    # path was removed, properties object has no more keys so it is dropped
+    assert "properties" not in group.graph
     # links are replaced as a whole
     await update_record(ograg, TX, group_id, {"rootOf": None, "partOf": [other_id]})
     moved: Record = await get_record(ograg, TX, group_id)

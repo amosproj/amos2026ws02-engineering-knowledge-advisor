@@ -25,6 +25,7 @@ from db.session import (
 )
 from logger import logger
 from services import ConflictError
+from services.cad.step_file_parser import StepFileParser
 from services.catalog import CatalogService
 from services.object_storage import ObjectStorageError
 
@@ -67,6 +68,7 @@ async def run() -> None:
     catalog: CatalogService = create_catalog_service(
         settings, create_ograg_service(settings, engine)
     )
+    parser = StepFileParser()
     heartbeat: Heartbeat = Heartbeat(HEARTBEAT_FILE)
     next_cleanup = 0.0
     try:
@@ -79,7 +81,7 @@ async def run() -> None:
 
             try:
                 processed: bool = await process_next_cad_upload(
-                    sessions, catalog, stopping, heartbeat.beat
+                    sessions, catalog, parser, stopping, heartbeat.beat
                 )
             except StopRequested:
                 break

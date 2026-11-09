@@ -216,7 +216,8 @@ def test_labels_of_the_wrong_shape_are_refused(
 def test_search_modes_default_by_range():
     onto: Ontology = build_ontology_with({**NOTE, "og:search": []})
     assert onto.properties[("KnowledgeProperties", "statement")].search == ("semantic",)
-    assert onto.properties[("AssemblyProperties", "dimensions")].search == ("filter",)
+    assert onto.properties[("MachineProperties", "dimensions")].search == ()
+    assert onto.properties[("AssemblyProperties", "dimensions")].search == ()
     assert onto.properties[("AssemblyGroup", "partOf")].search == ()
     assert onto.properties[("Machine", "note")].search == ()
     assert "lexical" in (onto.properties[("AssemblyGroup", "identifier")].search or ())

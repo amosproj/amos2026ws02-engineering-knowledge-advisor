@@ -20,7 +20,7 @@ def validate_payload(payload: Json) -> tuple[dict[str, Any], list[str]]:
         {
             "@type": "AssemblyGroup",
             "name": GROUP_NAME,
-            "properties": {"dimensions": payload},
+            "properties": {"dimensions": {"width": payload}},
         }
     )
 
@@ -94,7 +94,7 @@ def test_allowed_values_are_matched_ignoring_case_and_others_dropped():
 def test_numbers_are_stored_as_numbers(payload: Json, stored: float):
     graph, warnings = validate_payload(payload)
     assert warnings == []
-    kept: Json = graph["properties"]["dimensions"]
+    kept: Json = graph["properties"]["dimensions"]["width"]
     assert kept == stored and type(kept) is type(stored)
 
 
@@ -108,7 +108,7 @@ def test_a_number_property_drops_what_is_no_number(payload: Json):
     graph, warnings = validate_payload(payload)
     assert "properties" not in graph  # nothing else was left in it
     assert len(warnings) == 1
-    assert_mentions(warnings[0], "dimensions", str(payload))
+    assert_mentions(warnings[0], "width", str(payload))
 
 
 def test_text_is_kept_as_given_the_store_decides_what_it_can_store():

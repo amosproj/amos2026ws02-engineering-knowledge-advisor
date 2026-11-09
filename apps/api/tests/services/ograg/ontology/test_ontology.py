@@ -91,9 +91,15 @@ def test_describe_lists_every_class_with_its_properties():
     assert group.properties["name"].identity
     assert SearchMode.LEXICAL in group.properties["identifier"].search
 
+    machine_properties: ClassDescription = described["MachineProperties"]
+    assert not machine_properties.record
+    assert machine_properties.properties["dimensions"].range == "Dimensions"
+    assert machine_properties.properties["dimensions"].nested
+
     group_properties: ClassDescription = described["AssemblyProperties"]
     assert not group_properties.record
-    assert group_properties.properties["dimensions"].range == "Number"
+    assert group_properties.properties["dimensions"].range == "Dimensions"
+    assert group_properties.properties["dimensions"].nested
 
     item: ClassDescription = described["KnowledgeItem"]
     assert item.extractable and not item.guideline
