@@ -2,7 +2,7 @@
 
 import asyncio
 import os
-from collections.abc import AsyncIterator, Callable, Coroutine
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Any
@@ -45,7 +45,7 @@ def run_async(check: Callable[[], Coroutine[Any, Any, None]]) -> None:
 
 
 @asynccontextmanager
-async def open_store(*file_ids: str) -> AsyncIterator[tuple[PgUploadStore, Sessions]]:
+async def open_store(*file_ids: str) -> AsyncGenerator[tuple[PgUploadStore, Sessions]]:
     """Fresh tables with one record per file id, each upload registered (``uploading``), in this order."""
     engine: AsyncEngine = create_async_engine(URL)
     tables: Tables = define_tables(MetaData())

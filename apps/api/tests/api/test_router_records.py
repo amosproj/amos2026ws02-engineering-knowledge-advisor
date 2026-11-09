@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator, Iterator, Sequence
+from collections.abc import AsyncGenerator, Iterator, Sequence
 from typing import Any
 
 import pytest
@@ -77,7 +77,7 @@ def app(service: OgRagService, catalog: CatalogService) -> FastAPI:
     app.state.ograg = service
     app.state.catalog = catalog
 
-    async def session() -> AsyncIterator[str]:
+    async def session() -> AsyncGenerator[str]:
         yield SESSION
 
     app.dependency_overrides[get_session] = session
