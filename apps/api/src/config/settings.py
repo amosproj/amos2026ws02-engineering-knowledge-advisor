@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -60,7 +62,7 @@ class Settings(BaseSettings):
     llm_hetzner: LLMProviderSettings = Field(default_factory=LLMProviderSettings)
 
     @model_validator(mode="after")
-    def validate_llm_configuration(self) -> "Settings":
+    def validate_llm_configuration(self) -> Settings:
         providers: dict[str, LLMProviderSettings] = self.llm_provider_settings()
         if self.llm_default_provider is not None:
             if self.llm_default_provider not in providers:
