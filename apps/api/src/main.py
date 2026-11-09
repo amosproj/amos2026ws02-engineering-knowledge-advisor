@@ -6,10 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api import (
     health_router,
+    llm_router,
     v1_files_router,
     v1_ontology_router,
     v1_records_router,
-    llm_router,
 )
 from config.settings import Settings, get_settings
 from db.session import (
