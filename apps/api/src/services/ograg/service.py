@@ -41,6 +41,10 @@ ERROR_PARENT_LOOP: str = (
 ERROR_CLASS_CHANGED: str = (
     "{record_id!r} is a {old_cls}, delete it before storing a {new_cls}"
 )
+ERROR_MAX_PER_PARENT: str = (
+    "{target_id!r} already has {limit} {cls} through {prop_name}, the most it may have"
+)
+MAX_PER_PARENT: str = "max_per_parent"
 ERROR_BAD_LINK: str = (
     "property {prop_name} links to {target_id!r}, which {problem}, not a {expected_cls}"
 )
@@ -79,6 +83,12 @@ class RecordError(ValueError):
     - id belongs to a record of another class
     - or a link points to a missing record or one of the wrong class.
     """
+
+
+class ParentLimitError(Exception):
+    """A parent already has as many records of the class through the link as ``og:maxPerParent`` allows."""
+
+    error_code: str = MAX_PER_PARENT
 
 
 class OgRagService:
@@ -121,6 +131,7 @@ class OgRagService:
                 - no valid property is left
                 - class has identity properties, but none holds a non-blank value
                 - or a link points to a missing record or one of the wrong class.
+            ParentLimitError: a parent the record newly links to is full (``og:maxPerParent``).
             UnstorableValueError: store cannot store given value.
             ConflictError: detected concurrent write. If ``tx`` wasn't ``None``, raises immediately without retry.
             StaleVersionError: record has none of ``expected_versions``.
@@ -273,12 +284,14 @@ class OgRagService:
     ) -> None:
         """Locks, checks, saves and indexes the ``record``. All in ``tx``.
 
-        Shared locks on parents. Do **NOT** lock link targets, otherwise two items that link each other can deadlock.
+        Shared locks on parents. Do **NOT** lock other link targets, otherwise two items that link each other can
+        deadlock. Parents limited by ``og:maxPerParent`` are locked: parent edges between classes have no cycles.
         """
         await self.check_version(record.id, expected_versions, tx)
         await self._check_class_is_kept(record, tx)
         for link in record.links:
             await self._check_link_target(record, link, tx)
+        await self._check_max_per_parent(record, tx)
         await self._check_no_parent_loop(record, tx)
         await self.store.save_records([record], tx)
 
@@ -294,6 +307,56 @@ class OgRagService:
                     record_id=record.id, old_cls=existing.cls, new_cls=record.cls
                 )
             )
+
+    async def _check_max_per_parent(self, record: Record, tx: Tx) -> None:
+        """Counts the records of each parent ``record`` newly links to through a link limited by ``og:maxPerParent``.
+
+        Locks the record, then its limited parents sorted by id: two writes to the same parent wait for each other, so
+        the second one counts the first. Links the stored record already holds are not counted again.
+
+        Raises:
+            ParentLimitError: a parent already has as many records as its link allows.
+        """
+        limited: list[Link] = sorted(
+            {
+                link
+                for link in record.links
+                if self._get_max_per_parent(record.cls, link) is not None
+            },
+            key=lambda link: (link.target_id, link.property_name),
+        )
+        if not limited:
+            return
+        # a record created meanwhile was not locked: its links are counted like new ones
+        stored: Record | None = None
+        if await self.store.lock_record(record.id, tx) is not None:
+            stored = await self.store.get_record(record.id, tx)
+        kept: set[Link] = set(stored.links) if stored is not None else set()
+        for link in limited:
+            if link in kept:
+                continue
+            await self.store.lock_record(link.target_id, tx)
+            linking: list[Record] = await self.store.get_linking_records(
+                [link.target_id], tx
+            )
+            count: int = sum(
+                1
+                for rec in linking
+                if rec.id != record.id and rec.cls == record.cls and link in rec.links
+            )
+            limit: int | None = self._get_max_per_parent(record.cls, link)
+            if limit is not None and count >= limit:
+                raise ParentLimitError(
+                    ERROR_MAX_PER_PARENT.format(
+                        target_id=link.target_id,
+                        limit=limit,
+                        cls=record.cls,
+                        prop_name=link.property_name,
+                    )
+                )
+
+    def _get_max_per_parent(self, cls: str, link: Link) -> int | None:
+        return self.ontology.properties[cls, link.property_name].max_per_parent
 
     async def _check_link_target(self, record: Record, link: Link, tx: Tx) -> None:
         """

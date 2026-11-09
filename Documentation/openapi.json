@@ -1165,6 +1165,18 @@
             "title": "Deletewithparent",
             "description": "Whether deleting the parent deletes the record too."
           },
+          "maxPerParent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxperparent",
+            "description": "Most records of the class one parent may have through this link, null for any."
+          },
           "nested": {
             "type": "boolean",
             "title": "Nested",
@@ -1193,6 +1205,7 @@
           "link",
           "edge",
           "deleteWithParent",
+          "maxPerParent",
           "nested",
           "identity",
           "search"

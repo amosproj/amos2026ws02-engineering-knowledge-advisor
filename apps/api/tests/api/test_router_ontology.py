@@ -22,6 +22,7 @@ PROPERTY_KEYS: set[str] = {
     "link",
     "edge",
     "deleteWithParent",
+    "maxPerParent",
     "nested",
     "identity",
     "search",
@@ -46,11 +47,12 @@ def test_the_ontology_tells_files_and_dependents(client: TestClient):
     cad_file: dict[str, Any] = classes["CadFile"]
     assert cad_file["file"] and cad_file["record"]
     part_of: dict[str, Any] = cad_file["properties"]["partOf"]
-    assert (part_of["range"], part_of["edge"], part_of["deleteWithParent"]) == (
-        "Machine",
-        "parent",
-        True,
-    )
+    assert (
+        part_of["range"],
+        part_of["edge"],
+        part_of["deleteWithParent"],
+        part_of["maxPerParent"],
+    ) == ("Machine", "parent", True, 1)
     assert classes["CadFile"]["properties"]["name"]["edge"] is None
     assert not classes["AssemblyProperties"]["record"]
     assert classes["Guideline"]["guideline"]

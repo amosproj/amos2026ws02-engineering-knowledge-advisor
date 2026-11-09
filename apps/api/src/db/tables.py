@@ -23,7 +23,6 @@ from sqlalchemy.types import TypeEngine
 
 from db.names import (
     PROCESSING_INDEX,
-    SHA256_READY_INDEX,
     STATUS_CHECK,
     CadUploadColumn,
     CadUploadStatus,
@@ -191,13 +190,6 @@ def _define_cad_uploads(metadata: MetaData, records: Table) -> Table:
         ),
     )
     status: Column = cad_uploads.c[CadUploadColumn.STATUS]
-    # the same content may be ready only once
-    Index(
-        SHA256_READY_INDEX,
-        cad_uploads.c[CadUploadColumn.SHA256],
-        unique=True,
-        postgresql_where=status == CadUploadStatus.READY,
-    )
     # the worker takes the oldest file waiting in processing
     Index(
         PROCESSING_INDEX,

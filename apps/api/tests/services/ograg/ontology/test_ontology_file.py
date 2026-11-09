@@ -55,6 +55,23 @@ def test_file_classes_and_delete_with_parent_are_read():
     assert not onto.properties[("KnowledgeItem", "appliesToMachine")].delete_with_parent
 
 
+def test_a_machine_has_one_cad_file():
+    onto: Ontology = load_ontology()
+    assert onto.properties[("CadFile", "partOf")].max_per_parent == 1
+    assert onto.properties[("AssemblyGroup", "partOf")].max_per_parent is None
+
+
+@pytest.mark.parametrize("limit", [0, -1, 1.5, "1", True])
+def test_max_per_parent_must_be_a_positive_integer(limit: Json):
+    document: dict[str, Any] = load_document()
+    for item in document["@graph"]:
+        if item["@id"] == "og:partOf" and item["domain"] == "og:CadFile":
+            item["og:maxPerParent"] = limit
+    with pytest.raises(OntologyError) as raised:
+        Ontology.from_jsonld(document)
+    assert_mentions(str(raised.value), "CadFile", "partOf", "maxPerParent")
+
+
 @pytest.mark.parametrize(
     ("file_class_ids", "expected"),
     [
@@ -96,6 +113,20 @@ def test_delete_with_parent_on_a_property_without_parent_link_is_refused(
     with pytest.raises(OntologyError) as raised:
         build_ontology_with(prop)
     assert_mentions(str(raised.value), "deleteWithParent", "Machine", "note")
+
+
+@pytest.mark.parametrize(
+    "annotations",
+    [{}, {"range": "og:KnowledgeItem"}],
+    ids=["text property", "ordinary link"],
+)
+def test_max_per_parent_on_a_property_without_parent_link_is_refused(
+    annotations: dict[str, Any],
+):
+    prop: dict[str, Any] = {**NOTE, "og:maxPerParent": 1, **annotations}
+    with pytest.raises(OntologyError) as raised:
+        build_ontology_with(prop)
+    assert_mentions(str(raised.value), "maxPerParent", "Machine", "note")
 
 
 def test_file_on_a_class_that_is_no_record_class_is_refused():

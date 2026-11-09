@@ -329,19 +329,31 @@ def test_deleting_a_machine_deletes_its_tree_and_then_its_files(
     client: TestClient, storage: FakeStorage, sync_engine: Engine
 ):
     machine_id, group_id = tree(client)
-    first_id, first_form = create_file(client, machine_id, "a.step")
-    second_id, second_form = create_file(client, machine_id, "b.stp")
-    keys: list[str] = [upload(storage, first_form), upload(storage, second_form)]
+    file_id, form = create_file(client, machine_id, "a.step")
+    key: str = upload(storage, form)
 
     deleted: Response = client.delete(f"{RECORDS_URL}/{machine_id}")
     assert deleted.status_code == 200
     assert sorted(deleted.json()["deletedIds"]) == sorted(
-        [machine_id, group_id, first_id, second_id]
+        [machine_id, group_id, file_id]
     )
 
-    assert sorted(storage.deleted_keys) == sorted(keys)
-    assert get_status(sync_engine, first_id) is None
-    assert_problem(client.get(f"{RECORDS_URL}/{second_id}"), 404, None)
+    assert storage.deleted_keys == [key]
+    assert get_status(sync_engine, file_id) is None
+    assert_problem(client.get(f"{RECORDS_URL}/{file_id}"), 404, None)
+
+
+def test_a_machine_takes_one_cad_file(client: TestClient):
+    machine_id: str = create_machine(client)
+    file_id, _ = create_file(client, machine_id)
+    second: Response = client.post(
+        RECORDS_URL,
+        json={"@type": "CadFile", "name": "b.step", "partOf": machine_id},
+    )
+    assert_problem(second, 409, "max_per_parent")
+    assert [rec["@id"] for rec in client.get(f"{RECORDS_URL}?cls=CadFile").json()] == [
+        file_id
+    ]
 
 
 def test_deleting_a_file_record_deletes_its_object(
@@ -363,7 +375,9 @@ def test_a_file_locked_by_the_worker_answers_busy(
     locked: Callable[[str], None],
 ):
     machine_id, _ = tree(client)
-    uploading_id, uploading_form = create_file(client, machine_id, "a.step")
+    uploading_id, uploading_form = create_file(
+        client, create_machine(client, "Other cell"), "a.step"
+    )
     processing_id, processing_form = create_file(client, machine_id, "b.step")
     upload(storage, uploading_form)
     upload(storage, processing_form)

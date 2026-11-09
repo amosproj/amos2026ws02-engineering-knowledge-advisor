@@ -30,7 +30,12 @@ from model import (
 )
 from model.problem import Problem
 from services import Record
-from services.catalog import CatalogService, CreatedRecord, DeletedRecords
+from services.catalog import (
+    CatalogService,
+    CreatedRecord,
+    DeletedRecords,
+    UploadStates,
+)
 from services.ograg.service import OgRagService
 from services.uploads import Upload, UploadStatus
 
@@ -251,7 +256,7 @@ async def get_records(
     found: list[Record] = await catalog.get_records(session, cls, parent_id)
     if not include:
         return Records([to_node(rec) for rec in found])
-    return [await _to_view(catalog, session, rec, include) for rec in found]
+    return await _to_views(catalog, session, found, include)
 
 
 @v1_records_router.get(
@@ -299,7 +304,7 @@ async def get_record(
     response.headers[ETAG_HEADER] = to_etag(record.version)
     if not include:
         return to_node(record)
-    return await _to_view(catalog, session, record, include)
+    return (await _to_views(catalog, session, [record], include))[0]
 
 
 @v1_records_router.delete(
@@ -336,18 +341,40 @@ async def delete_record(
     )
 
 
-async def _to_view(
-    catalog: CatalogService, session: Session, record: Record, include: set[Include]
+async def _to_views(
+    catalog: CatalogService,
+    session: Session,
+    found: list[Record],
+    include: set[Include],
+) -> list[RecordView]:
+    states: UploadStates = (
+        await catalog.get_upload_states(session, found)
+        if Include.STATUS in include or Include.UPLOAD in include
+        else UploadStates(uploads={}, statuses={})
+    )
+    children: dict[str, list[Record]] = (
+        await catalog.get_children_by_parent_id(session, found)
+        if Include.CHILDREN in include
+        else {}
+    )
+    return [_to_view(catalog, rec, include, states, children) for rec in found]
+
+
+def _to_view(
+    catalog: CatalogService,
+    record: Record,
+    include: set[Include],
+    states: UploadStates,
+    children: dict[str, list[Record]],
 ) -> RecordView:
     view = RecordView(record=to_node(record), version=record.version)
     if Include.STATUS in include and catalog.has_status(record):
-        file_status: UploadStatus | None = await catalog.get_status(session, record.id)
+        file_status: UploadStatus | None = states.statuses.get(record.id)
         view.status = NO_FILE if file_status is None else file_status
     if Include.CHILDREN in include:
-        children: list[Record] = await catalog.get_children(session, record.id)
-        view.children = [to_node(child) for child in children]
+        view.children = [to_node(child) for child in children.get(record.id, [])]
     if Include.UPLOAD in include and catalog.is_file_record(record):
-        upload: Upload | None = await catalog.get_upload(session, record.id)
+        upload: Upload | None = states.uploads.get(record.id)
         view.upload = None if upload is None else to_file_upload(upload)
     return view
 

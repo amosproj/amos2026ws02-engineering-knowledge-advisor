@@ -28,6 +28,7 @@ class Property:
         provenance: source document's id.
         allowed: allowed property values.
         delete_with_parent: parent link whose target's deletion deletes the record too.
+        max_per_parent: most records of the domain class a parent may have through this parent link, ``None`` for any.
         display_name: name shown to users.
         comment: description shown to users.
     """
@@ -41,6 +42,7 @@ class Property:
     provenance: bool = False
     allowed: tuple[str, ...] = ()
     delete_with_parent: bool = False
+    max_per_parent: int | None = None
     display_name: str = ""
     comment: str = ""
 

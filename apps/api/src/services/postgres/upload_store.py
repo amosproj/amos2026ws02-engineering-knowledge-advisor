@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Any, override
 
-from psycopg import errors as pg_errors
 from sqlalchemy import (
     Column,
     ColumnElement,
@@ -18,14 +17,13 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.names import SHA256_READY_INDEX, CadUploadColumn, CadUploadStatus
+from db.names import CadUploadColumn, CadUploadStatus
 from db.tables import Tables
 from services.postgres.shared import Conditions
 from services.uploads import (
-    DuplicateFileError,
     LockTimeoutError,
     Upload,
     UploadStatus,
@@ -37,7 +35,6 @@ LOCK_TIMEOUT: str = "2s"
 LOCK_NOT_AVAILABLE: str = "55P03"
 SET_LOCK_TIMEOUT: str = f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT}'"
 ERROR_LOCK_TIMEOUT: str = "a row stayed locked longer than {timeout}"
-ERROR_DUPLICATE_FILE: str = "a file with the same content is ready already: {file_id!r}"
 
 
 class PgUploadStore(UploadStore):
@@ -174,23 +171,15 @@ class PgUploadStore(UploadStore):
 
     @override
     async def set_ready(self, file_id: str, sha256: str, tx: AsyncSession) -> None:
-        try:
-            async with tx.begin_nested():
-                await self._set_values(
-                    file_id,
-                    {
-                        CadUploadColumn.STATUS: CadUploadStatus.READY,
-                        CadUploadColumn.SHA256: sha256,
-                        CadUploadColumn.ERROR_CODE: None,
-                    },
-                    tx,
-                )
-        except IntegrityError as exc:
-            if not _violates_sha256_index(exc):
-                raise
-            raise DuplicateFileError(
-                ERROR_DUPLICATE_FILE.format(file_id=file_id)
-            ) from exc
+        await self._set_values(
+            file_id,
+            {
+                CadUploadColumn.STATUS: CadUploadStatus.READY,
+                CadUploadColumn.SHA256: sha256,
+                CadUploadColumn.ERROR_CODE: None,
+            },
+            tx,
+        )
 
     @override
     async def set_failed(self, file_id: str, error_code: str, tx: AsyncSession) -> None:
@@ -292,11 +281,4 @@ def _to_upload(row: RowMapping) -> Upload:
         size_bytes=row[CadUploadColumn.SIZE_BYTES],
         created_at=row[CadUploadColumn.CREATED_AT],
         updated_at=row[CadUploadColumn.UPDATED_AT],
-    )
-
-
-def _violates_sha256_index(exc: IntegrityError) -> bool:
-    return (
-        isinstance(exc.orig, pg_errors.UniqueViolation)
-        and exc.orig.diag.constraint_name == SHA256_READY_INDEX
     )

@@ -18,6 +18,7 @@ from services import ConflictError, Record, Tx
 from services.catalog import CatalogService
 from services.object_storage import ObjectStorageError
 from services.ograg.service import DeleteResult, OgRagService
+from services.uploads import Upload
 
 PROBLEM_JSON: str = "application/problem+json"
 FASTAPI_DEFAULT_200: str = (
@@ -422,6 +423,40 @@ def test_include_wraps_each_record_with_its_status_and_children(
         f"{RECORDS_URL}?cls=AssemblyGroup&include=children"
     ).json()
     assert groups[0]["children"] == []
+
+
+def test_a_list_reads_its_includes_once_for_all_records(
+    client: TestClient,
+    service: OgRagService,
+    catalog: CatalogService,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    for number in range(3):
+        put_record(client, f"RC-{number}", {**MACHINE, "identifier": f"RC-{number}"})
+        put_record(client, f"CF-{number}", {**CAD_FILE, "partOf": f"RC-{number}"})
+    client.post(f"{RECORDS_URL}/CF-1/upload-form", json={"size": 300})
+    calls: list[str] = []
+    get_linking_records = service.store.get_linking_records
+    get_uploads = catalog.uploads.get_uploads
+
+    async def count_linking(target_ids: Sequence[str], tx: Tx) -> list[Record]:
+        calls.append("get_linking_records")
+        return await get_linking_records(target_ids, tx)
+
+    async def count_uploads(file_ids: Sequence[str], tx: Tx) -> dict[str, Upload]:
+        calls.append("get_uploads")
+        return await get_uploads(file_ids, tx)
+
+    monkeypatch.setattr(service.store, "get_linking_records", count_linking)
+    monkeypatch.setattr(catalog.uploads, "get_uploads", count_uploads)
+
+    machines: list[dict[str, Any]] = client.get(
+        f"{RECORDS_URL}?cls=Machine&include=status,children,upload"
+    ).json()
+    assert [view["status"] for view in machines] == ["empty", "uploading", "empty"]
+    assert [view["children"][0]["@id"] for view in machines] == ["CF-0", "CF-1", "CF-2"]
+    # one read for the children of the status, one for the included children
+    assert sorted(calls) == ["get_linking_records"] * 2 + ["get_uploads"]
 
 
 def test_the_tree_nests_every_record_below_and_gives_files_a_status(

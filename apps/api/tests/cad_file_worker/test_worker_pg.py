@@ -106,8 +106,13 @@ class Worker:
         self.machine_id: str = ""
 
     async def add_file(self, content: bytes | None, name: str = "tray.step") -> str:
-        """Creates a CAD file record and uploads ``content``. ``None`` uploads nothing."""
+        """Creates a machine with a CAD file record and uploads ``content``. ``None`` uploads nothing."""
         async with self.sessions() as session, session.begin():
+            self.machine_id = (
+                await self.catalog.create_record(
+                    session, {"@type": "Machine", "name": "Robot cell"}
+                )
+            ).record.id
             file_id: str = (
                 await self.catalog.create_record(
                     session,
@@ -175,12 +180,6 @@ async def open_worker() -> AsyncIterator[Worker]:
             async_sessionmaker(engine, expire_on_commit=False),
             CatalogService(ograg, PgUploadStore(tables), ContentStorage()),
         )
-        async with worker.sessions() as session, session.begin():
-            worker.machine_id = (
-                await worker.catalog.create_record(
-                    session, {"@type": "Machine", "name": "Robot cell"}
-                )
-            ).record.id
         yield worker
     finally:
         await engine.dispose()
@@ -227,7 +226,7 @@ def test_a_file_that_cannot_be_checked_fails(
     run_async(run_check)
 
 
-def test_the_same_content_is_ready_once_and_its_copy_fails():
+def test_the_same_content_is_ready_on_two_machines():
     async def run_check() -> None:
         async with open_worker() as worker:
             first_id: str = await worker.add_processing_file(STEP)
@@ -235,13 +234,10 @@ def test_the_same_content_is_ready_once_and_its_copy_fails():
             copy_id: str = await worker.add_processing_file(STEP)
 
             assert await worker.process()
-            first: Upload | None = await worker.get_upload(first_id)
-            copy: Upload | None = await worker.get_upload(copy_id)
-            assert first is not None and first.status == UploadStatus.READY
-            assert copy is not None
-            assert (copy.status, copy.error_code) == ("failed", "duplicate_file")
-            # the copy's folder is deleted, the original stays
-            assert list(worker.storage.contents) == [first.source_key]
+            for file_id in (first_id, copy_id):
+                upload: Upload | None = await worker.get_upload(file_id)
+                assert upload is not None and upload.status == UploadStatus.READY
+            assert len(worker.storage.contents) == 2
 
     run_async(run_check)
 

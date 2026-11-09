@@ -54,7 +54,10 @@ export function queryMaker<
 }) {
     type Input = InputField<'body', BodySchema> &
         InputField<'params', ParamsSchema> &
-        InputField<'search', SearchSchema> & { signal?: AbortSignal }
+        InputField<'search', SearchSchema> & {
+            signal?: AbortSignal
+            headers?: Record<string, string>
+        }
 
     type Err = StandardError | InstanceType<Errors[number]>
 
@@ -93,6 +96,7 @@ export function queryMaker<
                 headers: {
                     Accept: 'application/json, application/problem+json',
                     ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+                    ...input.headers,
                 },
                 ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
             })

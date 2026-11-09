@@ -16,3 +16,4 @@ from services.catalog.service import DeletedRecords as DeletedRecords
 from services.catalog.service import PresignedForm as PresignedForm
 from services.catalog.service import TreeNode as TreeNode
 from services.catalog.service import UploadMismatch as UploadMismatch
+from services.catalog.service import UploadStates as UploadStates

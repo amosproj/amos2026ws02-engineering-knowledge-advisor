@@ -6,7 +6,7 @@ from model.problem import ProblemResponse
 from services import ConflictError, StaleVersionError, UnstorableValueError
 from services.catalog import CadFileConflictError, NotFoundError
 from services.object_storage import ObjectStorageError
-from services.ograg.service import RecordError
+from services.ograg.service import ParentLimitError, RecordError
 
 LOG_FAILED_CONVERSION: str = "Could not convert exception to response detail"
 LOG_STORAGE_UNAVAILABLE: str = "The object storage failed"
@@ -34,8 +34,8 @@ async def handle_conflict(request: Request, exc: Exception) -> ProblemResponse:
     )
 
 
-async def handle_cad_file_conflict(
-    request: Request, exc: CadFileConflictError
+async def handle_coded_conflict(
+    request: Request, exc: CadFileConflictError | ParentLimitError
 ) -> ProblemResponse:
     return ProblemResponse.from_status(
         409,
@@ -72,7 +72,8 @@ def register(app: FastAPI) -> None:
     app.exception_handler(RecordError)(handle_unprocessable)
     app.exception_handler(UnstorableValueError)(handle_unprocessable)
     app.exception_handler(ConflictError)(handle_conflict)
-    app.exception_handler(CadFileConflictError)(handle_cad_file_conflict)
+    app.exception_handler(CadFileConflictError)(handle_coded_conflict)
+    app.exception_handler(ParentLimitError)(handle_coded_conflict)
     app.exception_handler(NotFoundError)(handle_not_found)
     app.exception_handler(StaleVersionError)(handle_precondition_failed)
     app.exception_handler(ObjectStorageError)(handle_storage_unavailable)

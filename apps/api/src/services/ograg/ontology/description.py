@@ -31,6 +31,7 @@ class PropertyDescription:
         link: range is a record class: the value is a record id.
         edge: kind of link (``parent`` or ``simple``), ``None`` if the property is no link.
         delete_with_parent: deleting the parent deletes the record too.
+        max_per_parent: most records of the class one parent may have through this link, ``None`` for any.
         nested: range is a class that is not a record class: the value is a nested node.
         identity: values name the record.
         search: how the values are searched.
@@ -43,6 +44,7 @@ class PropertyDescription:
     link: bool
     edge: EdgeType | None
     delete_with_parent: bool
+    max_per_parent: int | None
     nested: bool
     identity: bool
     search: tuple[SearchMode, ...]

@@ -150,6 +150,9 @@ class OntologyProperty(CamelModel):
     delete_with_parent: bool = Field(
         description="Whether deleting the parent deletes the record too."
     )
+    max_per_parent: int | None = Field(
+        description="Most records of the class one parent may have through this link, null for any."
+    )
     nested: bool = Field(description="Whether value is a nested node.")
     identity: bool = Field(description="Whether values name the record.")
     search: list[SearchMode] = Field(description="How values are searched.")

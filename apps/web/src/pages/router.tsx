@@ -3,8 +3,6 @@ import { createRootRouteWithContext, createRoute, createRouter } from '@tanstack
 import type { RouteBreadcrumb } from '@components'
 import { DashboardLayout } from './layout'
 import { HomePage } from './home/home-page'
-import { MachineBreadcrumb } from './machines/components/machine-breadcrumb'
-import { MachineDetailPage } from './machines/machine-detail-page'
 import { MachinesPage } from './machines/machines-page'
 import { machinesSearchSchema } from './machines/models/machines-search-model'
 import { SettingsPage } from './settings/settings-page'
@@ -36,13 +34,6 @@ const machinesIndexRoute = createRoute({
     component: MachinesPage,
 })
 
-const machineDetailRoute = createRoute({
-    getParentRoute: () => machinesRoute,
-    path: '$machineId',
-    staticData: { breadcrumb: MachineBreadcrumb },
-    component: MachineDetailPage,
-})
-
 const settingsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/settings',
@@ -52,7 +43,7 @@ const settingsRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
     homeRoute,
-    machinesRoute.addChildren([machinesIndexRoute, machineDetailRoute]),
+    machinesRoute.addChildren([machinesIndexRoute]),
     settingsRoute,
 ])
 
