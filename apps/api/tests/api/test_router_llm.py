@@ -5,8 +5,8 @@ from fastapi.testclient import TestClient
 
 from api.router_llm import llm_router
 from handler import exception_handler, service_exception_handler
-from services.llm_impl.errors import ProviderRateLimitError
-from services.llm_impl.models import (
+from services.llm.errors import ProviderRateLimitError
+from services.llm.models import (
     ChatRequest,
     ChatResponse,
     ChatStreamChunk,

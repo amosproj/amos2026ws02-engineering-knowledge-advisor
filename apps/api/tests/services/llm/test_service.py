@@ -6,13 +6,13 @@ from pydantic import SecretStr, ValidationError
 
 from config.settings import LLMProviderSettings, Settings
 from db.session import create_llm_service
-from services.llm_impl.errors import (
+from services.llm.errors import (
     InvalidLLMRequestError,
     InvalidProviderError,
     ProviderDisabledError,
 )
-from services.llm_impl.models import ChatMessage, ChatRequest
-from services.llm_impl.service import LLMServiceImpl
+from services.llm.models import ChatMessage, ChatRequest
+from services.llm.service import ConfiguredLLMService
 
 
 def build_settings(
@@ -78,7 +78,7 @@ async def test_default_provider_and_model_are_resolved() -> None:
         )
 
     client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
-    service = LLMServiceImpl(
+    service = ConfiguredLLMService(
         build_settings(
             default_provider="openai",
             openai=LLMProviderSettings(
@@ -110,7 +110,7 @@ async def test_provider_selection_and_models_are_exposed_without_credentials() -
         )
 
     client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
-    service = LLMServiceImpl(
+    service = ConfiguredLLMService(
         build_settings(
             openai=LLMProviderSettings(
                 enabled=True,
@@ -130,7 +130,7 @@ async def test_provider_selection_and_models_are_exposed_without_credentials() -
 
 @pytest.mark.anyio
 async def test_missing_provider_is_an_explicit_request_error() -> None:
-    service = LLMServiceImpl(build_settings())
+    service = ConfiguredLLMService(build_settings())
     try:
         with pytest.raises(InvalidLLMRequestError):
             service.stream(chat_request())
@@ -140,7 +140,7 @@ async def test_missing_provider_is_an_explicit_request_error() -> None:
 
 @pytest.mark.anyio
 async def test_unknown_provider_is_rejected() -> None:
-    service = LLMServiceImpl(build_settings())
+    service = ConfiguredLLMService(build_settings())
     try:
         with pytest.raises(InvalidProviderError):
             service.stream(chat_request(provider="unknown"))
@@ -150,7 +150,7 @@ async def test_unknown_provider_is_rejected() -> None:
 
 @pytest.mark.anyio
 async def test_disabled_provider_is_rejected() -> None:
-    service = LLMServiceImpl(build_settings())
+    service = ConfiguredLLMService(build_settings())
     try:
         with pytest.raises(ProviderDisabledError):
             service.stream(chat_request(provider="openai"))
@@ -172,7 +172,7 @@ async def test_hetzner_provider_is_resolved_and_model_can_be_selected() -> None:
         )
 
     client = httpx2.AsyncClient(transport=httpx2.MockTransport(respond))
-    service = LLMServiceImpl(
+    service = ConfiguredLLMService(
         build_settings(
             default_provider="hetzner",
             hetzner=LLMProviderSettings(

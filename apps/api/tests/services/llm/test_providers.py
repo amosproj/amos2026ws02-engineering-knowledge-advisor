@@ -7,7 +7,7 @@ import pytest
 from pydantic import SecretStr
 
 from config.settings import LLMProviderSettings
-from services.llm_impl.errors import (
+from services.llm.errors import (
     ContextLengthError,
     InvalidLLMRequestError,
     ProviderAuthenticationError,
@@ -17,8 +17,8 @@ from services.llm_impl.errors import (
     StreamingInterruptedError,
     UnsupportedModelError,
 )
-from services.llm_impl.models import ChatMessage, ChatRequest, ChatStreamChunk
-from services.llm_impl.providers import (
+from services.llm.models import ChatMessage, ChatRequest, ChatStreamChunk
+from services.llm.providers import (
     AnthropicProvider,
     AzureOpenAIProvider,
     GoogleProvider,

@@ -5,7 +5,7 @@ from logger import logger
 from model.problem import ProblemResponse
 from services import ConflictError, StaleVersionError, UnstorableValueError
 from services.catalog import CadFileConflictError, NotFoundError
-from services.llm_impl.errors import LLMError
+from services.llm.errors import LLMError
 from services.object_storage import ObjectStorageError
 from services.ograg.service import ParentLimitError, RecordError
 

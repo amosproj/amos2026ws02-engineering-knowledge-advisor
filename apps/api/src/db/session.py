@@ -13,7 +13,7 @@ from db.model_base import get_ograg_tables
 from logger import logger
 from services import LLMService
 from services.catalog import CatalogService
-from services.llm_impl.service import LLMServiceImpl
+from services.llm.service import ConfiguredLLMService
 from services.ograg.ontology import Ontology
 from services.ograg.service import OgRagService
 from services.postgres.record_store import PgRecordStore
@@ -87,4 +87,4 @@ def create_catalog_service(settings: Settings, ograg: OgRagService) -> CatalogSe
 
 def create_llm_service(settings: Settings) -> LLMService:
     """The LLM service. One per process."""
-    return LLMServiceImpl(settings)
+    return ConfiguredLLMService(settings)

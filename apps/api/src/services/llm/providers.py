@@ -7,7 +7,7 @@ from uuid import uuid4
 import httpx2
 
 from config.settings import LLMProviderSettings
-from services.llm_impl.errors import (
+from services.llm.errors import (
     ContextLengthError,
     InvalidLLMRequestError,
     ProviderAuthenticationError,
@@ -17,7 +17,7 @@ from services.llm_impl.errors import (
     StreamingInterruptedError,
     UnsupportedModelError,
 )
-from services.llm_impl.models import (
+from services.llm.models import (
     ChatRequest,
     ChatResponse,
     ChatStreamChunk,

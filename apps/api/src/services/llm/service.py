@@ -3,20 +3,20 @@ from collections.abc import AsyncGenerator
 import httpx2
 
 from config.settings import LLMProviderSettings, Settings
-from services.llm import LLMService
-from services.llm_impl.errors import (
+from services.llm.errors import (
     InvalidLLMRequestError,
     InvalidProviderError,
     ProviderDisabledError,
 )
-from services.llm_impl.models import (
+from services.llm.interface import LLMService as LLMServiceProtocol
+from services.llm.models import (
     ChatRequest,
     ChatResponse,
     ChatStreamChunk,
     ModelInfo,
     ProviderInfo,
 )
-from services.llm_impl.providers import (
+from services.llm.providers import (
     AnthropicProvider,
     AzureOpenAIProvider,
     GoogleProvider,
@@ -39,7 +39,7 @@ _PROVIDER_TYPES: dict[str, type[HTTPProvider]] = {
 }
 
 
-class LLMServiceImpl(LLMService):
+class ConfiguredLLMService(LLMServiceProtocol):
     def __init__(
         self,
         settings: Settings,

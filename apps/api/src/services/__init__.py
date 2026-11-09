@@ -9,7 +9,7 @@ Import interfaces from here (``from services import RecordStore``). They are def
 | ``services.records``      | ``RecordStore``                                                              |
 | ``services.search``       | ``SearchMode``                                                               |
 | ``services.graph``        | ``Lane``                                                                     |
-| ``services.llm``         | ``LLMService``                                                               |
+| ``services.llm.interface`` | ``LLMService``                                                             |
 
 The interface modules import each other by module (``from services.database import Tx``): they are loaded while
 this file runs. Implementations live in subpackages and inherit from their interface. ``tests/fakes.py``

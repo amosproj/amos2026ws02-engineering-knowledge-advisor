@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from services.llm_impl.models import (
+    from services.llm.models import (
         ChatRequest,
         ChatResponse,
         ChatStreamChunk,
