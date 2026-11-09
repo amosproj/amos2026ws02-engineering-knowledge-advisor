@@ -1,5 +1,5 @@
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Annotated
 
 from fastapi import Depends, Query, Request
@@ -60,7 +60,7 @@ async def chat(body: ChatRequest, llm: LLM) -> ChatResponse:
     },
 )
 async def chat_stream(body: ChatRequest, llm: LLM) -> ServerSentEventResponse:
-    async def events() -> AsyncIterator[str]:
+    async def events() -> AsyncGenerator[str]:
         try:
             async for chunk in llm.stream(body):
                 yield f"data: {chunk.model_dump_json()}\n\n"
