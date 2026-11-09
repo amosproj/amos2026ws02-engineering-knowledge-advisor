@@ -15,12 +15,12 @@ from config.settings import Settings, get_settings
 from db.session import (
     create_catalog_service,
     create_engine,
+    create_llm_service,
     create_ograg_service,
     create_sessionmaker,
 )
 from handler import exception_handler, service_exception_handler
 from logger import logger
-from services.llm import LLMService
 
 LOG_PROFILE: str = "Loaded API profile: {profile}"
 
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     engine: AsyncEngine = create_engine(settings)
     app.state.sessions = create_sessionmaker(engine)
     app.state.ograg = create_ograg_service(settings, engine)
-    app.state.llm = LLMService(settings)
+    app.state.llm = create_llm_service(settings)
     app.state.catalog = create_catalog_service(settings, app.state.ograg)
     try:
         yield

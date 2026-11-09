@@ -1,4 +1,4 @@
-from services.llm.models import (
+from services.llm_impl.models import (
     ChatMessage,
     ChatRequest,
     ChatResponse,
@@ -7,14 +7,12 @@ from services.llm.models import (
     ProviderInfo,
     TokenUsage,
 )
-from services.llm.service import LLMService
 
 __all__ = [
     "ChatMessage",
     "ChatRequest",
     "ChatResponse",
     "ChatStreamChunk",
-    "LLMService",
     "ModelInfo",
     "ProviderInfo",
     "TokenUsage",

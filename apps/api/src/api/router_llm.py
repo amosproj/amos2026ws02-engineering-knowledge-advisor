@@ -7,14 +7,14 @@ from fastapi.responses import StreamingResponse
 
 from api.router_builder import ApiRouterBuilder
 from model.problem import Problem
-from services.llm import (
+from services.llm import LLMService
+from services.llm_impl import (
     ChatRequest,
     ChatResponse,
-    LLMService,
     ModelInfo,
     ProviderInfo,
 )
-from services.llm.errors import LLMError
+from services.llm_impl.errors import LLMError
 
 RESPONSE_DETAIL_422: str = "Request validation failed."
 
