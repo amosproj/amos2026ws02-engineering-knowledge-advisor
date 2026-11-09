@@ -133,4 +133,4 @@ def test_provider_errors_use_problem_responses() -> None:
             },
         )
     assert response.status_code == 429
-    assert response.json()["error_code"] == "provider_rate_limited"
+    assert response.json()["errorCode"] == "provider_rate_limited"

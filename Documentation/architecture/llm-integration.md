@@ -178,7 +178,7 @@ lowercased and preserved.
 ## Errors and reliability
 
 Non-streaming errors follow the application's RFC 9457 `application/problem+json`
-format and include an `error_code` extension. Common codes include
+format and include an `errorCode` extension. Common codes include
 `invalid_provider`, `provider_disabled`, `unsupported_model`,
 `provider_authentication_failed`, `provider_rate_limited`, `provider_timeout`,
 `provider_unavailable`, `invalid_llm_request`, and `context_length_exceeded`.
