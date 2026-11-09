@@ -35,11 +35,12 @@ class Settings(BaseSettings):
         hide_input_in_errors=True,
     )
 
-    profile: Literal["dev", "prod"] = "dev"
+    # fields without a default value are required
 
+    profile: Literal["dev", "prod"] = "dev"
     database_url: SecretStr | None = None
 
-    ograg_ontology_path: Path  # required field
+    ograg_ontology_path: Path
 
     s3_endpoint_url: str
     s3_bucket: str

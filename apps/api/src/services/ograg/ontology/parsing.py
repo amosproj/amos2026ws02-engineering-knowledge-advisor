@@ -7,9 +7,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from services import Json, JsonObject, SearchMode
+from services.ograg.ontology.description import ClassLabel
 from services.ograg.ontology.names import (
     CLASS,
     CLASS_FLAGS,
+    COMMENT,
+    DISPLAY_NAME,
     DOMAIN,
     ENUM,
     JSONLD_GRAPH,
@@ -18,10 +21,14 @@ from services.ograg.ontology.names import (
     LITERAL_RANGES,
     OG_ALLOWED_VALUES,
     OG_ANCHOR,
-    OG_AUTHOR,
+    OG_DELETE_WITH_PARENT,
+    OG_EDGE_TYPE,
     OG_EXTRACTABLE,
+    OG_FILE,
+    OG_GUIDELINE,
     OG_GUIDELINE_WHEN,
     OG_IDENTITY,
+    OG_MAX_PER_PARENT,
     OG_PARENT_LINK,
     OG_PROVENANCE,
     OG_RECORD,
@@ -30,10 +37,11 @@ from services.ograg.ontology.names import (
     RANGE,
     get_local_name,
 )
-from services.ograg.ontology.property import Property
+from services.ograg.ontology.property import EdgeType, Property
 
 MODE_NAMES: set[str] = {mode.value for mode in SearchMode}
 VERSION_LENGTH: int = 12
+EDGE_TYPE_NAMES: set[str] = {edge.value for edge in EdgeType}
 
 ERROR_UNKNOWN_SEARCH_MODES: str = (
     "property {domain}.{name} has unknown search modes {modes}"
@@ -49,16 +57,34 @@ ERROR_ANCHOR_NOT_RECORD: str = (
 ERROR_EXTRACTABLE_NOT_RECORD: str = (
     f'extractable classes must be record classes ("{OG_RECORD}": true): {{classes}}'
 )
+ERROR_FILE_NOT_RECORD: str = (
+    f'file classes must be record classes ("{OG_RECORD}": true): {{classes}}'
+)
+ERROR_DELETE_WITH_PARENT_NOT_PARENT_EDGE: str = f"{OG_DELETE_WITH_PARENT!r} on {{domain}}.{{name}}, which is not a {EdgeType.PARENT.value!r} edge"
+ERROR_MAX_PER_PARENT_NOT_PARENT_EDGE: str = f"{OG_MAX_PER_PARENT!r} on {{domain}}.{{name}}, which is not a {EdgeType.PARENT.value!r} edge"
+ERROR_MAX_PER_PARENT_NOT_POSITIVE: str = f"property {{domain}}.{{name}} needs a positive integer in {OG_MAX_PER_PARENT!r}, found {{found!r}}"
+ERROR_LABEL_NOT_TEXT: str = "{name!r} needs a text in {key!r}, found {found!r}"
 ERROR_ITEM_WITHOUT_KEY: str = "ontology item has no {key!r}: {item}"
 ERROR_PROPERTY_WITHOUT_KEY: str = "property {name!r} has no {key!r}"
 ERROR_UNKNOWN_DOMAIN: str = "property {name!r} has an unknown domain"
 ERROR_UNKNOWN_RANGE: str = "property {name!r} has an unknown range"
-ERROR_PARENT_LINK_NOT_LINK: str = (
-    f"{OG_PARENT_LINK!r} on {{domain}}.{{name}}, which is not a link to a record class"
+ERROR_EDGE_TYPE_NOT_LINK: str = (
+    f"{OG_EDGE_TYPE!r} on {{domain}}.{{name}}, which is not a link to a record class"
 )
-ERROR_PARENT_LINK_CYCLE: str = (
-    f"{OG_PARENT_LINK!r} links between classes must not be cyclic: {{cycle_classes}}"
+ERROR_UNKNOWN_EDGE_TYPE: str = f"property {{domain}}.{{name}} has an unknown {OG_EDGE_TYPE!r} {{found!r}}, expected one of {{edge_types}}"
+ERROR_PARENT_LINK_REPLACED: str = f"property {{domain}}.{{name}} uses {OG_PARENT_LINK!r}, which is replaced by {OG_EDGE_TYPE!r}: {EdgeType.PARENT.value!r}"
+ERROR_PARENT_EDGE_CYCLE: str = f"{EdgeType.PARENT.value!r} edges between classes must not be cyclic: {{cycle_classes}}"
+ERROR_DUPLICATE_PROPERTY: str = "property {domain}.{name} is defined twice"
+ERROR_DOMAIN_NOT_NAMES: str = (
+    "property {name!r} needs a class or a list of classes as domain, found {found!r}"
 )
+ERROR_GUIDELINE_NOT_RECORD: str = (
+    f"classes marked {OG_GUIDELINE!r} must be record classes, found {{classes}}"
+)
+ERROR_GUIDELINE_ON_ANCHOR: str = (
+    f"the anchor class {{cls!r}} cannot be marked {OG_GUIDELINE!r}"
+)
+ERROR_GUIDELINE_AND_WHEN: str = f"{{cls!r}} is marked {OG_GUIDELINE!r}: {OG_GUIDELINE_WHEN!r} would never decide anything"
 ERROR_GUIDELINE_WHEN_ON_RECORD: str = (
     f"{OG_GUIDELINE_WHEN!r} of {{cls!r}} must be on a record class"
 )
@@ -143,6 +169,42 @@ def _get_required_name(item: Mapping[str, Json], key: str, missing: str) -> str:
     return get_local_name(str(item[key]))
 
 
+def _get_domains(name: str, item: Mapping[str, Json]) -> list[str]:
+    """Returns the local names of the classes in ``item``'s domain: one class or a list of classes.
+
+    Raises:
+        OntologyError: ``item`` has no domain, or it is neither a text nor a non-empty list of texts.
+    """
+    if DOMAIN not in item:
+        raise OntologyError(ERROR_PROPERTY_WITHOUT_KEY.format(name=name, key=DOMAIN))
+    domain: Json = item[DOMAIN]
+    names: list[str] | None = (
+        [domain] if isinstance(domain, str) else _get_texts(domain)
+    )
+    if not names:
+        raise OntologyError(ERROR_DOMAIN_NOT_NAMES.format(name=name, found=domain))
+    return [get_local_name(cls) for cls in names]
+
+
+def _get_label(item: Mapping[str, Json], name: str, key: str) -> str:
+    """Returns the text ``item[key]``, or ``""`` if ``item`` has no ``key``.
+
+    Args:
+        item: class or property item of the ontology ``@graph``.
+        name: local name of ``item``, for the error.
+        key: ``DISPLAY_NAME`` or ``COMMENT``.
+
+    Raises:
+        OntologyError: ``item[key]`` is not a text.
+    """
+    value: Json = item.get(key, "")
+    if not isinstance(value, str):
+        raise OntologyError(
+            ERROR_LABEL_NOT_TEXT.format(name=name, key=key, found=value)
+        )
+    return value
+
+
 def _find_parent_cycle(
     cls_path: list[str], parent_classes: Mapping[str, list[str]]
 ) -> list[str] | None:
@@ -174,6 +236,7 @@ class Declarations:
         default_factory=lambda: {flag: [] for flag in CLASS_FLAGS}
     )
     guideline_when: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+    class_labels: dict[str, ClassLabel] = field(default_factory=dict)
 
     @property
     def anchor_classes(self) -> list[str]:
@@ -186,6 +249,14 @@ class Declarations:
     @property
     def extractable_classes(self) -> list[str]:
         return self.flags[OG_EXTRACTABLE]
+
+    @property
+    def file_classes(self) -> list[str]:
+        return self.flags[OG_FILE]
+
+    @property
+    def guideline_classes(self) -> list[str]:
+        return self.flags[OG_GUIDELINE]
 
     def read(self, item: Mapping[str, Json]) -> None:
         """Parses ``item``, one class or property item of the ontology ``@graph``.
@@ -211,6 +282,10 @@ class Declarations:
 
     def _parse_class(self, name: str, item: Mapping[str, Json]) -> None:
         self.classes.add(name)
+        self.class_labels[name] = ClassLabel(
+            display_name=_get_label(item, name, DISPLAY_NAME),
+            comment=_get_label(item, name, COMMENT),
+        )
         for flag, flagged in self.flags.items():
             if item.get(flag) is True:
                 flagged.append(name)
@@ -237,10 +312,14 @@ class Declarations:
         return parsed
 
     def _parse_property(self, name: str, item: Mapping[str, Json]) -> None:
+        """Adds the property ``name`` to each class of ``item``'s domain."""
+        for domain in _get_domains(name, item):
+            self._parse_property_of(domain, name, item)
+
+    def _parse_property_of(
+        self, domain: str, name: str, item: Mapping[str, Json]
+    ) -> None:
         missing: str = ERROR_PROPERTY_WITHOUT_KEY
-        domain: str = _get_required_name(
-            item, DOMAIN, missing.format(name=name, key=DOMAIN)
-        )
         search: Json = item.get(OG_SEARCH)
         allowed: Json = item.get(ENUM) or item.get(OG_ALLOWED_VALUES) or []
         if not isinstance(allowed, list):
@@ -255,15 +334,65 @@ class Declarations:
             domain=domain,
             range=_get_required_name(item, RANGE, missing.format(name=name, key=RANGE)),
             identity=item.get(OG_IDENTITY) is True,
-            is_parent_link=item.get(OG_PARENT_LINK) is True,
+            edge=self._parse_edge_type(domain, name, item),
             search=None
             if search is None
             else self._parse_search_modes(domain, name, search),
-            author=item.get(OG_AUTHOR) is True,
             provenance=item.get(OG_PROVENANCE) is True,
             allowed=tuple(map(str, allowed)),
+            delete_with_parent=item.get(OG_DELETE_WITH_PARENT) is True,
+            max_per_parent=self._parse_max_per_parent(domain, name, item),
+            display_name=_get_label(item, name, DISPLAY_NAME),
+            comment=_get_label(item, name, COMMENT),
         )
+        if (prop.domain, prop.name) in self.properties:
+            raise OntologyError(
+                ERROR_DUPLICATE_PROPERTY.format(domain=prop.domain, name=prop.name)
+            )
         self.properties[(prop.domain, prop.name)] = prop
+
+    def _parse_edge_type(
+        self, domain: str, name: str, item: Mapping[str, Json]
+    ) -> EdgeType | None:
+        """
+        Raises:
+            OntologyError: ``item`` still uses ``og:parentLink``, or names an unknown edge type.
+        """
+        if OG_PARENT_LINK in item:
+            raise OntologyError(
+                ERROR_PARENT_LINK_REPLACED.format(domain=domain, name=name)
+            )
+        found: Json = item.get(OG_EDGE_TYPE)
+        if found is None:
+            return None
+        if not isinstance(found, str) or found not in EDGE_TYPE_NAMES:
+            raise OntologyError(
+                ERROR_UNKNOWN_EDGE_TYPE.format(
+                    domain=domain,
+                    name=name,
+                    found=found,
+                    edge_types=sorted(EDGE_TYPE_NAMES),
+                )
+            )
+        return EdgeType(found)
+
+    def _parse_max_per_parent(
+        self, domain: str, name: str, item: Mapping[str, Json]
+    ) -> int | None:
+        """
+        Raises:
+            OntologyError: ``og:maxPerParent`` is not a positive integer.
+        """
+        found: Json = item.get(OG_MAX_PER_PARENT)
+        if found is None:
+            return None
+        if isinstance(found, bool) or not isinstance(found, int) or found < 1:
+            raise OntologyError(
+                ERROR_MAX_PER_PARENT_NOT_POSITIVE.format(
+                    domain=domain, name=name, found=found
+                )
+            )
+        return found
 
     def _parse_search_modes(
         self, domain: str, name: str, modes: Json
@@ -288,6 +417,8 @@ class Declarations:
         """Raises ``OntologyError`` for invalid declarations."""
         self._validate_anchor()
         self._validate_extractable_classes()
+        self._validate_file_classes()
+        self._validate_guideline_classes()
         self._validate_properties()
         self._validate_parent_links()
         self._validate_guideline_when()
@@ -295,17 +426,19 @@ class Declarations:
     def _validate_parent_links(self) -> None:
         """
         Raises:
-            OntologyError: parent link leads back to its own class, which could produce deadlocks
+            OntologyError: parent links lead back to their class through other classes, which could produce deadlocks.
+                A parent link to the own class (a tree, e.g. groups in groups) is allowed: the record service refuses
+                a record that would become its own ancestor.
         """
         parent_classes: dict[str, list[str]] = {}
         for prop in self.properties.values():
-            if prop.is_parent_link:
+            if prop.is_parent_link and prop.range != prop.domain:
                 parent_classes.setdefault(prop.domain, []).append(prop.range)
         for cls in parent_classes:
             cycle_classes: list[str] | None = _find_parent_cycle([cls], parent_classes)
             if cycle_classes is not None:
                 raise OntologyError(
-                    ERROR_PARENT_LINK_CYCLE.format(
+                    ERROR_PARENT_EDGE_CYCLE.format(
                         cycle_classes=" -> ".join(cycle_classes)
                     )
                 )
@@ -333,6 +466,31 @@ class Declarations:
                 ERROR_EXTRACTABLE_NOT_RECORD.format(classes=non_record_classes)
             )
 
+    def _validate_file_classes(self) -> None:
+        # file classes must be records
+        non_record_classes: list[str] = [
+            cls for cls in self.file_classes if cls not in self.record_classes
+        ]
+        if non_record_classes:
+            raise OntologyError(
+                ERROR_FILE_NOT_RECORD.format(classes=non_record_classes)
+            )
+
+    def _validate_guideline_classes(self) -> None:
+        non_record_classes: list[str] = [
+            cls for cls in self.guideline_classes if cls not in self.record_classes
+        ]
+        if non_record_classes:
+            raise OntologyError(
+                ERROR_GUIDELINE_NOT_RECORD.format(classes=non_record_classes)
+            )
+        for cls in self.guideline_classes:
+            # the anchor groups the facts that answer, guidelines are checked after the answer
+            if cls in self.anchor_classes:
+                raise OntologyError(ERROR_GUIDELINE_ON_ANCHOR.format(cls=cls))
+            if cls in self.guideline_when:
+                raise OntologyError(ERROR_GUIDELINE_AND_WHEN.format(cls=cls))
+
     def _validate_properties(self) -> None:
         for prop in self.properties.values():
             # domain has to be known class
@@ -343,10 +501,24 @@ class Declarations:
             if prop.range not in self.classes and prop.range not in LITERAL_RANGES:
                 raise OntologyError(ERROR_UNKNOWN_RANGE.format(name=prop.name))
 
-            # parent classes must be records
-            if prop.is_parent_link and prop.range not in self.record_classes:
+            # only links have an edge type
+            if prop.edge is not None and prop.range not in self.record_classes:
                 raise OntologyError(
-                    ERROR_PARENT_LINK_NOT_LINK.format(
+                    ERROR_EDGE_TYPE_NOT_LINK.format(domain=prop.domain, name=prop.name)
+                )
+
+            # only parent links can delete their record with the parent
+            if prop.delete_with_parent and not prop.is_parent_link:
+                raise OntologyError(
+                    ERROR_DELETE_WITH_PARENT_NOT_PARENT_EDGE.format(
+                        domain=prop.domain, name=prop.name
+                    )
+                )
+
+            # only parent links limit the records of a parent
+            if prop.max_per_parent is not None and not prop.is_parent_link:
+                raise OntologyError(
+                    ERROR_MAX_PER_PARENT_NOT_PARENT_EDGE.format(
                         domain=prop.domain, name=prop.name
                     )
                 )

@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException
 
-from api.router_basic import RESPONSE_DETAIL_422
+from api.router_records import RESPONSE_DETAIL_422_INVALID_REQUEST
 from logger import logger
 from model.problem import ProblemException, ProblemResponse
 
@@ -27,7 +27,10 @@ async def handle_validation(
     request: Request, exc: RequestValidationError
 ) -> ProblemResponse:
     return ProblemResponse.from_status(
-        422, RESPONSE_DETAIL_422, instance=request.url.path, errors=exc.errors()
+        422,
+        RESPONSE_DETAIL_422_INVALID_REQUEST,
+        instance=request.url.path,
+        errors=exc.errors(),
     )
 
 

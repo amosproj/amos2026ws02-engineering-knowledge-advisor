@@ -5,19 +5,22 @@ from fastapi.concurrency import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api import (
-    basic_router,
     health_router,
-    llm_router,
-    v1_catalog_router,
+    v1_files_router,
+    v1_ontology_router,
     v1_records_router,
+    llm_router,
 )
 from config.settings import Settings, get_settings
-from db import create_engine, create_ograg_service, create_sessionmaker
+from db.session import (
+    create_catalog_service,
+    create_engine,
+    create_ograg_service,
+    create_sessionmaker,
+)
 from handler import exception_handler, service_exception_handler
 from logger import logger
-from services.catalog import CatalogService
 from services.llm import LLMService
-from services.s3 import S3ObjectStorage
 
 LOG_PROFILE: str = "Loaded API profile: {profile}"
 
@@ -30,10 +33,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     engine: AsyncEngine = create_engine(settings)
     app.state.sessions = create_sessionmaker(engine)
-
     app.state.ograg = create_ograg_service(settings, engine)
-    app.state.catalog = CatalogService(app.state.ograg, S3ObjectStorage(settings))
     app.state.llm = LLMService(settings)
+    app.state.catalog = create_catalog_service(settings, app.state.ograg)
     try:
         yield
     finally:
@@ -43,14 +45,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 app = FastAPI(
     title="Engineering Knowledge Advisor API",
-    version="0.1.0",
+    version="0.2.1",
     lifespan=lifespan,
 )
 
 app.include_router(health_router)
-app.include_router(basic_router)
 app.include_router(v1_records_router)
-app.include_router(v1_catalog_router)
+app.include_router(v1_files_router)
+app.include_router(v1_ontology_router)
 app.include_router(llm_router)
 
 exception_handler.register(app)

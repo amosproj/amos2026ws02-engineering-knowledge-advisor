@@ -4,171 +4,167 @@ import { z } from 'zod'
 import { queryMaker } from '@queries/query-maker'
 
 const idParams = z.object({ id: z.string() })
+const includeSearch = z.object({ include: z.string() })
 
-const cadFileSchema = z.object({
-    id: z.string(),
+const uploadStatus = z.enum(['uploading', 'processing', 'ready', 'failed'])
+const fileStatus = z.enum(['empty', ...uploadStatus.options])
+
+const machineSchema = z.looseObject({
+    '@id': z.string(),
     name: z.string(),
-    assembly_group_id: z.string(),
-    status: z.enum(['uploading', 'processing', 'ready', 'failed']),
-    error_code: z.string().nullable(),
-    size_bytes: z.number(),
-    created_at: z.string(),
-    updated_at: z.string(),
+    identifier: z.string().optional(),
+    customer: z.string().optional(),
+    description: z.string().optional(),
+    properties: z.looseObject({ size: z.number().optional() }).optional(),
 })
 
-const assemblyGroupSchema = z.object({
-    id: z.string(),
-    machine_id: z.string(),
-    name: z.string(),
-    identifier: z.string().nullable(),
-    description: z.string().nullable(),
-    cad_files: z.array(cadFileSchema),
+const childSchema = z.looseObject({
+    '@id': z.string(),
+    '@type': z.string(),
+    name: z.string().optional(),
 })
 
-const machineSchema = z.object({
-    id: z.string(),
-    name: z.string(),
-    identifier: z.string().nullable(),
-    customer: z.string().nullable(),
-    description: z.string().nullable(),
-    assembly_group_count: z.number(),
-    cad_file_count: z.number(),
-    status: z.enum(['empty', 'uploading', 'processing', 'failed', 'ready']),
+const machineViewSchema = z.object({
+    record: machineSchema,
+    version: z.string(),
+    status: fileStatus,
+    children: z.array(childSchema),
 })
-
-const machineDetailsSchema = machineSchema.extend({
-    assembly_groups: z.array(assemblyGroupSchema),
-})
-
-// null clears an optional field
-const machineBody = z.object({
-    name: z.string(),
-    identifier: z.string().nullable(),
-    customer: z.string().nullable(),
-    description: z.string().nullable(),
-})
-
-const assemblyGroupBody = machineBody.omit({ customer: true })
 
 const uploadSchema = z.object({
     id: z.string(),
+    status: uploadStatus,
+    errorCode: z.string().nullable(),
+    sizeBytes: z.number(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+})
+
+const cadFileViewSchema = z.object({
+    record: z.looseObject({ '@id': z.string(), name: z.string() }),
+    version: z.string(),
+    status: fileStatus,
+    upload: uploadSchema.nullable(),
+})
+
+const writtenSchema = z.object({
+    id: z.string(),
+    warnings: z.array(z.string()),
+    version: z.string(),
+})
+
+const machineBody = z.object({
+    '@type': z.literal('Machine'),
     name: z.string(),
-    upload: z.object({ url: z.string(), fields: z.record(z.string(), z.string()) }),
+    identifier: z.string().optional(),
+    customer: z.string().optional(),
+    description: z.string().optional(),
+    properties: z.object({ size: z.number() }).optional(),
 })
 
-export type CadFile = z.output<typeof cadFileSchema>
-export type CadFileStatus = CadFile['status']
-export type AssemblyGroup = z.output<typeof assemblyGroupSchema>
+// JSON Merge Patch: null removes a property
+const machineChanges = z.object({
+    name: z.string(),
+    identifier: z.string().nullable(),
+    customer: z.string().nullable(),
+    description: z.string().nullable(),
+    properties: z.object({ size: z.number().nullable() }),
+})
+
+const cadFileBody = z.object({
+    '@type': z.literal('CadFile'),
+    name: z.string(),
+    format: z.string(),
+    timestamp: z.string(),
+    partOf: z.string(),
+})
+
+const cadFileChanges = cadFileBody.pick({ name: true, timestamp: true })
+
 export type Machine = z.output<typeof machineSchema>
-export type MachineStatus = Machine['status']
-export type MachineDetails = z.output<typeof machineDetailsSchema>
-export type RegisteredCadFile = z.output<typeof uploadSchema>
-
-export const createMachine = queryMaker({
-    method: 'POST',
-    path: '/v1/machines',
-    body: machineBody,
-    response: machineSchema,
-})
+export type MachineView = z.output<typeof machineViewSchema>
+export type FileStatus = z.output<typeof fileStatus>
+export type CadFileView = z.output<typeof cadFileViewSchema>
 
 export const listMachines = queryMaker({
     method: 'GET',
-    path: '/v1/machines',
-    response: z.array(machineSchema),
+    path: '/v1/records',
+    search: includeSearch.extend({ cls: z.literal('Machine') }),
+    response: z.array(machineViewSchema),
 })
 
-export const getMachine = queryMaker({
-    method: 'GET',
-    path: '/v1/machines/:id',
-    params: idParams,
-    response: machineDetailsSchema,
+export const createMachine = queryMaker({
+    method: 'POST',
+    path: '/v1/records',
+    body: machineBody,
+    response: writtenSchema,
 })
 
 export const updateMachine = queryMaker({
     method: 'PATCH',
-    path: '/v1/machines/:id',
+    path: '/v1/records/:id',
     params: idParams,
-    body: machineBody,
-    response: machineSchema,
+    body: machineChanges,
+    response: writtenSchema,
 })
 
-export const deleteMachine = queryMaker({
+export const deleteRecord = queryMaker({
     method: 'DELETE',
-    path: '/v1/machines/:id',
+    path: '/v1/records/:id',
     params: idParams,
-    response: z.void(),
+    response: z.object({ deletedIds: z.array(z.string()), markedIds: z.array(z.string()) }),
 })
 
-export const createAssemblyGroup = queryMaker({
+export const createCadFile = queryMaker({
     method: 'POST',
-    path: '/v1/machines/:id/assembly-groups',
-    params: idParams,
-    body: assemblyGroupBody,
-    response: assemblyGroupSchema,
+    path: '/v1/records',
+    body: cadFileBody,
+    response: writtenSchema,
 })
 
-export const updateAssemblyGroup = queryMaker({
+export const updateCadFile = queryMaker({
     method: 'PATCH',
-    path: '/v1/assembly-groups/:id',
+    path: '/v1/records/:id',
     params: idParams,
-    body: assemblyGroupBody,
-    response: assemblyGroupSchema,
-})
-
-export const deleteAssemblyGroup = queryMaker({
-    method: 'DELETE',
-    path: '/v1/assembly-groups/:id',
-    params: idParams,
-    response: z.void(),
-})
-
-export const registerCadFiles = queryMaker({
-    method: 'POST',
-    path: '/v1/assembly-groups/:id/cad-files',
-    params: idParams,
-    body: z.object({ files: z.array(z.object({ filename: z.string(), size: z.number() })) }),
-    response: z.array(uploadSchema),
-})
-
-export const completeCadFile = queryMaker({
-    method: 'POST',
-    path: '/v1/cad-files/:id/complete',
-    params: idParams,
-    response: cadFileSchema,
+    body: cadFileChanges,
+    response: writtenSchema,
 })
 
 export const getCadFile = queryMaker({
     method: 'GET',
-    path: '/v1/cad-files/:id',
+    path: '/v1/records/:id',
     params: idParams,
-    response: cadFileSchema,
+    search: includeSearch,
+    response: cadFileViewSchema,
 })
 
-export const renameCadFile = queryMaker({
-    method: 'PATCH',
-    path: '/v1/cad-files/:id',
+export const requestUploadForm = queryMaker({
+    method: 'POST',
+    path: '/v1/records/:id/upload-form',
     params: idParams,
-    body: z.object({ name: z.string() }),
-    response: cadFileSchema,
+    body: z.object({ size: z.number() }),
+    response: z.object({ url: z.string(), fields: z.record(z.string(), z.string()) }),
 })
 
-export const deleteCadFile = queryMaker({
-    method: 'DELETE',
-    path: '/v1/cad-files/:id',
+export const completeUpload = queryMaker({
+    method: 'POST',
+    path: '/v1/records/:id/complete',
     params: idParams,
-    response: z.void(),
+    response: uploadSchema,
 })
 
-// Prefix of every machine query: invalidating it refreshes the list and the open machine
+// Prefix of every machine query
 export const machinesQueryKey = ['machines'] as const
 
 export const machinesQuery = queryOptions({
     queryKey: machinesQueryKey,
-    queryFn: ({ signal }) => listMachines({ signal }),
+    queryFn: ({ signal }) =>
+        listMachines({ search: { cls: 'Machine', include: 'status,children' }, signal }),
 })
 
-export const machineQuery = (id: string) =>
+export const cadFileQuery = (id: string) =>
     queryOptions({
-        queryKey: [...machinesQueryKey, id],
-        queryFn: ({ signal }) => getMachine({ params: { id }, signal }),
+        queryKey: [...machinesQueryKey, 'cad-files', id],
+        queryFn: ({ signal }) =>
+            getCadFile({ params: { id }, search: { include: 'status,upload' }, signal }),
     })

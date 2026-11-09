@@ -3,13 +3,22 @@ from __future__ import annotations
 from abc import abstractmethod
 from collections.abc import Sequence
 from contextlib import AbstractAsyncContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from services.database import ConflictError, Tx
 from services.json_types import JsonObject
 
 ERROR_STILL_LINKED: str = "{record_id!r} is still linked from {linking_ids}"
+ERROR_STALE_VERSION: str = (
+    "record {record_id!r} has changed since version {expected_versions}"
+)
+# matches any existing record (``If-Match: *``)
+ANY_VERSION: str = "*"
+
+
+class StaleVersionError(Exception):
+    """Record changed since the client read it, or doesn't exist."""
 
 
 class RecordLinkedError(ConflictError):
@@ -44,6 +53,7 @@ class Record:
         ontology_version: the ``Ontology.version`` the graph was validated with.
         links: graph's links (``Ontology.get_links``).
         review: empty, or why the record needs a review (e.g. last parent link was deleted).
+        version: changes on every save, empty before the first. Not compared.
     """
 
     id: str
@@ -53,6 +63,7 @@ class Record:
     ontology_version: str
     links: tuple[Link, ...] = ()
     review: str = ""
+    version: str = field(default="", compare=False)
 
 
 class RecordStore(Protocol):
@@ -193,9 +204,9 @@ class RecordStore(Protocol):
         ...
 
     @abstractmethod
-    async def lock_record(self, record_id: str, tx: Tx) -> None:
+    async def lock_record(self, record_id: str, tx: Tx) -> str | None:
         """Locks the record's row until ``tx`` ends, so concurrent writers of this record and of its children wait.
 
-        Does nothing if there is no such record.
+        Returns its version, or ``None`` if there is no such record.
         """
         ...

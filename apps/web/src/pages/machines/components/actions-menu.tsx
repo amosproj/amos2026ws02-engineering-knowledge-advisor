@@ -31,7 +31,7 @@ export function ActionsMenu({ label, actions, size = 'icon' }: ActionsMenuProps)
             >
                 <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="min-w-56">
                 {actions.map((action) => (
                     <DropdownMenuItem
                         key={action.label}

@@ -7,7 +7,7 @@ from fakes import build_ontology_with, load_document, load_ontology
 from helpers import assert_mentions
 
 from services import Json, SearchMode
-from services.ograg.ontology import Ontology, OntologyError
+from services.ograg.ontology import Ontology, OntologyError, Property
 
 # text property added to Machine, tests set its og:search
 NOTE: dict[str, Any] = {
@@ -25,21 +25,198 @@ def test_record_classes_and_anchor_are_read():
         "AssemblyGroup",
         "CadFile",
         "KnowledgeItem",
+        "Guideline",
     ]
     assert onto.anchor_class == "AssemblyGroup"
-    assert onto.extractable_classes == ["KnowledgeItem"]
+    assert onto.extractable_classes == ["KnowledgeItem", "Guideline"]
+    assert onto.guideline_classes == ["Guideline"]
     assert onto.properties[("AssemblyGroup", "name")].identity
     assert onto.properties[("KnowledgeItem", "appliesTo")].is_parent_link
     assert onto.properties[("CadFile", "partOf")].is_parent_link
-    assert onto.properties[("CadFile", "name")].identity
-    assert onto.properties[("KnowledgeItem", "author")].author
-    assert onto.get_identity_property_names()["AssemblyGroup"] == ["identifier", "name"]
+    assert onto.properties[("Guideline", "sourceDocumentId")].provenance
+    assert onto.get_identity_property_names() == {
+        "Machine": ["identifier", "name"],
+        "AssemblyGroup": ["identifier", "name"],
+        "CadFile": [],
+        "KnowledgeItem": [],
+        "Guideline": [],
+    }
+
+
+def test_file_classes_and_delete_with_parent_are_read():
+    onto: Ontology = load_ontology()
+    assert onto.file_classes == ["CadFile"]
+    # a parent link to the own class: groups inside groups
+    assert onto.properties[("AssemblyGroup", "partOf")].range == "AssemblyGroup"
+    assert onto.properties[("AssemblyGroup", "partOf")].delete_with_parent
+    assert onto.properties[("AssemblyGroup", "rootOf")].delete_with_parent
+    assert onto.properties[("CadFile", "partOf")].delete_with_parent
+    assert not onto.properties[("KnowledgeItem", "appliesTo")].delete_with_parent
+    assert not onto.properties[("KnowledgeItem", "appliesToMachine")].delete_with_parent
+
+
+def test_a_machine_has_one_cad_file():
+    onto: Ontology = load_ontology()
+    assert onto.properties[("CadFile", "partOf")].max_per_parent == 1
+    assert onto.properties[("AssemblyGroup", "partOf")].max_per_parent is None
+
+
+@pytest.mark.parametrize("limit", [0, -1, 1.5, "1", True])
+def test_max_per_parent_must_be_a_positive_integer(limit: Json):
+    document: dict[str, Any] = load_document()
+    for item in document["@graph"]:
+        if item["@id"] == "og:partOf" and item["domain"] == "og:CadFile":
+            item["og:maxPerParent"] = limit
+    with pytest.raises(OntologyError) as raised:
+        Ontology.from_jsonld(document)
+    assert_mentions(str(raised.value), "CadFile", "partOf", "maxPerParent")
+
+
+@pytest.mark.parametrize(
+    ("file_class_ids", "expected"),
+    [
+        ([], {"Machine"}),
+        # appliesTo and appliesToMachine are parent links
+        (["og:KnowledgeItem"], {"Machine", "AssemblyGroup"}),
+    ],
+    ids=["CAD files", "knowledge items carry files too"],
+)
+def test_file_parent_classes_follow_the_parent_links_of_file_classes(
+    file_class_ids: list[str], expected: set[str]
+):
+    document: dict[str, Any] = load_document()
+    for item in document["@graph"]:
+        if item["@id"] in file_class_ids:
+            item["og:file"] = True
+    assert Ontology.from_jsonld(document).get_file_parent_classes() == expected
+
+
+def test_labels_are_read():
+    onto: Ontology = load_ontology()
+    assert onto.class_labels["CadFile"].display_name == "CAD file"
+    assert onto.class_labels["CadFile"].comment
+    assert onto.properties[("AssemblyProperties", "dimensions")].display_name == (
+        "dimensions"
+    )
+    assert onto.properties[("AssemblyProperties", "dimensions")].comment
+
+
+@pytest.mark.parametrize(
+    "annotations",
+    [{}, {"range": "og:KnowledgeItem"}],
+    ids=["text property", "ordinary link"],
+)
+def test_delete_with_parent_on_a_property_without_parent_link_is_refused(
+    annotations: dict[str, Any],
+):
+    prop: dict[str, Any] = {**NOTE, "og:deleteWithParent": True, **annotations}
+    with pytest.raises(OntologyError) as raised:
+        build_ontology_with(prop)
+    assert_mentions(str(raised.value), "deleteWithParent", "Machine", "note")
+
+
+@pytest.mark.parametrize(
+    "annotations",
+    [{}, {"range": "og:KnowledgeItem"}],
+    ids=["text property", "ordinary link"],
+)
+def test_max_per_parent_on_a_property_without_parent_link_is_refused(
+    annotations: dict[str, Any],
+):
+    prop: dict[str, Any] = {**NOTE, "og:maxPerParent": 1, **annotations}
+    with pytest.raises(OntologyError) as raised:
+        build_ontology_with(prop)
+    assert_mentions(str(raised.value), "maxPerParent", "Machine", "note")
+
+
+def test_file_on_a_class_that_is_no_record_class_is_refused():
+    document: dict[str, Any] = load_document()
+    for item in document["@graph"]:
+        if item["@id"] == "og:AssemblyProperties":
+            item["og:file"] = True
+    with pytest.raises(OntologyError) as raised:
+        Ontology.from_jsonld(document)
+    assert_mentions(str(raised.value), "AssemblyProperties", "record")
+
+
+@pytest.mark.parametrize(
+    ("class_id", "annotations", "keywords"),
+    [
+        ("og:AssemblyProperties", {}, ("AssemblyProperties", "guideline", "record")),
+        ("og:AssemblyGroup", {}, ("AssemblyGroup", "guideline", "anchor")),
+        (
+            "og:KnowledgeItem",
+            {"og:guidelineWhen": {"itemType": ["requirement"]}},
+            ("KnowledgeItem", "guideline", "guidelineWhen"),
+        ),
+    ],
+    ids=["no record class", "anchor", "next to guidelineWhen"],
+)
+def test_a_misplaced_guideline_flag_is_refused(
+    class_id: str, annotations: dict[str, Any], keywords: tuple[str, ...]
+):
+    document: dict[str, Any] = load_document()
+    for item in document["@graph"]:
+        if item["@id"] == class_id:
+            item.update({"og:guideline": True, **annotations})
+    with pytest.raises(OntologyError) as raised:
+        Ontology.from_jsonld(document)
+    assert_mentions(str(raised.value), *keywords)
+
+
+def test_a_property_listing_several_domains_is_added_to_each():
+    onto: Ontology = build_ontology_with(
+        {**NOTE, "domain": ["og:Machine", "og:CadFile"], "og:search": ["lexical"]}
+    )
+    for cls in ("Machine", "CadFile"):
+        assert onto.properties[(cls, "note")].search == (SearchMode.LEXICAL,)
+    # the file's shared name: one comment for both classes, CadFile keeps its own item
+    machine_name, group_name = (
+        onto.properties[(cls, "name")] for cls in ("Machine", "AssemblyGroup")
+    )
+    assert machine_name.identity and machine_name.comment == group_name.comment
+    assert not onto.properties[("CadFile", "name")].identity
+
+
+@pytest.mark.parametrize(
+    ("domain", "keywords"),
+    [
+        (["og:Machine", "og:Machine"], ("Machine", "note", "twice")),
+        ("og:AssemblyGroup", ("AssemblyGroup", "name", "twice")),
+        ([], ("note", "domain")),
+        (["og:Machine", 3], ("note", "domain")),
+        (3, ("note", "domain")),
+    ],
+    ids=["listed twice", "defined again", "empty list", "not a text", "number"],
+)
+def test_a_property_defined_twice_or_with_a_bad_domain_is_refused(
+    domain: Json, keywords: tuple[str, ...]
+):
+    name: str = "og:name" if "name" in keywords else "og:note"
+    with pytest.raises(OntologyError) as raised:
+        build_ontology_with({**NOTE, "@id": name, "domain": domain})
+    assert_mentions(str(raised.value), *keywords)
+
+
+@pytest.mark.parametrize(
+    ("annotations", "keywords"),
+    [
+        ({"displayName": 3}, ("note", "displayName")),
+        ({"comment": ["a", "b"]}, ("note", "comment")),
+    ],
+)
+def test_labels_of_the_wrong_shape_are_refused(
+    annotations: dict[str, Any], keywords: tuple[str, ...]
+):
+    with pytest.raises(OntologyError) as raised:
+        build_ontology_with({**NOTE, **annotations})
+    assert_mentions(str(raised.value), *keywords)
 
 
 def test_search_modes_default_by_range():
     onto: Ontology = build_ontology_with({**NOTE, "og:search": []})
-    assert onto.properties[("KnowledgeItem", "statement")].search == ("semantic",)
-    assert onto.properties[("Characteristic", "payloadKg")].search == ("filter",)
+    assert onto.properties[("KnowledgeProperties", "statement")].search == ("semantic",)
+    assert onto.properties[("AssemblyProperties", "dimensions")].search == ("filter",)
     assert onto.properties[("AssemblyGroup", "partOf")].search == ()
     assert onto.properties[("Machine", "note")].search == ()
     assert "lexical" in (onto.properties[("AssemblyGroup", "identifier")].search or ())
@@ -101,12 +278,12 @@ def test_malformed_ontology_is_refused():
 @pytest.mark.parametrize(
     ("domain", "range_", "keywords"),
     [
-        ("og:AssemblyGroup", "og:AssemblyGroup", ("AssemblyGroup",)),
         ("og:Machine", "og:AssemblyGroup", ("Machine", "AssemblyGroup")),
+        ("og:Machine", "og:CadFile", ("Machine", "CadFile")),
     ],
-    ids=["own class", "through another class"],
+    ids=["through another class", "two classes"],
 )
-def test_parent_links_leading_back_to_their_class_are_refused(
+def test_parent_links_leading_back_to_their_class_through_others_are_refused(
     domain: str, range_: str, keywords: tuple[str, ...]
 ):
     parent_link: dict[str, Any] = {
@@ -114,11 +291,40 @@ def test_parent_links_leading_back_to_their_class_are_refused(
         "@type": "rdf:Property",
         "domain": domain,
         "range": range_,
-        "og:parentLink": True,
+        "og:edgeType": "parent",
     }
     with pytest.raises(OntologyError) as raised:
         build_ontology_with(parent_link)
-    assert_mentions(str(raised.value), "parentLink", *keywords)
+    assert_mentions(str(raised.value), "parent", *keywords)
+
+
+@pytest.mark.parametrize(
+    ("annotations", "keywords"),
+    [
+        ({"og:edgeType": "child"}, ("Machine", "note", "edgeType", "child")),
+        ({"og:edgeType": ["parent"]}, ("Machine", "note", "edgeType")),
+        (
+            {"range": "schema:Text", "og:edgeType": "simple"},
+            ("Machine", "note", "edgeType", "link"),
+        ),
+        ({"og:parentLink": True}, ("Machine", "note", "parentLink", "edgeType")),
+    ],
+    ids=["unknown", "not a text", "on a text property", "old parentLink"],
+)
+def test_a_bad_edge_type_is_refused(
+    annotations: dict[str, Any], keywords: tuple[str, ...]
+):
+    link: dict[str, Any] = {**NOTE, "range": "og:KnowledgeItem", **annotations}
+    with pytest.raises(OntologyError) as raised:
+        build_ontology_with(link)
+    assert_mentions(str(raised.value), *keywords)
+
+
+def test_a_link_without_edge_type_is_simple():
+    onto: Ontology = build_ontology_with({**NOTE, "range": "og:KnowledgeItem"})
+    note: Property = onto.properties[("Machine", "note")]
+    assert note.edge is None and not note.is_parent_link
+    assert onto.describe()["Machine"].properties["note"].edge == "simple"
 
 
 @pytest.mark.parametrize(
@@ -149,10 +355,14 @@ def test_guideline_when_naming_properties_its_class_lacks_is_refused():
     document: dict[str, Any] = load_document()
     for item in document["@graph"]:
         if item["@id"] == "og:KnowledgeItem":
-            item["og:guidelineWhen"] |= {"scop": ["global"], "payloadKg": ["12"]}
+            item["og:guidelineWhen"] = {
+                "itemType": ["requirement"],
+                "scop": ["global"],
+                "dimensions": ["12"],
+            }
     with pytest.raises(OntologyError) as raised:
         Ontology.from_jsonld(document)
-    assert_mentions(str(raised.value), "KnowledgeItem", "scop", "payloadKg")
+    assert_mentions(str(raised.value), "KnowledgeItem", "scop", "dimensions")
 
 
 @pytest.mark.parametrize(

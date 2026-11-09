@@ -10839,7 +10839,7 @@
         "starlette-45@1.10.0",
         "uvicorn-51@0.54.0"
       ],
-      "ref": "api-1@0.1.0"
+      "ref": "api-1@0.2.1"
     },
     {
       "dependsOn": [
@@ -11098,7 +11098,7 @@
   ],
   "metadata": {
     "component": {
-      "bom-ref": "api-1@0.1.0",
+      "bom-ref": "api-1@0.2.1",
       "name": "api",
       "properties": [
         {
@@ -11107,7 +11107,7 @@
         }
       ],
       "type": "library",
-      "version": "0.1.0"
+      "version": "0.2.1"
     },
     "tools": [
       {

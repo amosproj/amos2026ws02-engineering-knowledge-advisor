@@ -3,16 +3,14 @@ import threading
 from collections.abc import Callable, Iterator, Sequence
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from db import CadUploadColumn, CadUploadStatus, cad_uploads
 from logger import logger
 from services import ConflictError
 from services.catalog import CatalogService
-from services.catalog.files import MACHINES_PREFIX, get_cad_file_id
-from services.catalog.records import delete_cad_file
+from services.catalog.files import FILES_PREFIX, get_cad_file_id
 from services.object_storage import StoredObject
+from services.uploads import Upload
 
 ABANDONED_UPLOAD_AGE: timedelta = timedelta(hours=24)
 
@@ -25,17 +23,11 @@ async def expire_abandoned_uploads(
     stopping: threading.Event,
     on_progress: Callable[[], None],
 ) -> None:
-    """Delete the CAD files still uploading 24 h after their creation, with their folder."""
-    is_abandoned: tuple[ColumnElement[bool], ...] = (
-        cad_uploads.c[CadUploadColumn.STATUS] == CadUploadStatus.UPLOADING,
-        cad_uploads.c[CadUploadColumn.CREATED_AT] < func.now() - ABANDONED_UPLOAD_AGE,
-    )
+    """Delete the uploads still uploading 24 h after their creation, with their folder. The file records stay."""
     async with sessions() as session:
-        cad_file_ids: Sequence[str] = (
-            await session.scalars(
-                select(cad_uploads.c[CadUploadColumn.CAD_FILE_ID]).where(*is_abandoned)
-            )
-        ).all()
+        cad_file_ids: Sequence[str] = await catalog.uploads.get_abandoned_ids(
+            ABANDONED_UPLOAD_AGE, session
+        )
 
     expired = 0
     for cad_file_id in cad_file_ids:
@@ -45,17 +37,13 @@ async def expire_abandoned_uploads(
         # one transaction per file, so a conflict with a deletion from the API only skips this file
         try:
             async with sessions() as session, session.begin():
-                source_key: str | None = await session.scalar(
-                    select(cad_uploads.c[CadUploadColumn.SOURCE_KEY])
-                    .where(
-                        cad_uploads.c[CadUploadColumn.CAD_FILE_ID] == cad_file_id,
-                        *is_abandoned,
-                    )
-                    .with_for_update(skip_locked=True)
+                upload: Upload | None = await catalog.uploads.lock_abandoned(
+                    cad_file_id, ABANDONED_UPLOAD_AGE, session
                 )
-                if source_key is None:
+                if upload is None:
                     continue
-                await delete_cad_file(catalog.ograg, session, cad_file_id)
+                source_key: str = upload.source_key
+                await catalog.uploads.delete_upload(cad_file_id, session)
         except ConflictError:
             logger.warning(f"Could not expire CAD file {cad_file_id}, retrying later")
             continue
@@ -79,7 +67,7 @@ async def delete_orphan_objects(
     was deleted or failed.
     """
     cutoff: datetime = datetime.now(UTC) - ORPHAN_OBJECT_AGE
-    pages: Iterator[list[StoredObject]] = catalog.storage.list_objects(MACHINES_PREFIX)
+    pages: Iterator[list[StoredObject]] = catalog.storage.list_objects(FILES_PREFIX)
     deleted = 0
     # listing fetches the pages lazily, so each page is fetched off the event loop
     while (
@@ -100,16 +88,8 @@ async def delete_orphan_objects(
 
         if cad_file_ids:
             async with sessions() as session:
-                kept_ids: set[str] = set(
-                    await session.scalars(
-                        select(cad_uploads.c[CadUploadColumn.CAD_FILE_ID]).where(
-                            cad_uploads.c[CadUploadColumn.CAD_FILE_ID].in_(
-                                set(cad_file_ids.values())
-                            ),
-                            cad_uploads.c[CadUploadColumn.STATUS]
-                            != CadUploadStatus.FAILED,
-                        )
-                    )
+                kept_ids: set[str] = await catalog.uploads.get_kept_ids(
+                    sorted(set(cad_file_ids.values())), session
                 )
             orphan_keys: list[str] = [
                 key for key, cad_id in cad_file_ids.items() if cad_id not in kept_ids

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Engineering Knowledge Advisor API",
-    "version": "0.1.2"
+    "version": "0.2.1"
   },
   "paths": {
     "/api/health/live": {
@@ -29,85 +29,15 @@
         }
       }
     },
-    "/api/v1/ping": {
+    "/api/v1/records": {
       "post": {
-        "tags": ["v1"],
-        "summary": "Test Ping",
-        "description": "Sample ping-pong endpoint with request and response bodies.",
-        "operationId": "test_ping_api_v1_ping_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TestRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful response.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TestResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/records/{record_id}": {
-      "put": {
-        "tags": ["v1", "records"],
-        "summary": "Put Record",
-        "description": "PUTs a record. Links hold target ids.\n\n``@type`` defaults to anchor class.\n``@id`` is ``record_id``.\nLink targets must already exist.",
-        "operationId": "put_record_api_v1_records__record_id__put",
-        "parameters": [
-          {
-            "name": "record_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 200,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Record Id"
-            }
-          }
+        "tags": [
+          "v1",
+          "records"
         ],
+        "summary": "Post Record",
+        "description": "Creates a record with a generated id. Links hold target ids.\n\n``@type`` defaults to anchor class. A sent ``@id`` is ignored.",
+        "operationId": "post_record_api_v1_records_post",
         "requestBody": {
           "required": true,
           "content": {
@@ -119,8 +49,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Successful Response",
+          "201": {
+            "description": "The new record's id including validation drops.",
             "content": {
               "application/json": {
                 "schema": {
@@ -140,7 +70,299 @@
             }
           },
           "409": {
-            "description": "Concurrent write, or a machine, assembly group or CAD file: they have their own endpoints.",
+            "description": "Concurrent write. Please try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "v1",
+          "records"
+        ],
+        "summary": "Get Records",
+        "description": "All validated records by id. WARNING: reads EVERY record.",
+        "operationId": "get_records_api_v1_records_get",
+        "parameters": [
+          {
+            "name": "cls",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only records of this class.",
+              "title": "Cls"
+            },
+            "description": "Only records of this class."
+          },
+          {
+            "name": "parentId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only records with a parent link to this parent id.",
+              "title": "Parentid"
+            },
+            "description": "Only records with a parent link to this parent id."
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(status|children|upload)(,(status|children|upload))*$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated extras per record.",
+              "title": "Include"
+            },
+            "description": "Comma-separated extras per record."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All records sorted by their id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Records"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RecordView"
+                      }
+                    }
+                  ],
+                  "title": "Response Get Records Api V1 Records Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/records/{recordId}": {
+      "put": {
+        "tags": ["v1", "records"],
+        "summary": "Put Record",
+        "description": "PUTs a record. Links hold target ids.\n\n``@type`` defaults to anchor class.\n``@id`` is ``record_id``.\nLink targets must already exist.",
+        "operationId": "put_record_api_v1_records__recordId__put",
+        "parameters": [
+          {
+            "name": "recordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Recordid"
+            }
+          },
+          {
+            "name": "if-match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Record version last read, e.g. \"1234\". Without it, nothing is checked.",
+              "title": "If-Match"
+            },
+            "description": "Record version last read, e.g. \"1234\". Without it, nothing is checked."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordNode"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully stored record including validation drops.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordWritten"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Does not fit ontology. Link target is missing, or value cannot be stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Concurrent write. Please try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Record changed since the If-Match version. Read it again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "v1",
+          "records"
+        ],
+        "summary": "Patch Record",
+        "description": "Executes JSON Merge Patch (https://www.rfc-editor.org/info/rfc7396/).\nWhole record is validated again as with PUT.",
+        "operationId": "patch_record_api_v1_records__recordId__patch",
+        "parameters": [
+          {
+            "name": "recordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Recordid"
+            }
+          },
+          {
+            "name": "if-match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Record version last read, e.g. \"1234\". Without it, nothing is checked.",
+              "title": "If-Match"
+            },
+            "description": "Record version last read, e.g. \"1234\". Without it, nothing is checked."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordChanges"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully changed record including validation drops.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordWritten"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Does not fit ontology. Link target is missing, or value cannot be stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Concurrent write. Please try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Record changed since the If-Match version. Read it again.",
             "content": {
               "application/json": {
                 "schema": {
@@ -155,27 +377,54 @@
         "tags": ["v1", "records"],
         "summary": "Get Record",
         "description": "Returns validated record. Links hold target ids.",
-        "operationId": "get_record_api_v1_records__record_id__get",
+        "operationId": "get_record_api_v1_records__recordId__get",
         "parameters": [
           {
-            "name": "record_id",
+            "name": "recordId",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "maxLength": 200,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Record Id"
+              "title": "Recordid"
             }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(status|children|upload)(,(status|children|upload))*$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated extras per record.",
+              "title": "Include"
+            },
+            "description": "Comma-separated extras per record."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Requested record.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RecordNode"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RecordNode"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RecordView"
+                    }
+                  ],
+                  "title": "Response Get Record Api V1 Records  Recordid  Get"
                 }
               }
             }
@@ -205,34 +454,52 @@
       "delete": {
         "tags": ["v1", "records"],
         "summary": "Delete Record",
-        "description": "Delete a record and unlink it everywhere.\n\nRecords left without a parent link are also deleted if ``delete_orphans`` is ``True``, otherwise marked for review.",
-        "operationId": "delete_record_api_v1_records__record_id__delete",
+        "description": "Deletes a record and unlinks it everywhere.\n\nRecords left without a parent link are also deleted if ``delete_orphans`` is ``True``, otherwise marked for review.\nRecords whose parent link is marked ``og:deleteWithParent`` are deleted with it.",
+        "operationId": "delete_record_api_v1_records__recordId__delete",
         "parameters": [
           {
-            "name": "record_id",
+            "name": "recordId",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "maxLength": 200,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Record Id"
+              "title": "Recordid"
             }
           },
           {
-            "name": "delete_orphans",
+            "name": "deleteOrphans",
             "in": "query",
             "required": false,
             "schema": {
               "type": "boolean",
               "default": false,
-              "title": "Delete Orphans"
+              "title": "Deleteorphans"
             }
+          },
+          {
+            "name": "if-match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Record version last read, e.g. \"1234\". Without it, nothing is checked.",
+              "title": "If-Match"
+            },
+            "description": "Record version last read, e.g. \"1234\". Without it, nothing is checked."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Successfully deleted record including record ids marked for review.",
             "content": {
               "application/json": {
                 "schema": {
@@ -241,8 +508,8 @@
               }
             }
           },
-          "404": {
-            "description": "No such record.",
+          "409": {
+            "description": "Concurrent write, or a file of the record is being processed. Please try again.",
             "content": {
               "application/json": {
                 "schema": {
@@ -251,8 +518,8 @@
               }
             }
           },
-          "409": {
-            "description": "Concurrent write, or a machine, assembly group or CAD file: they have their own endpoints.",
+          "404": {
+            "description": "No such record.",
             "content": {
               "application/json": {
                 "schema": {
@@ -270,23 +537,13 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/api/v1/records": {
-      "get": {
-        "tags": ["v1", "records"],
-        "summary": "Get Records",
-        "description": "All validated records by id. WARNING: reads EVERY record.",
-        "operationId": "get_records_api_v1_records_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
+          },
+          "412": {
+            "description": "Record changed since the If-Match version. Read it again.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Records"
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -302,7 +559,7 @@
         "operationId": "get_records_to_review_api_v1_records_review_get",
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Records marked for manual user review.",
             "content": {
               "application/json": {
                 "schema": {
@@ -310,7 +567,7 @@
                     "$ref": "#/components/schemas/RecordToReview"
                   },
                   "type": "array",
-                  "title": "Response Get Records To Review Api V1 Records Review Get"
+                  "title": "Response 200 Get Records To Review Api V1 Records Review Get"
                 }
               }
             }
@@ -318,99 +575,60 @@
         }
       }
     },
-    "/api/v1/machines": {
+    "/api/v1/records/{recordId}/tree": {
       "get": {
-        "tags": ["v1", "catalog"],
-        "summary": "Get Machines",
-        "description": "All machines, sorted by name.",
-        "operationId": "get_machines_api_v1_machines_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/Machine"
-                  },
-                  "type": "array",
-                  "title": "Response Get Machines Api V1 Machines Get"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": ["v1", "catalog"],
-        "summary": "Post Machine",
-        "operationId": "post_machine_api_v1_machines_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MachineFields"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Machine"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/machines/{machine_id}": {
-      "get": {
-        "tags": ["v1", "catalog"],
-        "summary": "Get Machine",
-        "description": "The machine with its assembly groups and their CAD files.",
-        "operationId": "get_machine_api_v1_machines__machine_id__get",
+        "tags": [
+          "v1",
+          "files"
+        ],
+        "summary": "Get Record Tree",
+        "description": "Returns record with every record linking to it through a parent link.",
+        "operationId": "get_record_tree_api_v1_records__recordId__tree_get",
         "parameters": [
           {
-            "name": "machine_id",
+            "name": "recordId",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "maxLength": 200,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Machine Id"
+              "title": "Recordid"
             }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Levels below the record. All if None.",
+              "title": "Depth"
+            },
+            "description": "Levels below the record. All if None."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Record with every record below it. File records carry status and upload metadata.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MachineDetails"
+                  "$ref": "#/components/schemas/RecordTree"
                 }
               }
             }
           },
           "404": {
-            "description": "No such machine, assembly group or CAD file.",
+            "description": "No such record.",
             "content": {
               "application/json": {
                 "schema": {
@@ -430,22 +648,102 @@
             }
           }
         }
-      },
-      "patch": {
-        "tags": ["v1", "catalog"],
-        "summary": "Patch Machine",
-        "description": "Changes the fields sent. ``null`` or blank clears an optional field.",
-        "operationId": "patch_machine_api_v1_machines__machine_id__patch",
+      }
+    },
+    "/api/v1/records/{recordId}/ancestors": {
+      "get": {
+        "tags": [
+          "v1",
+          "files"
+        ],
+        "summary": "Get Record Ancestors",
+        "description": "Returns record with its parents, their parents and so on.",
+        "operationId": "get_record_ancestors_api_v1_records__recordId__ancestors_get",
         "parameters": [
           {
-            "name": "machine_id",
+            "name": "recordId",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "maxLength": 200,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Machine Id"
+              "title": "Recordid"
+            }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Levels above the record. All if None.",
+              "title": "Depth"
+            },
+            "description": "Levels above the record. All if None."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Record with its parents up to the top.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordAncestors"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/records/{recordId}/upload-form": {
+      "post": {
+        "tags": [
+          "v1",
+          "files"
+        ],
+        "summary": "Post Upload Form",
+        "description": "Returns form to upload the file record's file with (object storage).\n\nRe-upload to replace running or failed upload. Call ``POST /records/{id}/complete`` after completed upload.",
+        "operationId": "post_upload_form_api_v1_records__recordId__upload_form_post",
+        "parameters": [
+          {
+            "name": "recordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Recordid"
             }
           }
         ],
@@ -454,78 +752,24 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MachineChanges"
+                "$ref": "#/components/schemas/FileToUpload"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Form to upload the file with.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Machine"
+                  "$ref": "#/components/schemas/UploadForm"
                 }
               }
             }
           },
           "404": {
-            "description": "No such machine, assembly group or CAD file.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": ["v1", "catalog"],
-        "summary": "Delete Machine Route",
-        "description": "Deletes the machine, its assembly groups and their CAD files. Cancels their uploads.",
-        "operationId": "delete_machine_route_api_v1_machines__machine_id__delete",
-        "parameters": [
-          {
-            "name": "machine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 200,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Machine Id"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "404": {
-            "description": "No such machine, assembly group or CAD file.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
+            "description": "No such record.",
             "content": {
               "application/json": {
                 "schema": {
@@ -535,7 +779,17 @@
             }
           },
           "409": {
-            "description": "A CAD file is being processed. Please try again.",
+            "description": "File is being processed, already ready, or the worker holds it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed, or the record's class carries no file.",
             "content": {
               "application/json": {
                 "schema": {
@@ -547,511 +801,41 @@
         }
       }
     },
-    "/api/v1/machines/{machine_id}/assembly-groups": {
+    "/api/v1/records/{recordId}/complete": {
       "post": {
-        "tags": ["v1", "catalog"],
-        "summary": "Post Assembly Group",
-        "operationId": "post_assembly_group_api_v1_machines__machine_id__assembly_groups_post",
-        "parameters": [
-          {
-            "name": "machine_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 200,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Machine Id"
-            }
-          }
+        "tags": [
+          "v1",
+          "files"
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AssemblyGroupFields"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssemblyGroup"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such machine, assembly group or CAD file.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/assembly-groups/{assembly_group_id}": {
-      "get": {
-        "tags": ["v1", "catalog"],
-        "summary": "Get Assembly Group",
-        "operationId": "get_assembly_group_api_v1_assembly_groups__assembly_group_id__get",
+        "summary": "Complete Upload",
+        "description": "Confirms file upload and queues it for processing.",
+        "operationId": "complete_upload_api_v1_records__recordId__complete_post",
         "parameters": [
           {
-            "name": "assembly_group_id",
+            "name": "recordId",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
               "maxLength": 200,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Assembly Group Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssemblyGroup"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such machine, assembly group or CAD file.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": ["v1", "catalog"],
-        "summary": "Patch Assembly Group",
-        "description": "Changes the fields sent. ``null`` or blank clears an optional field.",
-        "operationId": "patch_assembly_group_api_v1_assembly_groups__assembly_group_id__patch",
-        "parameters": [
-          {
-            "name": "assembly_group_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 200,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Assembly Group Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AssemblyGroupChanges"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssemblyGroup"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such machine, assembly group or CAD file.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": ["v1", "catalog"],
-        "summary": "Delete Assembly Group Route",
-        "description": "Deletes the assembly group and its CAD files. Cancels their uploads.",
-        "operationId": "delete_assembly_group_route_api_v1_assembly_groups__assembly_group_id__delete",
-        "parameters": [
-          {
-            "name": "assembly_group_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 200,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Assembly Group Id"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "404": {
-            "description": "No such machine, assembly group or CAD file.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "A CAD file is being processed. Please try again.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/assembly-groups/{assembly_group_id}/cad-files": {
-      "post": {
-        "tags": ["v1", "catalog"],
-        "summary": "Post Cad Files",
-        "description": "Registers CAD files and returns one upload form each.\n\nUpload each file with its form, then call ``POST /cad-files/{id}/complete``.",
-        "operationId": "post_cad_files_api_v1_assembly_groups__assembly_group_id__cad_files_post",
-        "parameters": [
-          {
-            "name": "assembly_group_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 200,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Assembly Group Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UploadRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CadFileUpload"
-                  },
-                  "title": "Response Post Cad Files Api V1 Assembly Groups  Assembly Group Id  Cad Files Post"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such machine, assembly group or CAD file.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/cad-files/{cad_file_id}": {
-      "get": {
-        "tags": ["v1", "catalog"],
-        "summary": "Get Cad File",
-        "operationId": "get_cad_file_api_v1_cad_files__cad_file_id__get",
-        "parameters": [
-          {
-            "name": "cad_file_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 200,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Cad File Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CadFile"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such machine, assembly group or CAD file.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": ["v1", "catalog"],
-        "summary": "Patch Cad File",
-        "description": "Renames the CAD file.",
-        "operationId": "patch_cad_file_api_v1_cad_files__cad_file_id__patch",
-        "parameters": [
-          {
-            "name": "cad_file_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 200,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Cad File Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CadFileChanges"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CadFile"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "No such machine, assembly group or CAD file.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": ["v1", "catalog"],
-        "summary": "Delete Cad File Route",
-        "description": "Deletes the CAD file. Cancels its upload.",
-        "operationId": "delete_cad_file_route_api_v1_cad_files__cad_file_id__delete",
-        "parameters": [
-          {
-            "name": "cad_file_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 200,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Cad File Id"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "404": {
-            "description": "No such machine, assembly group or CAD file.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "A CAD file is being processed. Please try again.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/cad-files/{cad_file_id}/complete": {
-      "post": {
-        "tags": ["v1", "catalog"],
-        "summary": "Complete Cad File Upload",
-        "description": "Confirms that the file was uploaded and queues it for processing.",
-        "operationId": "complete_cad_file_upload_api_v1_cad_files__cad_file_id__complete_post",
-        "parameters": [
-          {
-            "name": "cad_file_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 200,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
-              "title": "Cad File Id"
+              "title": "Recordid"
             }
           }
         ],
         "responses": {
           "202": {
-            "description": "Successful Response",
+            "description": "File is queued for processing, or processed.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CadFile"
+                  "$ref": "#/components/schemas/FileUpload"
                 }
               }
             }
           },
           "404": {
-            "description": "No such machine, assembly group or CAD file.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Request validation failed.",
+            "description": "No such record.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1061,11 +845,54 @@
             }
           },
           "409": {
-            "description": "Upload not found, file does not match or import failed (see error_code), or the file is being processed.",
+            "description": "Upload not found and file does not match, or import failed, or the file is being processed.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed, or the record's class carries no file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "File storage cannot be reached. Please try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ontology": {
+      "get": {
+        "tags": [
+          "v1",
+          "ontology"
+        ],
+        "summary": "Get Ontology",
+        "description": "Returns loaded ontology with every class and property.",
+        "operationId": "get_ontology_api_v1_ontology_get",
+        "responses": {
+          "200": {
+            "description": "Every class of the ontology with its properties and annotations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OntologyDescription"
                 }
               }
             }
@@ -1330,665 +1157,301 @@
   },
   "components": {
     "schemas": {
-      "AssemblyGroup": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "machine_id": {
-            "type": "string",
-            "title": "Machine Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "identifier": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Identifier"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "cad_files": {
-            "items": {
-              "$ref": "#/components/schemas/CadFile"
-            },
-            "type": "array",
-            "title": "Cad Files"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "machine_id",
-          "name",
-          "identifier",
-          "description",
-          "cad_files"
-        ],
-        "title": "AssemblyGroup"
-      },
-      "AssemblyGroupChanges": {
-        "properties": {
-          "name": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "identifier": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Identifier"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 1000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          }
-        },
-        "type": "object",
-        "title": "AssemblyGroupChanges",
-        "description": "Fields left out stay unchanged; null or blank clears an optional field."
-      },
-      "AssemblyGroupFields": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Name"
-          },
-          "identifier": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Identifier"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 1000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          }
-        },
-        "type": "object",
-        "required": ["name"],
-        "title": "AssemblyGroupFields"
-      },
-      "CadFile": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "assembly_group_id": {
-            "type": "string",
-            "title": "Assembly Group Id"
-          },
-          "status": {
-            "$ref": "#/components/schemas/CadUploadStatus"
-          },
-          "error_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Code"
-          },
-          "size_bytes": {
-            "type": "integer",
-            "title": "Size Bytes"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "assembly_group_id",
-          "status",
-          "error_code",
-          "size_bytes",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "CadFile"
-      },
-      "CadFileChanges": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Name"
-          }
-        },
-        "type": "object",
-        "required": ["name"],
-        "title": "CadFileChanges"
-      },
-      "CadFileUpload": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "upload": {
-            "$ref": "#/components/schemas/UploadForm"
-          }
-        },
-        "type": "object",
-        "required": ["id", "name", "upload"],
-        "title": "CadFileUpload"
-      },
-      "CadUploadStatus": {
+      "EdgeType": {
         "type": "string",
-        "enum": ["uploading", "processing", "ready", "failed"],
-        "title": "CadUploadStatus"
-      },
-      "ChatMessage": {
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": ["system", "user", "assistant"],
-            "title": "Role"
-          },
-          "content": {
-            "type": "string",
-            "maxLength": 32000,
-            "minLength": 1,
-            "title": "Content"
-          }
-        },
-        "type": "object",
-        "required": ["role", "content"],
-        "title": "ChatMessage"
-      },
-      "ChatRequest": {
-        "properties": {
-          "provider": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 40,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Provider"
-          },
-          "model": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 200,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model"
-          },
-          "messages": {
-            "items": {
-              "$ref": "#/components/schemas/ChatMessage"
-            },
-            "type": "array",
-            "maxItems": 100,
-            "minItems": 1,
-            "title": "Messages"
-          },
-          "temperature": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 2.0,
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Temperature"
-          },
-          "max_tokens": {
-            "type": "integer",
-            "maximum": 32768.0,
-            "minimum": 1.0,
-            "title": "Max Tokens",
-            "default": 1024
-          },
-          "top_p": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 1.0,
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Top P"
-          },
-          "response_format": {
-            "type": "string",
-            "enum": ["text", "json_object"],
-            "title": "Response Format",
-            "default": "text"
-          }
-        },
-        "type": "object",
-        "required": ["messages"],
-        "title": "ChatRequest"
-      },
-      "ChatResponse": {
-        "properties": {
-          "provider": {
-            "type": "string",
-            "title": "Provider"
-          },
-          "model": {
-            "type": "string",
-            "title": "Model"
-          },
-          "content": {
-            "type": "string",
-            "title": "Content"
-          },
-          "finish_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Finish Reason"
-          },
-          "usage": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TokenUsage"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "request_id": {
-            "type": "string",
-            "title": "Request Id"
-          }
-        },
-        "type": "object",
-        "required": ["provider", "model", "content", "request_id"],
-        "title": "ChatResponse"
+        "enum": [
+          "parent",
+          "simple"
+        ],
+        "title": "EdgeType",
+        "description": "Kind of link (``og:edgeType``)."
       },
       "FileToUpload": {
         "properties": {
-          "filename": {
-            "type": "string",
-            "maxLength": 255,
-            "pattern": "(?i)^.+\\.(stp|step)$",
-            "title": "Filename"
-          },
           "size": {
             "type": "integer",
             "maximum": 5368709120.0,
             "minimum": 1.0,
-            "title": "Size"
+            "title": "Size",
+            "description": "Size in bytes."
           }
         },
         "type": "object",
-        "required": ["filename", "size"],
-        "title": "FileToUpload"
+        "required": [
+          "size"
+        ],
+        "title": "FileToUpload",
+        "description": "Body of ``POST /records/{id}/upload-form``."
       },
-      "Machine": {
+      "FileUpload": {
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "identifier": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Identifier"
-          },
-          "customer": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Customer"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "assembly_group_count": {
-            "type": "integer",
-            "title": "Assembly Group Count"
-          },
-          "cad_file_count": {
-            "type": "integer",
-            "title": "Cad File Count"
+            "title": "Id",
+            "description": "File record id."
           },
           "status": {
+            "$ref": "#/components/schemas/UploadStatus",
+            "description": "Where the file is in its life cycle."
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode",
+            "description": "Why the file failed, else null."
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "title": "Sizebytes",
+            "description": "Announced size, checked on complete."
+          },
+          "createdAt": {
             "type": "string",
-            "enum": ["empty", "uploading", "processing", "failed", "ready"],
-            "title": "Status",
-            "description": "Most urgent status of its CAD files: uploading, processing, failed, ready. empty without file."
+            "format": "date-time",
+            "title": "Createdat",
+            "description": "When the upload form was requested."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat",
+            "description": "Last status change."
           }
         },
         "type": "object",
         "required": [
           "id",
-          "name",
-          "identifier",
-          "customer",
-          "description",
-          "assembly_group_count",
-          "cad_file_count",
-          "status"
+          "status",
+          "errorCode",
+          "sizeBytes",
+          "createdAt",
+          "updatedAt"
         ],
-        "title": "Machine"
+        "title": "FileUpload",
+        "description": "Upload state of a file record."
       },
-      "MachineChanges": {
+      "Json": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "items": {
+              "$ref": "#/components/schemas/Json"
+            },
+            "type": "array"
+          },
+          {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Json"
+            },
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Any JSON value."
+      },
+      "JsonObject": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Json"
+        },
+        "type": "object",
+        "description": "JSON object."
+      },
+      "OntologyClass": {
         "properties": {
-          "name": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
+          "displayName": {
+            "type": "string",
+            "title": "Displayname",
+            "description": "Name to show."
           },
-          "identifier": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Identifier"
+          "comment": {
+            "type": "string",
+            "title": "Comment",
+            "description": "What it means."
           },
-          "customer": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Customer"
+          "record": {
+            "type": "boolean",
+            "title": "Record",
+            "description": "Whether stored as records."
           },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 1000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
+          "anchor": {
+            "type": "boolean",
+            "title": "Anchor",
+            "description": "Whether class search results are grouped by this class."
+          },
+          "file": {
+            "type": "boolean",
+            "title": "File",
+            "description": "Whether records carry an uploaded file."
+          },
+          "guideline": {
+            "type": "boolean",
+            "title": "Guideline",
+            "description": "Whether records are global guidelines."
+          },
+          "extractable": {
+            "type": "boolean",
+            "title": "Extractable",
+            "description": "Whether document import extracts records of this class."
+          },
+          "properties": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OntologyProperty"
+            },
+            "type": "object",
+            "title": "Properties",
+            "description": "In ontology file order."
           }
         },
         "type": "object",
-        "title": "MachineChanges",
-        "description": "Fields left out stay unchanged; null or blank clears an optional field."
+        "required": [
+          "displayName",
+          "comment",
+          "record",
+          "anchor",
+          "file",
+          "guideline",
+          "extractable",
+          "properties"
+        ],
+        "title": "OntologyClass",
+        "description": "A class of the ontology (``Ontology.describe``)."
       },
-      "MachineDetails": {
+      "OntologyDescription": {
         "properties": {
-          "id": {
+          "version": {
             "type": "string",
-            "title": "Id"
+            "title": "Version",
+            "description": "Ontology content hash."
           },
-          "name": {
+          "classes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OntologyClass"
+            },
+            "type": "object",
+            "title": "Classes",
+            "description": "Sorted by name."
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "classes"
+        ],
+        "title": "OntologyDescription",
+        "description": "Response of ``GET /ontology``."
+      },
+      "OntologyProperty": {
+        "properties": {
+          "range": {
             "type": "string",
-            "title": "Name"
+            "title": "Range",
+            "description": "Local name of the range."
           },
-          "identifier": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Identifier"
-          },
-          "customer": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Customer"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "assembly_group_count": {
-            "type": "integer",
-            "title": "Assembly Group Count"
-          },
-          "cad_file_count": {
-            "type": "integer",
-            "title": "Cad File Count"
-          },
-          "status": {
+          "displayName": {
             "type": "string",
-            "enum": ["empty", "uploading", "processing", "failed", "ready"],
-            "title": "Status",
-            "description": "Most urgent status of its CAD files: uploading, processing, failed, ready. empty without file."
+            "title": "Displayname",
+            "description": "Name to show."
           },
-          "assembly_groups": {
+          "comment": {
+            "type": "string",
+            "title": "Comment",
+            "description": "What it means."
+          },
+          "enum": {
             "items": {
-              "$ref": "#/components/schemas/AssemblyGroup"
+              "type": "string"
             },
             "type": "array",
-            "title": "Assembly Groups"
+            "title": "Enum",
+            "description": "Allowed values, empty if any is allowed."
+          },
+          "link": {
+            "type": "boolean",
+            "title": "Link",
+            "description": "The value is the id of a record."
+          },
+          "edge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EdgeType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Kind of link: parent (the record's parent) or simple. Null if the property is no link."
+          },
+          "deleteWithParent": {
+            "type": "boolean",
+            "title": "Deletewithparent",
+            "description": "Whether deleting the parent deletes the record too."
+          },
+          "maxPerParent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxperparent",
+            "description": "Most records of the class one parent may have through this link, null for any."
+          },
+          "nested": {
+            "type": "boolean",
+            "title": "Nested",
+            "description": "Whether value is a nested node."
+          },
+          "identity": {
+            "type": "boolean",
+            "title": "Identity",
+            "description": "Whether values name the record."
+          },
+          "search": {
+            "items": {
+              "$ref": "#/components/schemas/SearchMode"
+            },
+            "type": "array",
+            "title": "Search",
+            "description": "How values are searched."
           }
         },
         "type": "object",
         "required": [
-          "id",
-          "name",
-          "identifier",
-          "customer",
-          "description",
-          "assembly_group_count",
-          "cad_file_count",
-          "status",
-          "assembly_groups"
+          "range",
+          "displayName",
+          "comment",
+          "enum",
+          "link",
+          "edge",
+          "deleteWithParent",
+          "maxPerParent",
+          "nested",
+          "identity",
+          "search"
         ],
-        "title": "MachineDetails"
-      },
-      "MachineFields": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Name"
-          },
-          "identifier": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Identifier"
-          },
-          "customer": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Customer"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 1000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          }
-        },
-        "type": "object",
-        "required": ["name"],
-        "title": "MachineFields"
-      },
-      "ModelInfo": {
-        "properties": {
-          "provider": {
-            "type": "string",
-            "title": "Provider"
-          },
-          "model": {
-            "type": "string",
-            "title": "Model"
-          }
-        },
-        "type": "object",
-        "required": ["provider", "model"],
-        "title": "ModelInfo"
+        "title": "OntologyProperty",
+        "description": "Property of an ontology class (``Ontology.describe``)."
       },
       "Problem": {
         "properties": {
@@ -2054,27 +1517,66 @@
         "title": "Problem",
         "description": "RFC 9457 Problem object"
       },
-      "ProviderInfo": {
+      "RecordAncestors": {
         "properties": {
-          "name": {
-            "type": "string",
-            "title": "Name"
+          "record": {
+            "$ref": "#/components/schemas/RecordNode",
+            "description": "Validated record. Links hold target ids."
           },
-          "default_model": {
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Changes on every save. Send as If-Match with PUT, PATCH or DELETE."
+          },
+          "status": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/UploadStatus"
+              },
+              {
+                "type": "string",
+                "const": "empty"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Default Model"
+            "title": "Status",
+            "description": "Most urgent upload status of the record's files: uploading, processing, failed, ready."
+          },
+          "upload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileUpload"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Upload of a file record: status, size, error code and times. Null before the first upload."
+          },
+          "parents": {
+            "items": {
+              "$ref": "#/components/schemas/RecordAncestors"
+            },
+            "type": "array",
+            "title": "Parents",
+            "description": "Records whose parent links point to the record."
           }
         },
         "type": "object",
-        "required": ["name", "default_model"],
-        "title": "ProviderInfo"
+        "required": [
+          "record",
+          "version",
+          "parents"
+        ],
+        "title": "RecordAncestors",
+        "description": "Response of ``GET /records/{id}/ancestors``. Record with its parents up to the top."
+      },
+      "RecordChanges": {
+        "$ref": "#/components/schemas/JsonObject",
+        "title": "RecordChanges",
+        "description": "JSON Merge Patch (RFC 7396) of a record. Class properties -> new value."
       },
       "RecordNode": {
         "properties": {
@@ -2112,91 +1614,226 @@
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id"
+            "title": "Id",
+            "description": "Record id."
           },
           "review": {
             "type": "string",
-            "title": "Review"
+            "title": "Review",
+            "description": "Why the record needs a review."
           },
           "record": {
-            "$ref": "#/components/schemas/RecordNode"
+            "$ref": "#/components/schemas/RecordNode",
+            "description": "Validated record. Links hold target ids."
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Changes on every save. Send as If-Match with PUT, PATCH or DELETE."
           }
         },
         "type": "object",
-        "required": ["id", "review", "record"],
+        "required": [
+          "id",
+          "review",
+          "record",
+          "version"
+        ],
         "title": "RecordToReview",
         "description": "A marked record."
+      },
+      "RecordTree": {
+        "properties": {
+          "record": {
+            "$ref": "#/components/schemas/RecordNode",
+            "description": "Validated record. Links hold target ids."
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Changes on every save. Send as If-Match with PUT, PATCH or DELETE."
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UploadStatus"
+              },
+              {
+                "type": "string",
+                "const": "empty"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "Most urgent upload status of the record's files: uploading, processing, failed, ready."
+          },
+          "upload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileUpload"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Upload of a file record: status, size, error code and times. Null before the first upload."
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/RecordTree"
+            },
+            "type": "array",
+            "title": "Children",
+            "description": "Records whose parent links point to the record."
+          }
+        },
+        "type": "object",
+        "required": [
+          "record",
+          "version",
+          "children"
+        ],
+        "title": "RecordTree",
+        "description": "Response of ``GET /records/{id}/tree``. Record with every record below it."
+      },
+      "RecordView": {
+        "properties": {
+          "record": {
+            "$ref": "#/components/schemas/RecordNode",
+            "description": "Validated record. Links hold target ids."
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Changes on every save. Send as If-Match with PUT, PATCH or DELETE."
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UploadStatus"
+              },
+              {
+                "type": "string",
+                "const": "empty"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "Most urgent upload status of the record's files: uploading, processing, failed, ready."
+          },
+          "upload": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileUpload"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Upload of a file record: status, size, error code and times. Null before the first upload."
+          },
+          "children": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RecordNode"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Children",
+            "description": "Records whose parent links point to the record."
+          }
+        },
+        "type": "object",
+        "required": [
+          "record",
+          "version"
+        ],
+        "title": "RecordView",
+        "description": "A record with the extras asked for by ``include``."
       },
       "RecordWritten": {
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id"
+            "title": "Id",
+            "description": "Record id."
           },
           "warnings": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Warnings"
+            "title": "Warnings",
+            "description": "Validation drops: what was left out."
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Changes on every save. Send as If-Match with PUT, PATCH or DELETE."
           }
         },
         "type": "object",
-        "required": ["id", "warnings"],
+        "required": [
+          "id",
+          "warnings",
+          "version"
+        ],
         "title": "RecordWritten",
-        "description": "Response of ``PUT /records/{id}``.\n\nAttributes:\n    warnings: validation drops"
+        "description": "Response of ``POST /records``, ``PUT /records/{id}`` and ``PATCH /records/{id}``.\n\nAttributes:\n    warnings: validation drops\n    version: record version after the write"
       },
       "Records": {
-        "additionalProperties": {
+        "items": {
           "$ref": "#/components/schemas/RecordNode"
         },
-        "type": "object",
+        "type": "array",
         "title": "Records",
-        "description": "Response of ``GET /records``. Wraps map: record id -> validated node"
+        "description": "Response of ``GET /records``. Wraps list of validated nodes, sorted by id."
       },
       "RecordsDeleted": {
         "properties": {
-          "deleted_ids": {
+          "deletedIds": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Deleted Ids"
+            "title": "Deletedids",
+            "description": "The record and every record deleted with it."
           },
-          "marked_ids": {
+          "markedIds": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Marked Ids"
+            "title": "Markedids",
+            "description": "Records that lost their last parent link, marked for review."
           }
         },
         "type": "object",
-        "required": ["deleted_ids", "marked_ids"],
+        "required": [
+          "deletedIds",
+          "markedIds"
+        ],
         "title": "RecordsDeleted",
         "description": "Response of ``DELETE /records/{id}``.\n\nAttributes:\n    deleted_ids: id of deleted record + ids of deleted orphans\n    marked_ids: ids of records that lost their last parent link and were marked for review"
       },
-      "TestRequest": {
-        "properties": {
-          "ping": {
-            "type": "integer",
-            "title": "Ping"
-          }
-        },
-        "type": "object",
-        "required": ["ping"],
-        "title": "TestRequest"
-      },
-      "TestResponse": {
-        "properties": {
-          "pong": {
-            "type": "integer",
-            "title": "Pong"
-          }
-        },
-        "type": "object",
-        "required": ["pong"],
-        "title": "TestResponse"
+      "SearchMode": {
+        "type": "string",
+        "enum": [
+          "semantic",
+          "lexical",
+          "filter"
+        ],
+        "title": "SearchMode",
+        "description": "How a property's values are searched (``og:search``). Members are plain strings."
       },
       "TokenUsage": {
         "properties": {
@@ -2241,14 +1878,16 @@
         "properties": {
           "url": {
             "type": "string",
-            "title": "Url"
+            "title": "Url",
+            "description": "Where to post the form."
           },
           "fields": {
             "additionalProperties": {
               "type": "string"
             },
             "type": "object",
-            "title": "Fields"
+            "title": "Fields",
+            "description": "Form fields, sent before the file."
           }
         },
         "type": "object",
@@ -2256,21 +1895,16 @@
         "title": "UploadForm",
         "description": "Presigned POST form: send ``fields`` and then the file as ``file`` to ``url``."
       },
-      "UploadRequest": {
-        "properties": {
-          "files": {
-            "items": {
-              "$ref": "#/components/schemas/FileToUpload"
-            },
-            "type": "array",
-            "maxItems": 5,
-            "minItems": 1,
-            "title": "Files"
-          }
-        },
-        "type": "object",
-        "required": ["files"],
-        "title": "UploadRequest"
+      "UploadStatus": {
+        "type": "string",
+        "enum": [
+          "uploading",
+          "processing",
+          "ready",
+          "failed"
+        ],
+        "title": "UploadStatus",
+        "description": "Where an uploaded file is in its life cycle."
       }
     }
   }

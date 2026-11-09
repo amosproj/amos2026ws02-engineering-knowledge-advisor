@@ -1,5 +1,5 @@
 # Local development only: exposes Postgres and MinIO on this machine.
-# Enabled by COMPOSE_FILE=compose.yaml:compose.local.yaml in the .env (see .env.example).
+# Automatically loaded alongside compose.yaml for local development.
 services:
   db:
     ports:
@@ -7,4 +7,4 @@ services:
   minio:
     ports:
       - "127.0.0.1:9000:9000" # S3 API
-      - "127.0.0.1:9001:9001" # console
+      - "127.0.0.1:9001:9001" # Dashboard

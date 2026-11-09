@@ -6,6 +6,11 @@ from pathlib import Path
 
 from services import Json, JsonObject, Lane, Link
 from services.ograg.ontology import validation
+from services.ograg.ontology.description import (
+    ClassDescription,
+    ClassLabel,
+    PropertyDescription,
+)
 from services.ograg.ontology.names import (
     LITERAL_RANGES,
     get_type,
@@ -17,7 +22,7 @@ from services.ograg.ontology.parsing import (
     parse_document,
     read_document,
 )
-from services.ograg.ontology.property import Property
+from services.ograg.ontology.property import EdgeType, Property
 
 
 def _matches_all(graph: Mapping[str, Json], conditions: dict[str, list[str]]) -> bool:
@@ -51,6 +56,9 @@ class Ontology:
         record_classes: classes marked ``"og:record": true``.
         extractable_classes: record classes marked ``"og:extractable": true``, document import extracts only these (none marked => nothing extracted).
         guideline_when: conditions when class counts as a guideline (class -> property -> values).
+        file_classes: record classes marked ``"og:file": true``, their records carry an uploaded file.
+        guideline_classes: record classes marked ``"og:guideline": true``, their records take the guideline lane.
+        class_labels: class -> its display name and comment.
     """
 
     classes: set[str]
@@ -60,6 +68,9 @@ class Ontology:
     record_classes: list[str] = field(default_factory=list)
     extractable_classes: list[str] = field(default_factory=list)
     guideline_when: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+    file_classes: list[str] = field(default_factory=list)
+    guideline_classes: list[str] = field(default_factory=list)
+    class_labels: dict[str, ClassLabel] = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: str | Path) -> Ontology:
@@ -82,9 +93,14 @@ class Ontology:
                 - not exactly one class marked as anchor
                 - anchor or extractable class is not a record
                 - property has unknown domain, range or search mode
-                - ``og:parentLink`` is not on a property marked as a link
-                - ``og:parentLink`` lead back to their own class
+                - ``og:edgeType`` is not on a link, names an unknown edge type, or ``og:parentLink`` is still used
+                - ``parent`` edges lead back to their own class through other classes
+                - a property is defined twice for one class, or its domain is not a class or a list of classes
+                - ``og:guideline`` is not on a record class, is on the anchor or next to ``og:guidelineWhen``
                 - ``og:guidelineWhen`` is not on a record class or names a property its class doesn't have.
+                - ``og:file`` is not on a record class
+                - ``og:deleteWithParent`` is not on a ``parent`` edge
+                - ``og:maxPerParent`` is not on a ``parent`` edge, or not a positive integer
         """
         declared: Declarations = parse_document(document)
         return cls(
@@ -95,6 +111,9 @@ class Ontology:
             record_classes=declared.record_classes,
             extractable_classes=declared.extractable_classes,
             guideline_when=declared.guideline_when,
+            file_classes=declared.file_classes,
+            guideline_classes=declared.guideline_classes,
+            class_labels=declared.class_labels,
         )
 
     def is_link(self, prop: Property) -> bool:
@@ -118,6 +137,33 @@ class Ontology:
             prop.name for prop in self._get_properties_of(cls) if self.is_link(prop)
         }
 
+    def get_parent_link_names(self, cls: str) -> set[str]:
+        """Returns names of ``cls``'s parent link properties."""
+        return {
+            prop.name for prop in self._get_properties_of(cls) if prop.is_parent_link
+        }
+
+    def get_file_parent_classes(self) -> set[str]:
+        """Returns the classes the parent links of file classes point to."""
+        return {
+            prop.range
+            for cls in self.file_classes
+            for prop in self._get_properties_of(cls)
+            if prop.is_parent_link
+        }
+
+    def get_delete_with_parent_names(self, cls: str) -> set[str]:
+        """Returns names of ``cls``'s parent links marked ``og:deleteWithParent``."""
+        return {
+            prop.name
+            for prop in self._get_properties_of(cls)
+            if prop.delete_with_parent
+        }
+
+    def describe(self) -> dict[str, ClassDescription]:
+        """Returns every class with its properties as clients see them, sorted by class name."""
+        return {cls: self._describe_class(cls) for cls in sorted(self.classes)}
+
     def get_links(self, graph: Mapping[str, Json]) -> list[Link]:
         """Returns one ``Link`` per target id of a validated record.
 
@@ -136,11 +182,14 @@ class Ontology:
 
     def get_lane(self, graph: Mapping[str, Json]) -> Lane:
         """Returns the lane for the given record's facts. ``guideline`` when record's values all match its class's ``og:guidelineWhen``, else ``fact``.
+        Every record of a class marked ``og:guideline`` takes the ``guideline`` lane.
 
         Args:
             graph: validated record graph.
         """
         cls: str = get_type(graph)
+        if cls in self.guideline_classes:
+            return Lane.GUIDELINE
         conditions: dict[str, list[str]] | None = self.guideline_when.get(cls)
         if conditions and _matches_all(graph, conditions):
             return Lane.GUIDELINE
@@ -210,3 +259,34 @@ class Ontology:
 
     def _get_properties_of(self, cls: str) -> list[Property]:
         return [prop for (domain, _), prop in self.properties.items() if domain == cls]
+
+    def _describe_class(self, cls: str) -> ClassDescription:
+        label: ClassLabel = self.class_labels.get(cls, ClassLabel())
+        return ClassDescription(
+            display_name=label.display_name,
+            comment=label.comment,
+            record=cls in self.record_classes,
+            anchor=cls == self.anchor_class,
+            file=cls in self.file_classes,
+            guideline=cls in self.guideline_classes,
+            extractable=cls in self.extractable_classes,
+            properties={
+                prop.name: self._describe_property(prop)
+                for prop in self._get_properties_of(cls)
+            },
+        )
+
+    def _describe_property(self, prop: Property) -> PropertyDescription:
+        return PropertyDescription(
+            range=prop.range,
+            display_name=prop.display_name,
+            comment=prop.comment,
+            enum=prop.allowed,
+            link=self.is_link(prop),
+            edge=(prop.edge or EdgeType.SIMPLE) if self.is_link(prop) else None,
+            delete_with_parent=prop.delete_with_parent,
+            max_per_parent=prop.max_per_parent,
+            nested=self.is_nested(prop),
+            identity=prop.identity,
+            search=prop.search or (),
+        )
