@@ -68,6 +68,8 @@ Loaded on start with the ontology. Invalid ontology stops the start. JSON fields
 
 ### Parallel editing (If-Match)
 
+TODO: can become a problem if multiple people want to edit different parts of the same record at the same time
+
 Postgres `xmin`: `ETag` header of `GET /records/{id}`, and a `version` field in write responses, include wrappers, `/tree`, `/ancestors` and `/records/review`.
 
 Send it back as `If-Match: "<version>"` with `PUT`, `PATCH` or `DELETE`. If someone saved the record in between, the answer is `412` and nothing changes. In that case the record should be read again.

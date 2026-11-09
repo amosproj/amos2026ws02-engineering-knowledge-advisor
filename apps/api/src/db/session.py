@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 from fastapi import Request
 from sqlalchemy.ext.asyncio import (
@@ -45,7 +45,7 @@ def create_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]
     return async_sessionmaker(engine, expire_on_commit=False)
 
 
-async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
+async def get_session(request: Request) -> AsyncGenerator[AsyncSession]:
     """Request's unit of work, an ``AsyncSession`` inside ``session.begin()``.
 
     Commits when route returns, rolls back when it raises.

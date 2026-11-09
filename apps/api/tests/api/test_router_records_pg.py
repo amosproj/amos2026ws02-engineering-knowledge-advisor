@@ -2,7 +2,7 @@
 
 import asyncio
 import os
-from collections.abc import AsyncIterator, Callable, Generator, Iterator
+from collections.abc import AsyncGenerator, Callable, Generator, Iterator
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -112,7 +112,7 @@ def storage(sync_engine: Engine) -> FakeStorage:
 @pytest.fixture
 def client(storage: FakeStorage) -> Iterator[TestClient]:
     @asynccontextmanager
-    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         engine: AsyncEngine = create_async_engine(URL)
         ontology: Ontology = load_ontology()
         app.state.sessions = create_sessionmaker(engine)

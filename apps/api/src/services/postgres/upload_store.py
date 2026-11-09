@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Any, override
@@ -45,7 +45,7 @@ class PgUploadStore(UploadStore):
 
     @override
     @asynccontextmanager
-    async def limit_lock_wait(self, tx: AsyncSession) -> AsyncIterator[None]:
+    async def limit_lock_wait(self, tx: AsyncSession) -> AsyncGenerator[None]:
         await tx.execute(text(SET_LOCK_TIMEOUT))
         try:
             yield
