@@ -45,7 +45,7 @@ async def handle_coded_conflict(
         instance=request.url.path,
     )
 
-  
+
 async def handle_precondition_failed(
     request: Request, exc: Exception
 ) -> ProblemResponse:
@@ -59,6 +59,7 @@ async def handle_not_found(request: Request, exc: Exception) -> ProblemResponse:
         404, _to_response_detail(exc), instance=request.url.path
     )
 
+
 async def handle_storage_unavailable(
     request: Request, exc: Exception
 ) -> ProblemResponse:
@@ -67,7 +68,7 @@ async def handle_storage_unavailable(
         503, RESPONSE_DETAIL_503, instance=request.url.path
     )
 
- 
+
 async def handle_llm_error(request: Request, exc: LLMError) -> ProblemResponse:
     return ProblemResponse.from_status(
         exc.status_code,
@@ -75,6 +76,7 @@ async def handle_llm_error(request: Request, exc: LLMError) -> ProblemResponse:
         error_code=exc.error_code,
         instance=request.url.path,
     )
+
 
 def register(app: FastAPI) -> None:
     app.exception_handler(RecordError)(handle_unprocessable)
