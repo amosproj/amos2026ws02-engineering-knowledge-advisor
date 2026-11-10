@@ -1,5 +1,4 @@
 import re
-
 from pathlib import Path
 
 from OCP.Bnd import Bnd_Box
@@ -19,6 +18,9 @@ from services.cad.assembly_tree_node import AssemblyTreeNode
 from services.cad.cad_file import CadFile
 from services.cad.cad_file_parsing_error import CadFileParsingError
 from services.cad_file_parser import CadFileParser
+
+# Matches auto-generated names like "=>[0:0:1:0]" from OpenCASCADE
+_AUTO_GENERATED_NAME_RE = re.compile(r"^=>\[.*]")
 
 
 class StepFileParser(CadFileParser):
@@ -49,8 +51,6 @@ class StepFileParser(CadFileParser):
                 f"Expected exactly one root node, but found {len(roots)}"
             )
 
-        _AUTO_GENERATED_NAME_RE = re.compile(r"^=>\[.*\]")
-
         def label_name(label: TDF_Label) -> str | None:
             name_attr = TDataStd_Name()
             if label.FindAttribute(TDataStd_Name.GetID_s(), name_attr):
@@ -79,11 +79,9 @@ class StepFileParser(CadFileParser):
 
             return xmax - xmin, ymax - ymin, zmax - zmin
 
-        def visit(label: TDF_Label, depth: int = 0) -> AssemblyTreeNode | None:
+        def visit(label: TDF_Label) -> AssemblyTreeNode | None:
             name: str | None = label_name(label)
             if not name:
-                if depth == 0:
-                    raise CadFileParsingError("No name found for root label")
                 return None
 
             dims: tuple[float | int, float | int, float | int] = get_dimensions(label)
@@ -103,7 +101,7 @@ class StepFileParser(CadFileParser):
                 if not shape_tool.GetReferredShape_s(occurrence, definition):
                     definition = occurrence
 
-                child_node: AssemblyTreeNode | None = visit(definition, depth + 1)
+                child_node: AssemblyTreeNode | None = visit(definition)
                 if child_node is None:
                     continue
 
@@ -120,7 +118,7 @@ class StepFileParser(CadFileParser):
 
         root_node = visit(roots.Value(1))
         if root_node is None:
-            raise CadFileParsingError("No name found for root label")
+            raise CadFileParsingError("No name found for root assembly")
 
         return CadFile(
             identifier=file_identifier,

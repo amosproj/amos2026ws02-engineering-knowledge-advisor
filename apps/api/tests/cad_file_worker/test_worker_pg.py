@@ -53,13 +53,6 @@ LONG_AGO: datetime = datetime(2020, 1, 1, tzinfo=UTC)
 type Sessions = async_sessionmaker[AsyncSession]
 
 
-class NoOpParser(CadFileParser):
-    """Parser that returns None — tests validate only, don't parse."""
-
-    def parse_file(self, file_identifier: str, path: str | Path) -> CadFile | None:  # type: ignore[return-value]
-        return None
-
-
 class ValidParser(CadFileParser):
     """Parser that returns a valid CadFile with a simple root node."""
 
@@ -175,7 +168,7 @@ class Worker:
         return await process_next_cad_upload(
             self.sessions,
             self.catalog,
-            parser or NoOpParser(),
+            parser or ValidParser(),
             threading.Event(),
             lambda: None,
         )
