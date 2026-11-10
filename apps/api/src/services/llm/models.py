@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -22,7 +22,7 @@ class ChatRequest(BaseModel):
     response_format: ResponseFormat = "text"
 
     @model_validator(mode="after")
-    def validate_prompt(self) -> "ChatRequest":
+    def validate_prompt(self) -> Self:
         if not any(message.role == "user" for message in self.messages):
             raise ValueError("At least one user message is required")
         conversation_started: bool = False
