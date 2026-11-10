@@ -14,6 +14,7 @@ from services.llm import (
     ModelInfo,
     ProviderInfo,
 )
+from services.llm.constants import STREAM_DONE
 from services.llm.errors import LLMError
 
 RESPONSE_DETAIL_422: str = "Request validation failed."
@@ -64,7 +65,7 @@ async def chat_stream(body: ChatRequest, llm: LLM) -> ServerSentEventResponse:
         try:
             async for chunk in llm.stream(body):
                 yield f"data: {chunk.model_dump_json()}\n\n"
-            yield "data: [DONE]\n\n"
+            yield f"data: {STREAM_DONE}\n\n"
         except LLMError as exc:
             payload: str = json.dumps(
                 {"error": {"code": exc.error_code, "detail": exc.detail}}

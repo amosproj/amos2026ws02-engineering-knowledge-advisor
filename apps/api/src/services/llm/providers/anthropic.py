@@ -1,6 +1,7 @@
 import json
 from uuid import uuid4
 
+from services.llm.constants import STREAM_DONE
 from services.llm.errors import StreamingInterruptedError
 from services.llm.models import ChatRequest, ChatResponse, ChatStreamChunk
 from services.llm.providers.base import HTTPProvider
@@ -87,7 +88,7 @@ class AnthropicProvider(HTTPProvider):
         if not line.startswith("data:"):
             return None
         data: str = line[5:].strip()
-        if data == "[DONE]":
+        if data == STREAM_DONE:
             return None
         try:
             payload: object = json.loads(data)
