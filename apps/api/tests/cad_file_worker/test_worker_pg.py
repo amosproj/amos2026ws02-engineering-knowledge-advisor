@@ -23,12 +23,15 @@ from cad_file_worker import cleanup
 from cad_file_worker.cleanup import delete_orphan_objects, expire_abandoned_uploads
 from cad_file_worker.processing import process_next_cad_upload
 from db import TableName, Tables, define_tables
+from services.cad.assembly_tree_node import AssemblyTreeNode
 from services.cad.cad_file import CadFile
+from services.cad.cad_file_parsing_error import CadFileParsingError
 from services.cad_file_parser import CadFileParser
 from services.catalog import CatalogService, PresignedForm
-from services.object_storage import ObjectStorage, StoredObject
+from services.database import Tx
+from services.object_storage import ObjectStorage, ObjectStorageError, StoredObject
 from services.ograg.ontology import Ontology
-from services.ograg.service import OgRagService
+from services.ograg.service import OgRagService, ParentLimitError, RecordError
 from services.postgres.record_store import PgRecordStore
 from services.postgres.upload_store import PgUploadStore
 from services.uploads import Upload, UploadStatus
@@ -55,6 +58,29 @@ class NoOpParser(CadFileParser):
 
     def parse_file(self, file_identifier: str, path: str | Path) -> CadFile | None:  # type: ignore[return-value]
         return None
+
+
+class ValidParser(CadFileParser):
+    """Parser that returns a valid CadFile with a simple root node."""
+
+    def parse_file(self, file_identifier: str, path: str | Path) -> CadFile:
+        root = AssemblyTreeNode(
+            identifier=file_identifier,
+            kind="assembly",
+            dimensions=(100.0, 200.0, 300.0),
+            children=[],
+        )
+        return CadFile(identifier=file_identifier, root_node=root)
+
+
+class ErrorParser(CadFileParser):
+    """Parser that raises a configured exception."""
+
+    def __init__(self, error: Exception) -> None:
+        self._error = error
+
+    def parse_file(self, file_identifier: str, path: str | Path) -> CadFile:
+        raise self._error
 
 
 class ContentStorage(ObjectStorage):
@@ -145,9 +171,13 @@ class Worker:
             self.storage.contents.clear()
         return file_id
 
-    async def process(self) -> bool:
+    async def process(self, parser: CadFileParser | None = None) -> bool:
         return await process_next_cad_upload(
-            self.sessions, self.catalog, NoOpParser(), threading.Event(), lambda: None
+            self.sessions,
+            self.catalog,
+            parser or NoOpParser(),
+            threading.Event(),
+            lambda: None,
         )
 
     async def get_upload(self, file_id: str) -> Upload | None:
@@ -304,5 +334,110 @@ def test_old_objects_without_a_kept_upload_are_deleted(
             assert sorted(storage.contents) == sorted(
                 [kept_key, "files/stray.step", "files/young-id/source.step"]
             )
+
+    run_async(run_check)
+
+
+def test_parse_and_import_succeeds():
+    """A valid STEP file is parsed and imported, creating Machine and AssemblyGroup records."""
+
+    async def run_check() -> None:
+        async with open_worker() as worker:
+            file_id: str = await worker.add_processing_file(STEP)
+
+            assert await worker.process(ValidParser())
+            upload: Upload | None = await worker.get_upload(file_id)
+            assert upload is not None and upload.status == UploadStatus.READY
+            assert await worker.get_status(worker.machine_id) == UploadStatus.READY
+            assert worker.storage.contents
+            # The import creates a new Machine and AssemblyGroup, so 3 records total
+            async with worker.sessions() as session:
+                records = await worker.catalog.get_records(session)
+            assert len(records) == 3  # Machine, CadFile, AssemblyGroup
+
+    run_async(run_check)
+
+
+@pytest.mark.parametrize(
+    ("error", "error_id"),
+    [
+        (CadFileParsingError("bad file"), "parse_error"),
+        (OSError("disk full"), "parse_error"),
+        (TimeoutError("too slow"), "parse_error"),
+        (ObjectStorageError("vanished"), "parse_error"),
+    ],
+    ids=["cad_file_parsing_error", "os_error", "timeout_error", "object_storage_error"],
+)
+def test_parse_exceptions_fail_with_parse_error(error: Exception, error_id: str):
+    """When the parser raises an exception, the upload fails with parse_error."""
+
+    async def run_check() -> None:
+        async with open_worker() as worker:
+            file_id: str = await worker.add_processing_file(STEP)
+
+            assert await worker.process(ErrorParser(error))
+            upload: Upload | None = await worker.get_upload(file_id)
+            assert upload is not None
+            assert (upload.status, upload.error_code) == ("failed", error_id)
+            # Source folders are deleted on parse_error
+            assert worker.storage.contents == {}
+
+    run_async(run_check)
+
+
+@pytest.mark.parametrize(
+    ("error", "error_id"),
+    [
+        (RecordError("bad ontology"), "import_error"),
+        (ParentLimitError("limit reached"), "import_error"),
+    ],
+    ids=["record_error", "parent_limit_error"],
+)
+def test_import_exceptions_fail_with_import_error(error: Exception, error_id: str):
+    """When import raises an exception, the upload fails with import_error."""
+
+    async def run_check() -> None:
+        async with open_worker() as worker:
+            file_id: str = await worker.add_processing_file(STEP)
+
+            # Patch catalog.import_cad_file_tree to raise the error
+            original_import = worker.catalog.import_cad_file_tree
+
+            async def raise_error(
+                _session: Tx, _cad_file_id: str, _root_node: AssemblyTreeNode
+            ) -> None:
+                raise error
+
+            worker.catalog.import_cad_file_tree = raise_error  # type: ignore[method-assign]
+            try:
+                assert await worker.process(ValidParser())
+                upload: Upload | None = await worker.get_upload(file_id)
+                assert upload is not None
+                assert (upload.status, upload.error_code) == ("failed", error_id)
+                # Source folders are deleted on import_error
+                assert worker.storage.contents == {}
+            finally:
+                worker.catalog.import_cad_file_tree = original_import  # type: ignore[method-assign]
+
+    run_async(run_check)
+
+
+def test_file_vanished_between_scan_and_parse():
+    """When the file disappears after scan but before parse, it fails with parse_error."""
+
+    async def run_check() -> None:
+        async with open_worker() as worker:
+            file_id: str = await worker.add_processing_file(STEP)
+
+            # A parser that clears storage before parsing simulates the file vanishing
+            class VanishParser(CadFileParser):
+                def parse_file(self, file_identifier: str, path: str | Path) -> CadFile:
+                    worker.storage.contents.clear()
+                    raise ObjectStorageError("File vanished between scan and parse")
+
+            assert await worker.process(VanishParser())
+            upload: Upload | None = await worker.get_upload(file_id)
+            assert upload is not None
+            assert (upload.status, upload.error_code) == ("failed", "parse_error")
 
     run_async(run_check)
