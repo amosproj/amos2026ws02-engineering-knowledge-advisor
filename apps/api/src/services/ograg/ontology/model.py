@@ -247,6 +247,7 @@ class Ontology:
         This method does **NOT** check:
         - whether targets actually exist
         - whether text can be stored
+        - whether values keep the rules of their properties (``find_rule_violation``)
 
         Args:
             node: JSON-LD node, nested nodes get their class from the property's range.
@@ -256,6 +257,17 @@ class Ontology:
             pair: (clean node, drop warnings)
         """
         return validation.validate_node(self, node, expected_type)
+
+    def find_rule_violation(
+        self, node: Mapping[str, Json], submitted: Mapping[str, Json]
+    ) -> str | None:
+        """Returns why a value breaks a rule (``og:rejectInvalid``, ``og:minValue``, ``og:upperBound``), ``None`` if none does.
+
+        Args:
+            node: ``submitted`` as returned by ``validate_node``; its nested nodes are checked too.
+            submitted: the node passed to ``validate_node``, holding the values it dropped.
+        """
+        return validation.find_rule_violation(self, node, submitted)
 
     def _get_properties_of(self, cls: str) -> list[Property]:
         return [prop for (domain, _), prop in self.properties.items() if domain == cls]

@@ -12,6 +12,9 @@ Property annotations:
 - ``og:edgeType``: ``parent`` (link to record's parent, losing last one marks record for review) or ``simple`` (default)
 - ``og:deleteWithParent``: whether deleting parent deletes the record too (``parent`` edge)
 - ``og:maxPerParent``: most records of the class one parent may have through this link (``parent`` edge)
+- ``og:minValue``: smallest allowed value of a number property, a smaller value rejects the record
+- ``og:upperBound``: number property of the same class that bounds this number property from above, a greater value rejects the record
+- ``og:rejectInvalid``: an invalid value (not allowed, not a number) rejects the record instead of being dropped
 - ``og:search``: ``semantic``, ``lexical`` or ``filter``: text default is ``semantic``, numbers work only with ``filter``
 - ``og:provenance``: filled with source document id of a record
 
@@ -64,6 +67,9 @@ OG_EDGE_TYPE: str = "og:edgeType"
 OG_PARENT_LINK: str = "og:parentLink"
 OG_DELETE_WITH_PARENT: str = "og:deleteWithParent"
 OG_MAX_PER_PARENT: str = "og:maxPerParent"
+OG_MIN_VALUE: str = "og:minValue"
+OG_UPPER_BOUND: str = "og:upperBound"
+OG_REJECT_INVALID: str = "og:rejectInvalid"
 OG_SEARCH: str = "og:search"
 OG_PROVENANCE: str = "og:provenance"
 OG_ALLOWED_VALUES: str = "og:allowedValues"

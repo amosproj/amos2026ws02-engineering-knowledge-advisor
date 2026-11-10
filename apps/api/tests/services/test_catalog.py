@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 from fakes import build_ontology_with, make_catalog, make_service
 
-from services import Link, Record
+from services import Json, Link, Record
 from services.catalog import CatalogService, TreeNode
 from services.catalog.records import (
     NotFoundError,
@@ -157,6 +157,64 @@ async def test_an_update_is_a_json_merge_patch():
     await update_record(ograg, TX, group_id, {"rootOf": None, "partOf": [other_id]})
     moved: Record = await get_record(ograg, TX, group_id)
     assert (moved.graph.get("rootOf"), moved.graph["partOf"]) == (None, [other_id])
+
+
+async def test_a_function_tag_is_saved_changed_and_removed_per_group():
+    ograg: OgRagService = make_service()
+    machine_id, group_id, _ = await create_tree(ograg)
+    other_id, _ = await create_record(
+        ograg,
+        TX,
+        {
+            "@type": "AssemblyGroup",
+            "name": "Feeder",
+            "rootOf": machine_id,
+            "properties": {"functionTag": {"function": "feeder"}},
+        },
+    )
+
+    async def get_tag(record_id: str) -> Json:
+        record: Record = await get_record(ograg, TX, record_id)
+        properties: Json = record.graph.get("properties", {})
+        return properties.get("functionTag") if isinstance(properties, dict) else None
+
+    await update_record(
+        ograg,
+        TX,
+        group_id,
+        {"properties": {"functionTag": {"function": "gripper", "payloadKg": 2.5}}},
+    )
+    await update_record(
+        ograg,
+        TX,
+        group_id,
+        {"properties": {"functionTag": {"payloadKg": None, "loadingMode": "robot"}}},
+    )
+    assert await get_tag(group_id) == {
+        "@type": "FunctionTag",
+        "function": "gripper",
+        "loadingMode": "robot",
+    }
+
+    # a rejected change keeps the stored tag, also an invalid loading mode
+    with pytest.raises(RecordError, match="payloadKg"):
+        await update_record(
+            ograg, TX, group_id, {"properties": {"functionTag": {"payloadKg": -1}}}
+        )
+    with pytest.raises(RecordError, match="forklift"):
+        await update_record(
+            ograg,
+            TX,
+            group_id,
+            {"properties": {"functionTag": {"loadingMode": "forklift"}}},
+        )
+    kept: Json = await get_tag(group_id)
+    assert isinstance(kept, dict)
+    assert (kept["function"], kept["loadingMode"]) == ("gripper", "robot")
+
+    await update_record(ograg, TX, group_id, {"properties": {"functionTag": None}})
+    assert await get_tag(group_id) is None
+    assert await get_tag(other_id) == {"@type": "FunctionTag", "function": "feeder"}
 
 
 async def test_identifiers_may_be_shared():

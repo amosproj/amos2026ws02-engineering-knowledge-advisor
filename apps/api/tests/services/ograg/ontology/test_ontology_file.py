@@ -129,6 +129,59 @@ def test_max_per_parent_on_a_property_without_parent_link_is_refused(
     assert_mentions(str(raised.value), "maxPerParent", "Machine", "note")
 
 
+def test_function_tag_values_have_rules():
+    onto: Ontology = load_ontology()
+    payload: Property = onto.properties[("FunctionTag", "payloadKg")]
+    smallest: Property = onto.properties[("FunctionTag", "workpieceSizeMinMm")]
+    assert (payload.min_value, payload.upper_bound) == (0, None)
+    assert (smallest.min_value, smallest.upper_bound) == (0, "workpieceSizeMaxMm")
+    assert [
+        name
+        for (domain, name), prop in onto.properties.items()
+        if domain == "FunctionTag" and prop.reject_invalid
+    ] == ["loadingMode", "payloadKg", "workpieceSizeMinMm", "workpieceSizeMaxMm"]
+
+
+def test_reject_invalid_on_a_nested_property_is_refused():
+    with pytest.raises(OntologyError) as raised:
+        build_ontology_with(
+            {
+                "@id": "og:extra",
+                "@type": "rdf:Property",
+                "domain": "og:Machine",
+                "range": "og:MachineProperties",
+                "og:rejectInvalid": True,
+            }
+        )
+    assert_mentions(str(raised.value), "rejectInvalid", "Machine", "extra")
+
+
+@pytest.mark.parametrize("min_value", ["0", True, float("inf")])
+def test_min_value_must_be_a_finite_number(min_value: Json):
+    number: dict[str, Any] = {**NOTE, "range": "schema:Number"}
+    with pytest.raises(OntologyError) as raised:
+        build_ontology_with({**number, "og:minValue": min_value})
+    assert_mentions(str(raised.value), "minValue", "Machine", "note")
+
+
+def test_min_value_on_a_text_property_is_refused():
+    with pytest.raises(OntologyError) as raised:
+        build_ontology_with({**NOTE, "og:minValue": 0})
+    assert_mentions(str(raised.value), "minValue", "Machine", "note")
+
+
+@pytest.mark.parametrize(
+    "upper_bound",
+    ["og:name", "og:missing", "og:note", 3],
+    ids=["text property", "unknown property", "itself", "no name"],
+)
+def test_upper_bound_must_name_another_number_property(upper_bound: Json):
+    number: dict[str, Any] = {**NOTE, "range": "schema:Number"}
+    with pytest.raises(OntologyError) as raised:
+        build_ontology_with({**number, "og:upperBound": upper_bound})
+    assert_mentions(str(raised.value), "upperBound", "Machine", "note")
+
+
 def test_file_on_a_class_that_is_no_record_class_is_refused():
     document: dict[str, Any] = load_document()
     for item in document["@graph"]:

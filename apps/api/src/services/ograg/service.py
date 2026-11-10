@@ -246,7 +246,7 @@ class OgRagService:
         """Returns validated record from ``submitted``, and the validation drop warnings.
 
         Raises:
-            RecordError: node properties don't fit the ontology.
+            RecordError: node properties don't fit the ontology, or a value breaks a rule of its property.
         """
         graph, warnings = self.ontology.validate_node(submitted, cls)
         if not set(graph) - {JSONLD_TYPE, JSONLD_ID}:
@@ -254,6 +254,9 @@ class OgRagService:
                 "; ".join(warnings) or ERROR_NO_PROPERTIES.format(cls=cls)
             )
         self._check_identity(cls, graph)
+        violation: str | None = self.ontology.find_rule_violation(graph, submitted)
+        if violation is not None:
+            raise RecordError(violation)
         links: tuple[Link, ...] = tuple(self.ontology.get_links(graph))
         return Record(
             record_id, cls, graph, submitted, self.ontology.version, links

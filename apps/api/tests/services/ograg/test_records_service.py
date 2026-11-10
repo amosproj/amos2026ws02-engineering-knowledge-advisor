@@ -210,6 +210,33 @@ async def test_delete_marks_records_that_lost_their_last_parent_link():
     assert await service.get_records_to_review() == []
 
 
+async def test_a_rule_added_later_does_not_block_deleting_a_link_target():
+    effort: dict[str, Any] = {
+        "@id": "og:effortHours",
+        "@type": "rdf:Property",
+        "domain": "og:KnowledgeProperties",
+        "range": "schema:Number",
+    }
+    before: OgRagService = make_service(build_ontology_with(effort))
+    await before.upsert_record(MACHINE_ID, MACHINE)
+    await before.upsert_record(GROUP_ID, GROUP)
+    item: dict[str, Any] = {
+        **ITEM,
+        "properties": {**ITEM["properties"], "effortHours": -1},
+    }
+    await before.upsert_record(ITEM_ID, item)
+
+    # the stored item breaks the new rule; unlinking it on delete must still work
+    after: OgRagService = make_service(
+        build_ontology_with({**effort, "og:minValue": 0}), before.store
+    )
+    result: DeleteResult = await after.delete_record(GROUP_ID)
+    assert (result.deleted_ids, result.marked_ids) == ([GROUP_ID], [ITEM_ID])
+    # saving it again checks the rule
+    with pytest.raises(RecordError, match="effortHours"):
+        await after.upsert_record(ITEM_ID, item)
+
+
 async def test_delete_orphans_deletes_them_recursively():
     service: OgRagService = await create_loaded_service()
     result: DeleteResult = await service.delete_record(MACHINE_ID, delete_orphans=True)

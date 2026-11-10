@@ -29,6 +29,9 @@ class Property:
         allowed: allowed property values.
         delete_with_parent: parent link whose target's deletion deletes the record too.
         max_per_parent: most records of the domain class a parent may have through this parent link, ``None`` for any.
+        min_value: smallest allowed value of a number property, ``None`` for any.
+        upper_bound: number property of the domain class this one must not exceed (``og:upperBound``), ``None`` for none.
+        reject_invalid: whether an invalid value rejects the record instead of being dropped (``og:rejectInvalid``).
         display_name: name shown to users.
         comment: description shown to users.
     """
@@ -43,6 +46,9 @@ class Property:
     allowed: tuple[str, ...] = ()
     delete_with_parent: bool = False
     max_per_parent: int | None = None
+    min_value: int | float | None = None
+    upper_bound: str | None = None
+    reject_invalid: bool = False
     display_name: str = ""
     comment: str = ""
 

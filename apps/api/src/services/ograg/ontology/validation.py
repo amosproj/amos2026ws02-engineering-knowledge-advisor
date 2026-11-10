@@ -24,6 +24,12 @@ DROPPED_VALUE_SHOWN_LENGTH: int = 60
 
 ERROR_NOT_ALLOWED: str = "not one of {allowed}"
 ERROR_NOT_A_NUMBER: str = "not a number"
+ERROR_INVALID_VALUE: str = "{name} {shown!r} is invalid: {reason}"
+ERROR_NOT_SINGLE_VALUE: str = "not a single value"
+ERROR_BELOW_MIN_VALUE: str = "{name} must be at least {min_value}, found {found}"
+ERROR_ABOVE_UPPER_BOUND: str = (
+    "{name} must not be greater than {other}, found {found} and {other_found}"
+)
 WARNING_DROPPED_NODE: str = "dropped node of type {node_type!r}"
 WARNING_DROPPED_PROPERTY: str = "dropped unknown property {node_type}.{key}"
 WARNING_DROPPED_LINK: str = "dropped link of {domain}.{name} without an id"
@@ -37,6 +43,111 @@ def validate_node(
 ) -> tuple[JsonObject, list[str]]:
     """Returns cleaned ``node`` validated on ``ontology``, and warnings about drops."""
     return _NodeValidator(ontology).validate(node, expected_type)
+
+
+def find_rule_violation(
+    ontology: Ontology, node: Mapping[str, Json], submitted: Mapping[str, Json]
+) -> str | None:
+    """Returns why a value breaks a rule of its property, ``None`` if none does. Nested nodes are checked too.
+
+    Rules: ``og:rejectInvalid``, ``og:minValue`` and ``og:upperBound``. Unlike a drop, a broken rule rejects the record.
+
+    Args:
+        ontology: the ontology holding the rules.
+        node: ``submitted`` cleaned by ``validate_node``, so numbers are already parsed.
+        submitted: the node as submitted: it still holds the invalid values the cleaning dropped.
+    """
+    return _find_rejected_value(ontology, get_type(node), submitted) or (
+        _find_broken_number_rule(ontology, node)
+    )
+
+
+def _find_rejected_value(
+    ontology: Ontology, node_type: str, submitted: Mapping[str, Json]
+) -> str | None:
+    """Returns why a submitted value of a property with ``og:rejectInvalid`` is invalid, ``None`` if all are valid."""
+    for key, value in submitted.items():
+        prop: Property | None = ontology.properties.get(
+            (node_type, get_local_name(key))
+        )
+        if prop is None:  # @-keys and unknown properties
+            continue
+        for val in to_list(value):
+            if ontology.is_nested(prop) and isinstance(val, dict):
+                nested: str | None = _find_rejected_value(ontology, prop.range, val)
+                if nested is not None:
+                    return nested
+            elif prop.reject_invalid and val is not None and val != "":
+                reason: str | None = _get_invalid_reason(val, prop)
+                if reason is not None:
+                    shown = str(val)[:DROPPED_VALUE_SHOWN_LENGTH]
+                    return ERROR_INVALID_VALUE.format(
+                        name=prop.name, shown=shown, reason=reason
+                    )
+    return None
+
+
+def _get_invalid_reason(value: Json, prop: Property) -> str | None:
+    """Returns why the cleaning would drop the literal ``value`` of ``prop``, ``None`` if it would keep it."""
+    if isinstance(value, (dict, list)):
+        return ERROR_NOT_SINGLE_VALUE
+    try:
+        _parse_literal(value, prop)
+    except ValueError as exc:
+        return str(exc)
+    return None
+
+
+def _find_broken_number_rule(
+    ontology: Ontology, node: Mapping[str, Json]
+) -> str | None:
+    """Returns why a number of the cleaned ``node`` breaks ``og:minValue`` or ``og:upperBound``, ``None`` if none does."""
+    node_type: str = get_type(node)
+    for name, value in node.items():
+        prop: Property | None = ontology.properties.get((node_type, name))
+        if prop is None:  # @type and @id
+            continue
+        if ontology.is_nested(prop):
+            for child in to_list(value):
+                violation: str | None = (
+                    _find_broken_number_rule(ontology, child)
+                    if isinstance(child, dict)
+                    else None
+                )
+                if violation is not None:
+                    return violation
+            continue
+
+        numbers: list[int | float] = _get_numbers(value)
+        if not numbers:
+            continue
+        if prop.min_value is not None and min(numbers) < prop.min_value:
+            return ERROR_BELOW_MIN_VALUE.format(
+                name=name, min_value=prop.min_value, found=min(numbers)
+            )
+        bound_name: str | None = prop.upper_bound
+        bounds: list[int | float] = (
+            _get_numbers(node[bound_name])
+            if bound_name is not None and bound_name in node
+            else []
+        )
+        if bounds and max(numbers) > min(bounds):
+            return ERROR_ABOVE_UPPER_BOUND.format(
+                name=name,
+                other=bound_name,
+                found=max(numbers),
+                other_found=min(bounds),
+            )
+    return None
+
+
+def _get_numbers(value: Json) -> list[int | float]:
+    """Returns the numbers among ``value``, one value or a list."""
+    return [
+        val
+        for val in to_list(value)
+        if isinstance(val, (int, float)) and not isinstance(val, bool)
+    ]
 
 
 def parse_number(text: str) -> int | float | None:
@@ -79,6 +190,16 @@ def _get_allowed_value(text: str, prop: Property) -> str:
     if match is None:
         raise ValueError(ERROR_NOT_ALLOWED.format(allowed=", ".join(prop.allowed)))
     return match
+
+
+def _parse_literal(value: Json, prop: Property) -> str | int | float:
+    """Returns ``value`` as number for number properties, else as text, in the ontology's spelling of allowed values.
+
+    Raises:
+        ValueError: ``value`` is not allowed, or not a number for a number property.
+    """
+    text: str = _get_allowed_value(str(value), prop)
+    return _get_number(text) if prop.range in NUMBER_RANGES else text
 
 
 class _NodeValidator:
@@ -179,8 +300,7 @@ class _NodeValidator:
             return None
 
         try:
-            text: str = _get_allowed_value(str(value), prop)
-            return _get_number(text) if prop.range in NUMBER_RANGES else text
+            return _parse_literal(value, prop)
         except ValueError as exc:
             shown = str(value)[:DROPPED_VALUE_SHOWN_LENGTH]
             warnings.append(

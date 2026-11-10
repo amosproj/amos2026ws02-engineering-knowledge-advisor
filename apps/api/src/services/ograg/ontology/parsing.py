@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,6 +20,7 @@ from services.ograg.ontology.names import (
     JSONLD_ID,
     JSONLD_TYPE,
     LITERAL_RANGES,
+    NUMBER_RANGES,
     OG_ALLOWED_VALUES,
     OG_ANCHOR,
     OG_DELETE_WITH_PARENT,
@@ -29,10 +31,13 @@ from services.ograg.ontology.names import (
     OG_GUIDELINE_WHEN,
     OG_IDENTITY,
     OG_MAX_PER_PARENT,
+    OG_MIN_VALUE,
     OG_PARENT_LINK,
     OG_PROVENANCE,
     OG_RECORD,
+    OG_REJECT_INVALID,
     OG_SEARCH,
+    OG_UPPER_BOUND,
     PROPERTY,
     RANGE,
     get_local_name,
@@ -63,6 +68,13 @@ ERROR_FILE_NOT_RECORD: str = (
 ERROR_DELETE_WITH_PARENT_NOT_PARENT_EDGE: str = f"{OG_DELETE_WITH_PARENT!r} on {{domain}}.{{name}}, which is not a {EdgeType.PARENT.value!r} edge"
 ERROR_MAX_PER_PARENT_NOT_PARENT_EDGE: str = f"{OG_MAX_PER_PARENT!r} on {{domain}}.{{name}}, which is not a {EdgeType.PARENT.value!r} edge"
 ERROR_MAX_PER_PARENT_NOT_POSITIVE: str = f"property {{domain}}.{{name}} needs a positive integer in {OG_MAX_PER_PARENT!r}, found {{found!r}}"
+ERROR_MIN_VALUE_NOT_NUMBER: str = f"property {{domain}}.{{name}} needs a number in {OG_MIN_VALUE!r}, found {{found!r}}"
+ERROR_MIN_VALUE_NOT_NUMBER_PROPERTY: str = (
+    f"{OG_MIN_VALUE!r} on {{domain}}.{{name}}, which is not a number property"
+)
+ERROR_UPPER_BOUND_NOT_TEXT: str = f"property {{domain}}.{{name}} needs a property name in {OG_UPPER_BOUND!r}, found {{found!r}}"
+ERROR_UPPER_BOUND_NOT_NUMBERS: str = f"{OG_UPPER_BOUND!r} on {{domain}}.{{name}} must compare two number properties of {{domain}}, found {{other!r}}"
+ERROR_REJECT_INVALID_NOT_LITERAL: str = f"{OG_REJECT_INVALID!r} on {{domain}}.{{name}}, which is not a text or number property"
 ERROR_LABEL_NOT_TEXT: str = "{name!r} needs a text in {key!r}, found {found!r}"
 ERROR_ITEM_WITHOUT_KEY: str = "ontology item has no {key!r}: {item}"
 ERROR_PROPERTY_WITHOUT_KEY: str = "property {name!r} has no {key!r}"
@@ -342,6 +354,9 @@ class Declarations:
             allowed=tuple(map(str, allowed)),
             delete_with_parent=item.get(OG_DELETE_WITH_PARENT) is True,
             max_per_parent=self._parse_max_per_parent(domain, name, item),
+            min_value=self._parse_min_value(domain, name, item),
+            upper_bound=self._parse_upper_bound(domain, name, item),
+            reject_invalid=item.get(OG_REJECT_INVALID) is True,
             display_name=_get_label(item, name, DISPLAY_NAME),
             comment=_get_label(item, name, COMMENT),
         )
@@ -393,6 +408,44 @@ class Declarations:
                 )
             )
         return found
+
+    @staticmethod
+    def _parse_min_value(
+        domain: str, name: str, item: Mapping[str, Json]
+    ) -> int | float | None:
+        """
+        Raises:
+            OntologyError: ``og:minValue`` is not a finite number.
+        """
+        found: Json = item.get(OG_MIN_VALUE)
+        if found is None:
+            return None
+        if (
+            isinstance(found, bool)
+            or not isinstance(found, (int, float))
+            or not math.isfinite(found)
+        ):
+            raise OntologyError(
+                ERROR_MIN_VALUE_NOT_NUMBER.format(domain=domain, name=name, found=found)
+            )
+        return found
+
+    @staticmethod
+    def _parse_upper_bound(
+        domain: str, name: str, item: Mapping[str, Json]
+    ) -> str | None:
+        """
+        Raises:
+            OntologyError: ``og:upperBound`` is not a property name.
+        """
+        found: Json = item.get(OG_UPPER_BOUND)
+        if found is None:
+            return None
+        if not isinstance(found, str) or not found:
+            raise OntologyError(
+                ERROR_UPPER_BOUND_NOT_TEXT.format(domain=domain, name=name, found=found)
+            )
+        return get_local_name(found)
 
     def _parse_search_modes(
         self, domain: str, name: str, modes: Json
@@ -522,6 +575,39 @@ class Declarations:
                         domain=prop.domain, name=prop.name
                     )
                 )
+
+            # only numbers have a smallest value
+            if prop.min_value is not None and prop.range not in NUMBER_RANGES:
+                raise OntologyError(
+                    ERROR_MIN_VALUE_NOT_NUMBER_PROPERTY.format(
+                        domain=prop.domain, name=prop.name
+                    )
+                )
+
+            # only literal values can be invalid; links and nested nodes are checked on their own
+            if prop.reject_invalid and prop.range not in LITERAL_RANGES:
+                raise OntologyError(
+                    ERROR_REJECT_INVALID_NOT_LITERAL.format(
+                        domain=prop.domain, name=prop.name
+                    )
+                )
+
+            # only numbers of the same class can be compared
+            if prop.upper_bound is not None:
+                other: Property | None = self.properties.get(
+                    (prop.domain, prop.upper_bound)
+                )
+                if (
+                    other is None
+                    or other is prop
+                    or prop.range not in NUMBER_RANGES
+                    or other.range not in NUMBER_RANGES
+                ):
+                    raise OntologyError(
+                        ERROR_UPPER_BOUND_NOT_NUMBERS.format(
+                            domain=prop.domain, name=prop.name, other=prop.upper_bound
+                        )
+                    )
 
     def _validate_guideline_when(self) -> None:
         for cls, conditions in self.guideline_when.items():
