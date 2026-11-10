@@ -161,8 +161,8 @@ in the SBOM (`Documentation/sbom`). *In use* means part of the current setup,
 | Relational + vector DB | SQL | PostgreSQL + pgvector | in use |
 | Object storage | - | MinIO (S3 API) | in use |
 | API contract | JSON | OpenAPI (`Documentation/openapi.json`), exported from FastAPI | in use |
-| LLM adapter | Python | own interface (`chat`, `embed`) | *planned* |
-| LLM model | - | GPT, Claude or open-source LLMs (e.g. Qwen) | *open* |
+| LLM adapter | Python | provider-neutral chat and streaming interface | in use |
+| LLM model | - | configured per provider and request | in use |
 | CAD parser | Python | STEP library (e.g. OpenCascade / pythonOCC) | *planned* |
 | RAG approach | Python | vanilla RAG or ontology-based OG-RAG | *open* |
 | Embedding model | - | to be chosen with the RAG approach | *open* |
@@ -225,4 +225,3 @@ folders.
   image; the running container is Nginx, which serves static files fast,
   needs little memory and has a small attack surface. The same Nginx also
   forwards `/api/*` to the backend, so no extra proxy is needed.
-

@@ -4,24 +4,26 @@ FastAPI backend. Requires Python 3.13 and [uv](https://docs.astral.sh/uv/).
 
 ## Configuration
 
-| Variable                  | Values                                   | Default              |
-|---------------------------|------------------------------------------|----------------------|
-| `API_PROFILE`             | `dev`, `prod`                            | `dev`                |
-| `API_DATABASE_URL`        | `postgresql+psycopg://user:pw@host/db`   | none (required)      |
-| `API_OGRAG_ONTOLOGY_PATH` | JSON-LD ontology file                    | none (required)      |
-| `API_S3_ENDPOINT_URL`     | S3 endpoint, e.g. `http://minio:9000`    | none (required)      |
-| `API_S3_BUCKET`           | bucket of the uploaded files             | none (required)      |
-| `API_S3_ACCESS_KEY`       | S3 access key                            | none (required)      |
-| `API_S3_SECRET_KEY`       | S3 secret key                            | none (required)      |
-| `API_S3_REGION`           | S3 region, e.g. `us-east-1`              | none (required)      |
+| Variable                  | Values                                                 | Default         |
+| ------------------------- | ------------------------------------------------------ | --------------- |
+| `API_PROFILE`             | `dev`, `prod`                                          | `dev`           |
+| `API_DATABASE_URL`        | `postgresql+psycopg://user:pw@host/db`                 | none (required) |
+| `API_OGRAG_ONTOLOGY_PATH` | JSON-LD ontology file                                  | none (required) |
+| `API_S3_ENDPOINT_URL`     | S3 endpoint, e.g. `http://minio:9000`                  | none (required) |
+| `API_S3_BUCKET`           | bucket of the uploaded files                           | none (required) |
+| `API_S3_ACCESS_KEY`       | S3 access key                                          | none (required) |
+| `API_S3_SECRET_KEY`       | S3 secret key                                          | none (required) |
+| `API_S3_REGION`           | S3 region, e.g. `us-east-1`                            | none (required) |
 | `API_S3_PUBLIC_URL`       | where the browser reaches the storage, e.g. `/storage` | none (required) |
 
 Settings are read in this order:
+
 1. environment variables (prefix `API_`)
 2. `.env`
 3. defaults
 
 `.env` is used from the directory the backend is started from:
+
 - start from `apps/api/` => `apps/api/.env`
 - start from repository root with `--directory` => `apps/api/.env`
 - start from repository root with `--project` => `.env` at root
@@ -29,6 +31,7 @@ Settings are read in this order:
 ## Database
 
 Postgres. Schema changes are Alembic migrations in `migrations/`:
+
 ```sh
 uv run --directory apps/api alembic upgrade head                                # apply
 uv run --directory apps/api alembic revision --autogenerate -m "what changed"   # review the file
@@ -86,6 +89,41 @@ A record of a class marked `og:file` (CadFile) carries one file, upload state in
 3. Client posts the file straight to S3 based on form, then `POST /records/{id}/complete`.
 4. Worker checks the file: `processing`, then `ready` or `failed`.
 
+## LLM integration
+
+The provider-neutral chat API, supported providers, environment settings, streaming
+format, error codes, and extension instructions are documented in
+[LLM integration](../../Documentation/architecture/llm-integration.md). Providers
+are disabled by default; configure credentials with environment variables or a
+deployment secret store.
+
+For example, to enable Google Gemini, add the following to the API environment
+(replace the key with a secret from your secret store):
+
+```dotenv
+API_LLM_DEFAULT_PROVIDER=google
+API_LLM_GOOGLE__ENABLED=true
+API_LLM_GOOGLE__API_KEY=<google-api-key>
+API_LLM_GOOGLE__DEFAULT_MODEL=gemini-2.0-flash
+```
+
+Then send a chat request through the provider-neutral API:
+
+```sh
+curl http://localhost:8080/api/v1/llm/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "google",
+    "model": "gemini-3.6-flash",
+    "messages": [
+      {"role": "user", "content": "Explain a gear train."}
+    ]
+  }'
+```
+
+See the [LLM integration guide](../../Documentation/architecture/llm-integration.md)
+for streaming, all provider settings, and error handling.
+
 ## Run
 
 ```sh
@@ -93,16 +131,19 @@ uv run uvicorn main:app
 ```
 
 Or from repository root using root `.env`:
+
 ```sh
 uv run --project apps/api uvicorn main:app
 ```
 
 Or from repository root using API's `.env`:
+
 ```sh
 uv run --directory apps/api uvicorn main:app
 ```
 
 On Windows, async psycopg needs a selector event loop. Add this flag to any of the above:
+
 ```sh
 uv run uvicorn main:app --loop asyncio:SelectorEventLoop
 ```
@@ -121,6 +162,7 @@ uv run pytest                           # tests only
 ```
 
 Or from repository root:
+
 ```sh
 uv run --directory apps/api pre-commit  # lint + type check + tests
 uv run --directory apps/api pytest      # tests only

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api import (
     health_router,
+    llm_router,
     v1_files_router,
     v1_ontology_router,
     v1_records_router,
@@ -14,6 +15,7 @@ from config.settings import Settings, get_settings
 from db.session import (
     create_catalog_service,
     create_engine,
+    create_llm_service,
     create_ograg_service,
     create_sessionmaker,
 )
@@ -31,12 +33,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     engine: AsyncEngine = create_engine(settings)
     app.state.sessions = create_sessionmaker(engine)
-
     app.state.ograg = create_ograg_service(settings, engine)
+    app.state.llm = create_llm_service(settings)
     app.state.catalog = create_catalog_service(settings, app.state.ograg)
     try:
         yield
     finally:
+        await app.state.llm.close()
         await engine.dispose()
 
 
@@ -50,6 +53,7 @@ app.include_router(health_router)
 app.include_router(v1_records_router)
 app.include_router(v1_files_router)
 app.include_router(v1_ontology_router)
+app.include_router(llm_router)
 
 exception_handler.register(app)
 service_exception_handler.register(app)

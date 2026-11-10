@@ -5,6 +5,7 @@ from logger import logger
 from model.problem import ProblemResponse
 from services import ConflictError, StaleVersionError, UnstorableValueError
 from services.catalog import CadFileConflictError, NotFoundError
+from services.llm.errors import LLMError
 from services.object_storage import ObjectStorageError
 from services.ograg.service import ParentLimitError, RecordError
 
@@ -68,6 +69,15 @@ async def handle_storage_unavailable(
     )
 
 
+async def handle_llm_error(request: Request, exc: LLMError) -> ProblemResponse:
+    return ProblemResponse.from_status(
+        exc.status_code,
+        exc.detail,
+        error_code=exc.error_code,
+        instance=request.url.path,
+    )
+
+
 def register(app: FastAPI) -> None:
     app.exception_handler(RecordError)(handle_unprocessable)
     app.exception_handler(UnstorableValueError)(handle_unprocessable)
@@ -75,5 +85,6 @@ def register(app: FastAPI) -> None:
     app.exception_handler(CadFileConflictError)(handle_coded_conflict)
     app.exception_handler(ParentLimitError)(handle_coded_conflict)
     app.exception_handler(NotFoundError)(handle_not_found)
+    app.exception_handler(LLMError)(handle_llm_error)
     app.exception_handler(StaleVersionError)(handle_precondition_failed)
     app.exception_handler(ObjectStorageError)(handle_storage_unavailable)
