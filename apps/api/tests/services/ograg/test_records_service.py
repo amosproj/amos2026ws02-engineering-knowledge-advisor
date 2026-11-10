@@ -17,6 +17,7 @@ pytestmark = pytest.mark.anyio
 
 MACHINE_ID: str = "RC-01"
 GROUP_ID: str = "AG-IT-003"
+INSTANCE_ID: str = "AI-1"
 ITEM_ID: str = "KI-1"
 UNKNOWN: dict[str, str] = {"colour": "red"}  # property the ontology does not define
 
@@ -29,6 +30,12 @@ GROUP: dict[str, Any] = {
     "@type": "AssemblyGroup",
     "identifier": GROUP_ID,
     "name": "Input tray",
+    "definedIn": MACHINE_ID,
+}
+INSTANCE: dict[str, Any] = {
+    "@type": "AssemblyInstance",
+    "name": "Input tray:1",
+    "instanceOf": GROUP_ID,
     "rootOf": MACHINE_ID,
 }
 ITEM: dict[str, Any] = {
@@ -46,6 +53,15 @@ RELATES_TO: dict[str, Any] = {
 }
 
 
+def instance(name: str, parent_ids: Json) -> dict[str, Any]:
+    return {
+        "@type": "AssemblyInstance",
+        "name": name,
+        "instanceOf": GROUP_ID,
+        "partOf": parent_ids,
+    }
+
+
 async def get_all_record_ids(service: OgRagService) -> list[str]:
     return [str(rec["@id"]) for rec in await service.get_records()]
 
@@ -61,6 +77,7 @@ async def create_loaded_service() -> OgRagService:
     service: OgRagService = make_service()
     await service.upsert_record(MACHINE_ID, MACHINE)
     await service.upsert_record(GROUP_ID, GROUP)
+    await service.upsert_record(INSTANCE_ID, INSTANCE)
     await service.upsert_record(ITEM_ID, ITEM)
     return service
 
@@ -96,7 +113,7 @@ async def test_type_defaults_to_the_anchor_class():
 @pytest.mark.parametrize(
     ("node", "keywords"),
     [
-        ({"@type": "AssemblyProperties", "path": "/tray"}, ("AssemblyProperties",)),
+        ({"@type": "AssemblyProperties", "sizeX": 0.8}, ("AssemblyProperties",)),
         ({"@type": "Machine", **UNKNOWN}, ("Machine", "colour")),
         ({"@type": "Machine"}, ("Machine",)),
     ],
@@ -147,7 +164,7 @@ async def test_a_link_to_a_missing_record_is_refused():
     service: OgRagService = make_service()
     with pytest.raises(RecordError) as raised:
         await service.upsert_record(GROUP_ID, GROUP)
-    assert_mentions(str(raised.value), "rootOf", MACHINE_ID)
+    assert_mentions(str(raised.value), "definedIn", MACHINE_ID)
     assert await service.get_records() == []
 
 
@@ -191,7 +208,12 @@ async def test_text_the_store_cannot_keep_is_refused_and_nothing_is_written():
     service: OgRagService = await create_loaded_service()
     with pytest.raises(UnstorableValueError):
         await service.upsert_record("RC-02", {**MACHINE, "name": "nul \x00 byte"})
-    assert await get_all_record_ids(service) == [GROUP_ID, ITEM_ID, MACHINE_ID]
+    assert await get_all_record_ids(service) == [
+        GROUP_ID,
+        INSTANCE_ID,
+        ITEM_ID,
+        MACHINE_ID,
+    ]
 
 
 async def test_delete_marks_records_that_lost_their_last_parent_link():
@@ -203,6 +225,9 @@ async def test_delete_marks_records_that_lost_their_last_parent_link():
     assert "appliesTo" not in item.graph and "appliesTo" not in item.input
     assert_mentions(item.review, "AssemblyGroup", GROUP_ID)
     assert [rec.id for rec in await service.get_records_to_review()] == [ITEM_ID]
+    # its instances stay in the tree without it
+    kept: Record = await get_stored_record(service, INSTANCE_ID)
+    assert "instanceOf" not in kept.graph and kept.graph["rootOf"] == MACHINE_ID
 
     await service.upsert_record(
         ITEM_ID, {**ITEM, "appliesTo": []}
@@ -214,7 +239,7 @@ async def test_delete_orphans_deletes_them_recursively():
     service: OgRagService = await create_loaded_service()
     result: DeleteResult = await service.delete_record(MACHINE_ID, delete_orphans=True)
     assert (result.deleted_ids, result.marked_ids) == (
-        [MACHINE_ID, GROUP_ID, ITEM_ID],
+        [MACHINE_ID, GROUP_ID, INSTANCE_ID, ITEM_ID],
         [],
     )
     assert await service.get_records() == []
@@ -229,14 +254,21 @@ async def test_a_record_with_another_parent_link_left_is_not_marked():
     assert item.graph["appliesToMachine"] == [MACHINE_ID]
 
 
-async def test_assembly_groups_form_a_tree():
+async def test_assembly_instances_form_a_tree():
     service: OgRagService = await create_loaded_service()
-    await service.upsert_record("AG-2", {"name": "Gripper", "partOf": GROUP_ID})
-    await service.upsert_record("AG-3", {"name": "Finger", "partOf": ["AG-2"]})
-    finger: Record = await get_stored_record(service, "AG-3")
-    assert finger.graph["partOf"] == ["AG-2"]
-    # moving a group within the tree is fine
-    await service.upsert_record("AG-3", {"name": "Finger", "partOf": GROUP_ID})
+    await service.upsert_record("AI-2", instance("Gripper", INSTANCE_ID))
+    await service.upsert_record("AI-3", instance("Finger", ["AI-2"]))
+    finger: Record = await get_stored_record(service, "AI-3")
+    assert finger.graph["partOf"] == ["AI-2"]
+    # moving an instance within the tree is fine
+    await service.upsert_record("AI-3", instance("Finger", INSTANCE_ID))
+
+
+async def test_a_machine_takes_one_root_instance():
+    service: OgRagService = await create_loaded_service()
+    with pytest.raises(ParentLimitError) as raised:
+        await service.upsert_record("AI-2", {**INSTANCE, "name": "Second root"})
+    assert_mentions(str(raised.value), MACHINE_ID, "AssemblyInstance", "rootOf")
 
 
 def cad_file(machine_id: str) -> dict[str, Any]:
@@ -269,17 +301,17 @@ async def test_a_cad_file_moves_only_to_a_machine_without_one():
 
 @pytest.mark.parametrize(
     ("record_id", "parent_ids"),
-    [(GROUP_ID, ["AG-3"]), ("AG-2", ["AG-2"]), ("AG-2", [GROUP_ID, "AG-3"])],
+    [(INSTANCE_ID, ["AI-3"]), ("AI-2", ["AI-2"]), ("AI-2", [INSTANCE_ID, "AI-3"])],
     ids=["through the tree", "itself", "one of several parents"],
 )
-async def test_a_group_cannot_become_its_own_ancestor(
+async def test_an_instance_cannot_become_its_own_ancestor(
     record_id: str, parent_ids: list[Json]
 ):
     service: OgRagService = await create_loaded_service()
-    await service.upsert_record("AG-2", {"name": "Gripper", "partOf": GROUP_ID})
-    await service.upsert_record("AG-3", {"name": "Finger", "partOf": "AG-2"})
+    await service.upsert_record("AI-2", instance("Gripper", INSTANCE_ID))
+    await service.upsert_record("AI-3", instance("Finger", "AI-2"))
     with pytest.raises(RecordError) as raised:
-        await service.upsert_record(record_id, {"name": "Moved", "partOf": parent_ids})
+        await service.upsert_record(record_id, instance("Moved", parent_ids))
     assert_mentions(str(raised.value), record_id, "ancestor", "partOf")
     assert (await get_stored_record(service, record_id)).graph["name"] != "Moved"
 

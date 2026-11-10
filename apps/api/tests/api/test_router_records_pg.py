@@ -158,7 +158,7 @@ def create_group(client: TestClient, machine_id: str) -> str:
             "@type": "AssemblyGroup",
             "name": "Input tray",
             "identifier": "AG-01",
-            "rootOf": machine_id,
+            "definedIn": machine_id,
         },
     )
 
@@ -400,7 +400,8 @@ def test_the_tree_and_the_ancestors_read_every_level_from_postgres(
 ):
     machine_id, group_id = tree(client)
     inner_id: str = create_record(
-        client, {"@type": "AssemblyGroup", "name": "Gripper", "partOf": group_id}
+        client,
+        {"@type": "AssemblyInstance", "name": "Input tray:1", "instanceOf": group_id},
     )
     file_id, form = create_file(client, machine_id)
     upload(storage, form)
