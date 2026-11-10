@@ -46,7 +46,9 @@ def write_step_file(
         label: TDF_Label = shape_tool.AddShape(shape, False)
         set_name(label, def_name)
 
-        occurrence: TDF_Label = shape_tool.AddComponent(assembly, label, TopLoc_Location())
+        occurrence: TDF_Label = shape_tool.AddComponent(
+            assembly, label, TopLoc_Location()
+        )
         set_name(occurrence, occ_name)
 
     shape_tool.UpdateAssemblies()
@@ -88,5 +90,3 @@ def test_unnamed_parts_are_skipped(tmp_path: Path) -> None:
 
     assert len(root.children) == 1
     assert root.children[0].identifier == PART_NAME
-
-
