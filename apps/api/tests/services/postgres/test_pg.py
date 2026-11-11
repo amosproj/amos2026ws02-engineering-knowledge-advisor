@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Any
 
 import pytest
-from fakes import load_ontology
+from fakes import MemoryStorage, load_ontology
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from helpers import assert_mentions
@@ -21,15 +21,21 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from api.router_records import v1_records_router
-from db import create_sessionmaker
+from db import TableName, Tables, define_tables
+from db.session import create_sessionmaker
 from handler.exception_handler import register
 from handler.service_exception_handler import register as register_service
 from services import Lane, SearchMode, UnstorableValueError
+from services.catalog import CatalogService
 from services.ograg.ontology import Ontology
-from services.ograg.service import DeleteResult, OgRagService, RecordError
-from services.postgres.names import TableName
+from services.ograg.service import (
+    DeleteResult,
+    OgRagService,
+    ParentLimitError,
+    RecordError,
+)
 from services.postgres.record_store import PgRecordStore
-from services.postgres.tables import Tables, define_tables
+from services.postgres.upload_store import PgUploadStore
 
 URL: str = os.environ.get("API_TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif(
@@ -53,13 +59,17 @@ MACHINE: dict[str, Any] = {
 GROUP: dict[str, Any] = {
     "@type": "AssemblyGroup",
     "name": "Input tray",
-    "partOf": MACHINE_ID,
+    "rootOf": MACHINE_ID,
 }
-ORPHAN: dict[str, Any] = {**GROUP, "partOf": MISSING_MACHINE_ID}
+ORPHAN: dict[str, Any] = {**GROUP, "rootOf": MISSING_MACHINE_ID}
 ITEM_ID: str = "KI-1"
 ITEM: dict[str, Any] = {
     "@type": "KnowledgeItem",
-    "statement": "Chamfer the nest.",
+    "properties": {
+        "@type": "KnowledgeProperties",
+        "name": "Chamfer",
+        "statement": "Chamfer the nest.",
+    },
     "appliesTo": [GROUP_ID],
 }
 # Async psycopg refuses Windows' default ProactorEventLoop.
@@ -86,6 +96,8 @@ async def drop_ograg_tables(conn: AsyncConnection) -> None:
 async def create_fresh_tables(engine: AsyncEngine) -> Tables:
     tables: Tables = define_tables(MetaData())
     async with engine.begin() as conn:
+        # cad_uploads first: dropping ograg_records with CASCADE would only drop its foreign key
+        await conn.execute(text(f'DROP TABLE IF EXISTS "{TableName.CAD_UPLOADS}"'))
         await drop_ograg_tables(conn)
         await conn.run_sync(tables.metadata.create_all)
     return tables
@@ -175,7 +187,8 @@ def test_writes_join_the_callers_transaction_and_roll_back_with_it():
             async with AsyncSession(engine) as session, session.begin():
                 await service.upsert_record(MACHINE_ID, MACHINE, tx=session)
                 await service.upsert_record(GROUP_ID, GROUP, tx=session)
-            assert sorted(await service.get_records()) == [GROUP_ID, MACHINE_ID]
+            stored: list[dict[str, Any]] = await service.get_records()
+            assert [rec["@id"] for rec in stored] == [GROUP_ID, MACHINE_ID]
 
             machine: dict[str, Any] = {**MACHINE, "identifier": OTHER_MACHINE_ID}
             with pytest.raises(RecordError, match=MISSING_MACHINE_ID):
@@ -191,11 +204,42 @@ def test_writes_join_the_callers_transaction_and_roll_back_with_it():
                     await service.upsert_record(
                         OTHER_MACHINE_ID, unstorable, tx=session
                     )
-            assert sorted(await service.get_records()) == [GROUP_ID, MACHINE_ID]
+            stored: list[dict[str, Any]] = await service.get_records()
+            assert [rec["@id"] for rec in stored] == [GROUP_ID, MACHINE_ID]
 
             # In the service's own transaction:
             result: DeleteResult = await service.delete_record(MACHINE_ID)
             assert (result.deleted_ids, result.marked_ids) == ([MACHINE_ID], [GROUP_ID])
+        finally:
+            await engine.dispose()
+
+    run_async(run_check)
+
+
+def test_two_cad_files_written_at_once_take_one_place():
+    async def run_check() -> None:
+        engine: AsyncEngine = create_async_engine(URL)
+        service: OgRagService = create_service_on(
+            engine, await create_fresh_tables(engine)
+        )
+        cad_file: dict[str, Any] = {
+            "@type": "CadFile",
+            "name": "cell.step",
+            "partOf": MACHINE_ID,
+        }
+        try:
+            await service.upsert_record(MACHINE_ID, MACHINE)
+            async with AsyncSession(engine) as session, session.begin():
+                await service.upsert_record("CF-1", cad_file, tx=session)
+                second: asyncio.Task[list[str]] = asyncio.create_task(
+                    service.upsert_record("CF-2", cad_file)
+                )
+                await asyncio.sleep(0.5)
+                # waits for the machine's lock until the first file is committed
+                assert not second.done()
+            with pytest.raises(ParentLimitError):
+                await second
+            assert await service.store.get_record("CF-2") is None
         finally:
             await engine.dispose()
 
@@ -207,13 +251,15 @@ def test_the_records_api_commits_or_rolls_back_with_the_request():
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         engine: AsyncEngine = create_async_engine(URL)
         app.state.sessions = create_sessionmaker(engine)
-        service: OgRagService = create_service_on(
-            engine, await create_fresh_tables(engine)
-        )
-        # machines and groups cannot be written through /records
+        tables: Tables = await create_fresh_tables(engine)
+        service: OgRagService = create_service_on(engine, tables)
+        # the parents of the linked item
         await service.upsert_record(MACHINE_ID, MACHINE)
         await service.upsert_record(GROUP_ID, GROUP)
         app.state.ograg = service
+        app.state.catalog = CatalogService(
+            service, PgUploadStore(tables), MemoryStorage()
+        )
         yield
         await engine.dispose()
 
@@ -227,7 +273,10 @@ def test_the_records_api_commits_or_rolls_back_with_the_request():
     ) as client:
         assert client.put(f"{RECORDS_URL}/{ITEM_ID}", json=ITEM).status_code == 200
 
-        unstorable: dict[str, Any] = {**ITEM, "statement": UNSTORABLE_NAME}
+        unstorable: dict[str, Any] = {
+            **ITEM,
+            "properties": {"statement": UNSTORABLE_NAME},
+        }
         bad: Response = client.put(f"{RECORDS_URL}/KI-2", json=unstorable)
         assert bad.status_code == 422
         assert bad.headers["content-type"] == PROBLEM_JSON
@@ -237,13 +286,10 @@ def test_the_records_api_commits_or_rolls_back_with_the_request():
         assert missing.status_code == 422
         assert_mentions(missing.json()["detail"], "appliesTo", ORPHAN_ID)
 
-        stored: dict[str, Any] = client.get(RECORDS_URL).json()
-        assert sorted(stored) == [
-            GROUP_ID,
-            ITEM_ID,
-            MACHINE_ID,
-        ]  # the failed ones left nothing
+        stored: list[dict[str, Any]] = client.get(RECORDS_URL).json()
+        # the failed ones left nothing
+        assert [rec["@id"] for rec in stored] == [GROUP_ID, ITEM_ID, MACHINE_ID]
 
         deleted: dict[str, Any] = client.delete(f"{RECORDS_URL}/{ITEM_ID}").json()
-        assert deleted == {"deleted_ids": [ITEM_ID], "marked_ids": []}
+        assert deleted == {"deletedIds": [ITEM_ID], "markedIds": []}
         assert client.delete(f"{RECORDS_URL}/{ITEM_ID}").status_code == 404

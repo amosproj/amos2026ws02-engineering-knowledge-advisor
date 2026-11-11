@@ -1,0 +1,10 @@
+# Local development only: exposes Postgres and MinIO on this machine.
+# Automatically loaded alongside compose.yaml for local development.
+services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
+  minio:
+    ports:
+      - "127.0.0.1:9000:9000" # S3 API
+      - "127.0.0.1:9001:9001" # Dashboard

@@ -21,7 +21,7 @@ import { MachineFormDialog } from './components/machine-form-dialog'
 import { MachinesPagination } from './components/machines-pagination'
 import { MachinesTable } from './components/machines-table'
 import { MACHINES_PER_PAGE } from './models/machines-search-model'
-import { machinesQuery, type Machine } from './query/machine-api'
+import { machinesQuery, type MachineView } from './query/machine-api'
 
 const POLL_MS = 3_000
 
@@ -37,7 +37,7 @@ export function MachinesPage() {
     } = useQuery({
         ...machinesQuery,
         refetchOnWindowFocus: true,
-        refetchInterval: (query) => (query.state.data?.some(isBusy) ? POLL_MS : false),
+        refetchInterval: (query) => (query.state.data?.some(isProcessing) ? POLL_MS : false),
     })
 
     const query = search.q?.trim().toLowerCase() ?? ''
@@ -55,9 +55,6 @@ export function MachinesPage() {
         }
     }, [machines, isFetching, page, search.page, navigate])
 
-    const openMachine = (machineId: string) =>
-        void navigate({ to: '/machines/$machineId', params: { machineId } })
-
     const newMachineButton = (
         <Button>
             <HugeiconsIcon icon={Add01Icon} strokeWidth={2} data-icon="inline-start" />
@@ -71,10 +68,7 @@ export function MachinesPage() {
                 <div>
                     <h1 className="font-heading text-2xl font-semibold tracking-tight">Machines</h1>
                 </div>
-                <MachineFormDialog
-                    trigger={newMachineButton}
-                    onCreated={(machine) => openMachine(machine.id)}
-                />
+                <MachineFormDialog trigger={newMachineButton} />
             </div>
 
             {isError && !machines ? (
@@ -96,9 +90,7 @@ export function MachinesPage() {
                             <HugeiconsIcon icon={EngineIcon} strokeWidth={2} />
                         </EmptyMedia>
                         <EmptyTitle>No machines yet</EmptyTitle>
-                        <EmptyDescription>
-                            Create a machine, then import the STEP files of its assembly groups.
-                        </EmptyDescription>
+                        <EmptyDescription>Create a machine to get started.</EmptyDescription>
                     </EmptyHeader>
                 </Empty>
             ) : (
@@ -124,7 +116,7 @@ export function MachinesPage() {
                         <p className="text-muted-foreground text-sm">No machine matches.</p>
                     ) : (
                         <>
-                            <MachinesTable machines={pageMachines} onOpen={openMachine} />
+                            <MachinesTable machines={pageMachines} />
                             <MachinesPagination page={page} pageCount={pageCount} />
                         </>
                     )}
@@ -134,12 +126,12 @@ export function MachinesPage() {
     )
 }
 
-function isBusy(machine: Machine) {
-    return machine.status === 'uploading' || machine.status === 'processing'
+function isProcessing(machine: MachineView) {
+    return machine.status === 'processing'
 }
 
-function matches(machine: Machine, query: string) {
-    return [machine.name, machine.identifier, machine.customer].some((text) =>
+function matches({ record }: MachineView, query: string) {
+    return [record.name, record.identifier, record.customer].some((text) =>
         text?.toLowerCase().includes(query),
     )
 }

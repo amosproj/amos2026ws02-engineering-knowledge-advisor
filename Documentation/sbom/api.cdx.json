@@ -2169,7 +2169,49 @@
       "version": "0.16.0"
     },
     {
-      "bom-ref": "httptools-18@0.9.0",
+      "bom-ref": "httpcore2-18@2.16.0",
+      "externalReferences": [
+        {
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "c72cd0413563b17e1cd8354677dff887466f8ec2551679759e93126534428643"
+            }
+          ],
+          "type": "distribution",
+          "url": "https://files.pythonhosted.org/packages/c0/61/afa9d6b7452f9eca73f73d45324eb0bb52f098fd5e6049bf6b8263be9b4e/httpcore2-2.16.0.tar.gz"
+        },
+        {
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "5c4358319f2602d984ad93182c9fee5160f22e9da7babdda870a5e7c4e2dc34f"
+            }
+          ],
+          "type": "distribution",
+          "url": "https://files.pythonhosted.org/packages/af/c2/ce417c397afa5181f0e3c6ff01a4d01639414e1adef08730d97571297151/httpcore2-2.16.0-py3-none-any.whl"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "httpcore2",
+      "properties": [
+        {
+          "name": "uv:package:marker",
+          "value": "sys_platform != 'emscripten'"
+        }
+      ],
+      "purl": "pkg:pypi/httpcore2@2.16.0",
+      "type": "library",
+      "version": "2.16.0"
+    },
+    {
+      "bom-ref": "httptools-19@0.9.0",
       "externalReferences": [
         {
           "hashes": [
@@ -2845,7 +2887,85 @@
       "version": "0.9.0"
     },
     {
-      "bom-ref": "idna-19@3.20",
+      "bom-ref": "httpx2-20@2.16.0",
+      "externalReferences": [
+        {
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "0d54c98128e8f2ff7fbbde0fca8c359e5f032edeaaaac443cdb7f31f685bcd7f"
+            }
+          ],
+          "type": "distribution",
+          "url": "https://files.pythonhosted.org/packages/43/73/5ca2cedf5e4e50423d1c258877865a6b62793633b561c58499f8aeb33b7e/httpx2-2.16.0.tar.gz"
+        },
+        {
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "fd2c5d7909e8d86fe92d53020c310ca0e4e431b838c207c5754b9bbf0308d49a"
+            }
+          ],
+          "type": "distribution",
+          "url": "https://files.pythonhosted.org/packages/7b/3d/2e4bc4fd1ef9770871669adb348d612a6e4786b303a23f9935b81c48dd60/httpx2-2.16.0-py3-none-any.whl"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "httpx2",
+      "purl": "pkg:pypi/httpx2@2.16.0",
+      "type": "library",
+      "version": "2.16.0"
+    },
+    {
+      "bom-ref": "httpx2-jsfetch-21@1.0",
+      "externalReferences": [
+        {
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "70a0e3eabfef7cce5ad9c629f7d01ca05e418f586646f4ddf14782e4c1454c60"
+            }
+          ],
+          "type": "distribution",
+          "url": "https://files.pythonhosted.org/packages/cd/c4/0e5636363151a2a1795e0a77617168b9ca438e1748ec05fc9b5687f93d64/httpx2_jsfetch-1.0.tar.gz"
+        },
+        {
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "cb916b707601e69a07721aabc8f3f6659be3a6893bc1ff5c6f9e02241df2da32"
+            }
+          ],
+          "type": "distribution",
+          "url": "https://files.pythonhosted.org/packages/9b/43/832f631d32e4f1211caa2ba368317739fe71f0b8530e4c9d15dc454bac2a/httpx2_jsfetch-1.0-py3-none-any.whl"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "httpx2-jsfetch",
+      "properties": [
+        {
+          "name": "uv:package:marker",
+          "value": "sys_platform == 'emscripten'"
+        }
+      ],
+      "purl": "pkg:pypi/httpx2-jsfetch@1.0",
+      "type": "library",
+      "version": "1.0"
+    },
+    {
+      "bom-ref": "idna-22@3.20",
       "externalReferences": [
         {
           "hashes": [
@@ -2881,7 +3001,7 @@
       "version": "3.20"
     },
     {
-      "bom-ref": "jmespath-20@1.1.0",
+      "bom-ref": "jmespath-23@1.1.0",
       "externalReferences": [
         {
           "hashes": [
@@ -2917,7 +3037,7 @@
       "version": "1.1.0"
     },
     {
-      "bom-ref": "kiwisolver-21@1.5.1",
+      "bom-ref": "kiwisolver-24@1.5.1",
       "externalReferences": [
         {
           "hashes": [
@@ -3776,7 +3896,7 @@
       "version": "1.5.1"
     },
     {
-      "bom-ref": "mako-22@1.4.3",
+      "bom-ref": "mako-25@1.4.3",
       "externalReferences": [
         {
           "hashes": [
@@ -3812,7 +3932,7 @@
       "version": "1.4.3"
     },
     {
-      "bom-ref": "markupsafe-23@3.0.4",
+      "bom-ref": "markupsafe-26@3.0.4",
       "externalReferences": [
         {
           "hashes": [
@@ -4738,7 +4858,7 @@
       "version": "3.0.4"
     },
     {
-      "bom-ref": "matplotlib-24@3.11.2",
+      "bom-ref": "matplotlib-27@3.11.2",
       "externalReferences": [
         {
           "hashes": [
@@ -5114,7 +5234,7 @@
       "version": "3.11.2"
     },
     {
-      "bom-ref": "numpy-25@2.5.4",
+      "bom-ref": "numpy-28@2.5.4",
       "externalReferences": [
         {
           "hashes": [
@@ -5678,7 +5798,7 @@
       "version": "2.5.4"
     },
     {
-      "bom-ref": "opentelemetry-api-26@1.45.1",
+      "bom-ref": "opentelemetry-api-29@1.45.1",
       "externalReferences": [
         {
           "hashes": [
@@ -5714,7 +5834,7 @@
       "version": "1.45.1"
     },
     {
-      "bom-ref": "packaging-27@26.3",
+      "bom-ref": "packaging-30@26.3",
       "externalReferences": [
         {
           "hashes": [
@@ -5748,7 +5868,7 @@
       "version": "26.3"
     },
     {
-      "bom-ref": "pgvector-28@0.5.1",
+      "bom-ref": "pgvector-31@0.5.1",
       "externalReferences": [
         {
           "hashes": [
@@ -5784,7 +5904,7 @@
       "version": "0.5.1"
     },
     {
-      "bom-ref": "pillow-29@13.0.0",
+      "bom-ref": "pillow-32@13.0.0",
       "externalReferences": [
         {
           "hashes": [
@@ -6350,7 +6470,7 @@
       "version": "13.0.0"
     },
     {
-      "bom-ref": "psycopg-30@3.3.6",
+      "bom-ref": "psycopg-33@3.3.6",
       "externalReferences": [
         {
           "hashes": [
@@ -6386,7 +6506,7 @@
       "version": "3.3.6"
     },
     {
-      "bom-ref": "psycopg-binary-31@3.3.6",
+      "bom-ref": "psycopg-binary-34@3.3.6",
       "externalReferences": [
         {
           "hashes": [
@@ -6738,7 +6858,7 @@
       "version": "3.3.6"
     },
     {
-      "bom-ref": "pydantic-32@2.14.1",
+      "bom-ref": "pydantic-35@2.14.1",
       "externalReferences": [
         {
           "hashes": [
@@ -6774,7 +6894,7 @@
       "version": "2.14.1"
     },
     {
-      "bom-ref": "pydantic-core-33@2.50.1",
+      "bom-ref": "pydantic-core-36@2.50.1",
       "externalReferences": [
         {
           "hashes": [
@@ -7560,7 +7680,7 @@
       "version": "2.50.1"
     },
     {
-      "bom-ref": "pydantic-settings-34@2.16.1",
+      "bom-ref": "pydantic-settings-37@2.16.1",
       "externalReferences": [
         {
           "hashes": [
@@ -7596,7 +7716,7 @@
       "version": "2.16.1"
     },
     {
-      "bom-ref": "pyparsing-35@3.3.3",
+      "bom-ref": "pyparsing-38@3.3.3",
       "externalReferences": [
         {
           "hashes": [
@@ -7632,7 +7752,7 @@
       "version": "3.3.3"
     },
     {
-      "bom-ref": "python-dateutil-36@2.9.0.post0",
+      "bom-ref": "python-dateutil-39@2.9.0.post0",
       "externalReferences": [
         {
           "hashes": [
@@ -7666,7 +7786,7 @@
       "version": "2.9.0.post0"
     },
     {
-      "bom-ref": "python-dotenv-37@1.2.4",
+      "bom-ref": "python-dotenv-40@1.2.4",
       "externalReferences": [
         {
           "hashes": [
@@ -7702,7 +7822,7 @@
       "version": "1.2.4"
     },
     {
-      "bom-ref": "pyyaml-38@6.0.3",
+      "bom-ref": "pyyaml-41@6.0.3",
       "externalReferences": [
         {
           "hashes": [
@@ -8008,7 +8128,7 @@
       "version": "6.0.3"
     },
     {
-      "bom-ref": "s3transfer-39@0.19.3",
+      "bom-ref": "s3transfer-42@0.19.3",
       "externalReferences": [
         {
           "hashes": [
@@ -8044,7 +8164,7 @@
       "version": "0.19.3"
     },
     {
-      "bom-ref": "six-40@1.17.0",
+      "bom-ref": "six-43@1.17.0",
       "externalReferences": [
         {
           "hashes": [
@@ -8080,7 +8200,7 @@
       "version": "1.17.0"
     },
     {
-      "bom-ref": "sqlalchemy-41@2.1.5",
+      "bom-ref": "sqlalchemy-44@2.1.5",
       "externalReferences": [
         {
           "hashes": [
@@ -8616,7 +8736,7 @@
       "version": "2.1.5"
     },
     {
-      "bom-ref": "starlette-42@1.10.0",
+      "bom-ref": "starlette-45@1.10.0",
       "externalReferences": [
         {
           "hashes": [
@@ -8652,7 +8772,49 @@
       "version": "1.10.0"
     },
     {
-      "bom-ref": "typing-extensions-43@4.16.0",
+      "bom-ref": "truststore-46@0.10.5",
+      "externalReferences": [
+        {
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "30d36967ccaded5cbb38d602c433f53600036c79d502f4533a49b60a03bbefcd"
+            }
+          ],
+          "type": "distribution",
+          "url": "https://files.pythonhosted.org/packages/ee/9f/c5201d42a484c061e528825fc8e2d565f5abd50a4ced6fb7d29c4ec99b2b/truststore-0.10.5.tar.gz"
+        },
+        {
+          "hashes": [
+            {
+              "alg": "SHA-256",
+              "content": "9aaaedaefaf06d8b206278cf8b5012bc897f485a874503501e12d776df78951c"
+            }
+          ],
+          "type": "distribution",
+          "url": "https://files.pythonhosted.org/packages/51/e9/3a7820be2bb0fe53b6bc9c3be26d3d1158004e4c3ab953aa6840b955b1e9/truststore-0.10.5-py3-none-any.whl"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "name": "truststore",
+      "properties": [
+        {
+          "name": "uv:package:marker",
+          "value": "sys_platform != 'emscripten'"
+        }
+      ],
+      "purl": "pkg:pypi/truststore@0.10.5",
+      "type": "library",
+      "version": "0.10.5"
+    },
+    {
+      "bom-ref": "typing-extensions-47@4.16.0",
       "externalReferences": [
         {
           "hashes": [
@@ -8688,7 +8850,7 @@
       "version": "4.16.0"
     },
     {
-      "bom-ref": "typing-inspection-44@0.4.4",
+      "bom-ref": "typing-inspection-48@0.4.4",
       "externalReferences": [
         {
           "hashes": [
@@ -8724,7 +8886,7 @@
       "version": "0.4.4"
     },
     {
-      "bom-ref": "tzdata-45@2026.5",
+      "bom-ref": "tzdata-49@2026.5",
       "externalReferences": [
         {
           "hashes": [
@@ -8766,7 +8928,7 @@
       "version": "2026.5"
     },
     {
-      "bom-ref": "urllib3-46@2.8.0",
+      "bom-ref": "urllib3-50@2.8.0",
       "externalReferences": [
         {
           "hashes": [
@@ -8802,7 +8964,7 @@
       "version": "2.8.0"
     },
     {
-      "bom-ref": "uvicorn-47@0.54.0",
+      "bom-ref": "uvicorn-51@0.54.0",
       "externalReferences": [
         {
           "hashes": [
@@ -8838,7 +9000,7 @@
       "version": "0.54.0"
     },
     {
-      "bom-ref": "uvloop-48@0.23.0",
+      "bom-ref": "uvloop-52@0.23.0",
       "externalReferences": [
         {
           "hashes": [
@@ -9168,7 +9330,7 @@
       "version": "0.23.0"
     },
     {
-      "bom-ref": "vtk-49@9.6.2",
+      "bom-ref": "vtk-53@9.6.2",
       "externalReferences": [
         {
           "hashes": [
@@ -9297,7 +9459,7 @@
       "version": "9.6.2"
     },
     {
-      "bom-ref": "watchfiles-50@1.3.0",
+      "bom-ref": "watchfiles-54@1.3.0",
       "externalReferences": [
         {
           "hashes": [
@@ -9603,7 +9765,7 @@
       "version": "1.3.0"
     },
     {
-      "bom-ref": "websockets-51@17.3",
+      "bom-ref": "websockets-55@17.3",
       "externalReferences": [
         {
           "hashes": [
@@ -10642,9 +10804,9 @@
   "dependencies": [
     {
       "dependsOn": [
-        "mako-22@1.4.3",
-        "sqlalchemy-41@2.1.5",
-        "typing-extensions-43@4.16.0"
+        "mako-25@1.4.3",
+        "sqlalchemy-44@2.1.5",
+        "typing-extensions-47@4.16.0"
       ],
       "ref": "alembic-2@1.20.0"
     },
@@ -10656,8 +10818,8 @@
     },
     {
       "dependsOn": [
-        "idna-19@3.20",
-        "typing-extensions-43@4.16.0"
+        "idna-22@3.20",
+        "typing-extensions-47@4.16.0"
       ],
       "ref": "anyio-5@4.15.1"
     },
@@ -10668,36 +10830,37 @@
         "cadquery-ocp-8@8.0.1.1.0",
         "cadquery-ocp-stubs-10@8.0.1.1.0",
         "fastapi-14@0.156.8",
-        "numpy-25@2.5.4",
-        "pgvector-28@0.5.1",
-        "psycopg-30@3.3.6",
-        "pydantic-settings-34@2.16.1",
-        "sqlalchemy-41@2.1.5",
-        "starlette-42@1.10.0",
-        "uvicorn-47@0.54.0"
+        "httpx2-20@2.16.0",
+        "numpy-28@2.5.4",
+        "pgvector-31@0.5.1",
+        "psycopg-33@3.3.6",
+        "pydantic-settings-37@2.16.1",
+        "sqlalchemy-44@2.1.5",
+        "starlette-45@1.10.0",
+        "uvicorn-51@0.54.0"
       ],
-      "ref": "api-1@0.1.0"
+      "ref": "api-1@0.2.1"
     },
     {
       "dependsOn": [
         "botocore-7@1.43.116",
-        "jmespath-20@1.1.0",
-        "s3transfer-39@0.19.3"
+        "jmespath-23@1.1.0",
+        "s3transfer-42@0.19.3"
       ],
       "ref": "boto3-6@1.43.116"
     },
     {
       "dependsOn": [
-        "jmespath-20@1.1.0",
-        "python-dateutil-36@2.9.0.post0",
-        "urllib3-46@2.8.0"
+        "jmespath-23@1.1.0",
+        "python-dateutil-39@2.9.0.post0",
+        "urllib3-50@2.8.0"
       ],
       "ref": "botocore-7@1.43.116"
     },
     {
       "dependsOn": [
         "cadquery-ocp-proxy-9@8.0.1.1.0",
-        "vtk-49@9.6.2"
+        "vtk-53@9.6.2"
       ],
       "ref": "cadquery-ocp-8@8.0.1.1.0"
     },
@@ -10712,7 +10875,7 @@
     },
     {
       "dependsOn": [
-        "numpy-25@2.5.4"
+        "numpy-28@2.5.4"
       ],
       "ref": "contourpy-12@1.4.0"
     },
@@ -10722,11 +10885,11 @@
     {
       "dependsOn": [
         "annotated-doc-3@0.0.5",
-        "opentelemetry-api-26@1.45.1",
-        "pydantic-32@2.14.1",
-        "starlette-42@1.10.0",
-        "typing-extensions-43@4.16.0",
-        "typing-inspection-44@0.4.4"
+        "opentelemetry-api-29@1.45.1",
+        "pydantic-35@2.14.1",
+        "starlette-45@1.10.0",
+        "typing-extensions-47@4.16.0",
+        "typing-inspection-48@0.4.4"
       ],
       "ref": "fastapi-14@0.156.8"
     },
@@ -10740,179 +10903,202 @@
       "ref": "h11-17@0.16.0"
     },
     {
-      "ref": "httptools-18@0.9.0"
+      "dependsOn": [
+        "h11-17@0.16.0",
+        "truststore-46@0.10.5"
+      ],
+      "ref": "httpcore2-18@2.16.0"
     },
     {
-      "ref": "idna-19@3.20"
-    },
-    {
-      "ref": "jmespath-20@1.1.0"
-    },
-    {
-      "ref": "kiwisolver-21@1.5.1"
+      "ref": "httptools-19@0.9.0"
     },
     {
       "dependsOn": [
-        "markupsafe-23@3.0.4"
+        "anyio-5@4.15.1",
+        "httpcore2-18@2.16.0",
+        "httpx2-jsfetch-21@1.0",
+        "idna-22@3.20",
+        "truststore-46@0.10.5"
       ],
-      "ref": "mako-22@1.4.3"
+      "ref": "httpx2-20@2.16.0"
     },
     {
-      "ref": "markupsafe-23@3.0.4"
+      "ref": "httpx2-jsfetch-21@1.0"
+    },
+    {
+      "ref": "idna-22@3.20"
+    },
+    {
+      "ref": "jmespath-23@1.1.0"
+    },
+    {
+      "ref": "kiwisolver-24@1.5.1"
+    },
+    {
+      "dependsOn": [
+        "markupsafe-26@3.0.4"
+      ],
+      "ref": "mako-25@1.4.3"
+    },
+    {
+      "ref": "markupsafe-26@3.0.4"
     },
     {
       "dependsOn": [
         "contourpy-12@1.4.0",
         "cycler-13@0.12.1",
         "fonttools-15@4.68.0",
-        "kiwisolver-21@1.5.1",
-        "numpy-25@2.5.4",
-        "packaging-27@26.3",
-        "pillow-29@13.0.0",
-        "pyparsing-35@3.3.3",
-        "python-dateutil-36@2.9.0.post0"
+        "kiwisolver-24@1.5.1",
+        "numpy-28@2.5.4",
+        "packaging-30@26.3",
+        "pillow-32@13.0.0",
+        "pyparsing-38@3.3.3",
+        "python-dateutil-39@2.9.0.post0"
       ],
-      "ref": "matplotlib-24@3.11.2"
+      "ref": "matplotlib-27@3.11.2"
     },
     {
-      "ref": "numpy-25@2.5.4"
+      "ref": "numpy-28@2.5.4"
     },
     {
       "dependsOn": [
-        "typing-extensions-43@4.16.0"
+        "typing-extensions-47@4.16.0"
       ],
-      "ref": "opentelemetry-api-26@1.45.1"
+      "ref": "opentelemetry-api-29@1.45.1"
     },
     {
-      "ref": "packaging-27@26.3"
+      "ref": "packaging-30@26.3"
     },
     {
-      "ref": "pgvector-28@0.5.1"
+      "ref": "pgvector-31@0.5.1"
     },
     {
-      "ref": "pillow-29@13.0.0"
+      "ref": "pillow-32@13.0.0"
     },
     {
       "dependsOn": [
-        "psycopg-binary-31@3.3.6",
-        "tzdata-45@2026.5"
+        "psycopg-binary-34@3.3.6",
+        "tzdata-49@2026.5"
       ],
-      "ref": "psycopg-30@3.3.6"
+      "ref": "psycopg-33@3.3.6"
     },
     {
-      "ref": "psycopg-binary-31@3.3.6"
+      "ref": "psycopg-binary-34@3.3.6"
     },
     {
       "dependsOn": [
         "annotated-types-4@0.8.0",
-        "pydantic-core-33@2.50.1",
-        "typing-extensions-43@4.16.0",
-        "typing-inspection-44@0.4.4"
+        "pydantic-core-36@2.50.1",
+        "typing-extensions-47@4.16.0",
+        "typing-inspection-48@0.4.4"
       ],
-      "ref": "pydantic-32@2.14.1"
+      "ref": "pydantic-35@2.14.1"
     },
     {
       "dependsOn": [
-        "typing-extensions-43@4.16.0"
+        "typing-extensions-47@4.16.0"
       ],
-      "ref": "pydantic-core-33@2.50.1"
+      "ref": "pydantic-core-36@2.50.1"
     },
     {
       "dependsOn": [
-        "pydantic-32@2.14.1",
-        "python-dotenv-37@1.2.4",
-        "typing-extensions-43@4.16.0",
-        "typing-inspection-44@0.4.4"
+        "pydantic-35@2.14.1",
+        "python-dotenv-40@1.2.4",
+        "typing-extensions-47@4.16.0",
+        "typing-inspection-48@0.4.4"
       ],
-      "ref": "pydantic-settings-34@2.16.1"
+      "ref": "pydantic-settings-37@2.16.1"
     },
     {
-      "ref": "pyparsing-35@3.3.3"
+      "ref": "pyparsing-38@3.3.3"
     },
     {
       "dependsOn": [
-        "six-40@1.17.0"
+        "six-43@1.17.0"
       ],
-      "ref": "python-dateutil-36@2.9.0.post0"
+      "ref": "python-dateutil-39@2.9.0.post0"
     },
     {
-      "ref": "python-dotenv-37@1.2.4"
+      "ref": "python-dotenv-40@1.2.4"
     },
     {
-      "ref": "pyyaml-38@6.0.3"
+      "ref": "pyyaml-41@6.0.3"
     },
     {
       "dependsOn": [
         "botocore-7@1.43.116"
       ],
-      "ref": "s3transfer-39@0.19.3"
+      "ref": "s3transfer-42@0.19.3"
     },
     {
-      "ref": "six-40@1.17.0"
+      "ref": "six-43@1.17.0"
     },
     {
       "dependsOn": [
         "greenlet-16@3.5.6",
-        "typing-extensions-43@4.16.0"
+        "typing-extensions-47@4.16.0"
       ],
-      "ref": "sqlalchemy-41@2.1.5"
+      "ref": "sqlalchemy-44@2.1.5"
     },
     {
       "dependsOn": [
         "anyio-5@4.15.1"
       ],
-      "ref": "starlette-42@1.10.0"
+      "ref": "starlette-45@1.10.0"
     },
     {
-      "ref": "typing-extensions-43@4.16.0"
+      "ref": "truststore-46@0.10.5"
+    },
+    {
+      "ref": "typing-extensions-47@4.16.0"
     },
     {
       "dependsOn": [
-        "typing-extensions-43@4.16.0"
+        "typing-extensions-47@4.16.0"
       ],
-      "ref": "typing-inspection-44@0.4.4"
+      "ref": "typing-inspection-48@0.4.4"
     },
     {
-      "ref": "tzdata-45@2026.5"
+      "ref": "tzdata-49@2026.5"
     },
     {
-      "ref": "urllib3-46@2.8.0"
+      "ref": "urllib3-50@2.8.0"
     },
     {
       "dependsOn": [
         "click-11@8.5.0",
         "h11-17@0.16.0",
-        "httptools-18@0.9.0",
-        "python-dotenv-37@1.2.4",
-        "pyyaml-38@6.0.3",
-        "uvloop-48@0.23.0",
-        "watchfiles-50@1.3.0",
-        "websockets-51@17.3"
+        "httptools-19@0.9.0",
+        "python-dotenv-40@1.2.4",
+        "pyyaml-41@6.0.3",
+        "uvloop-52@0.23.0",
+        "watchfiles-54@1.3.0",
+        "websockets-55@17.3"
       ],
-      "ref": "uvicorn-47@0.54.0"
+      "ref": "uvicorn-51@0.54.0"
     },
     {
-      "ref": "uvloop-48@0.23.0"
+      "ref": "uvloop-52@0.23.0"
     },
     {
       "dependsOn": [
-        "matplotlib-24@3.11.2"
+        "matplotlib-27@3.11.2"
       ],
-      "ref": "vtk-49@9.6.2"
+      "ref": "vtk-53@9.6.2"
     },
     {
       "dependsOn": [
         "anyio-5@4.15.1"
       ],
-      "ref": "watchfiles-50@1.3.0"
+      "ref": "watchfiles-54@1.3.0"
     },
     {
-      "ref": "websockets-51@17.3"
+      "ref": "websockets-55@17.3"
     }
   ],
   "metadata": {
     "component": {
-      "bom-ref": "api-1@0.1.0",
+      "bom-ref": "api-1@0.2.1",
       "name": "api",
       "properties": [
         {
@@ -10921,7 +11107,7 @@
         }
       ],
       "type": "library",
-      "version": "0.1.0"
+      "version": "0.2.1"
     },
     "tools": [
       {
