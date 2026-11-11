@@ -7,7 +7,9 @@
   "paths": {
     "/api/health/live": {
       "get": {
-        "tags": ["health"],
+        "tags": [
+          "health"
+        ],
         "summary": "Health",
         "description": "Confirm that the API process is running.",
         "operationId": "health_api_health_live_get",
@@ -183,7 +185,10 @@
     },
     "/api/v1/records/{recordId}": {
       "put": {
-        "tags": ["v1", "records"],
+        "tags": [
+          "v1",
+          "records"
+        ],
         "summary": "Put Record",
         "description": "PUTs a record. Links hold target ids.\n\n``@type`` defaults to anchor class.\n``@id`` is ``record_id``.\nLink targets must already exist.",
         "operationId": "put_record_api_v1_records__recordId__put",
@@ -374,7 +379,10 @@
         }
       },
       "get": {
-        "tags": ["v1", "records"],
+        "tags": [
+          "v1",
+          "records"
+        ],
         "summary": "Get Record",
         "description": "Returns validated record. Links hold target ids.",
         "operationId": "get_record_api_v1_records__recordId__get",
@@ -452,7 +460,10 @@
         }
       },
       "delete": {
-        "tags": ["v1", "records"],
+        "tags": [
+          "v1",
+          "records"
+        ],
         "summary": "Delete Record",
         "description": "Deletes a record and unlinks it everywhere.\n\nRecords left without a parent link are also deleted if ``delete_orphans`` is ``True``, otherwise marked for review.\nRecords whose parent link is marked ``og:deleteWithParent`` are deleted with it.",
         "operationId": "delete_record_api_v1_records__recordId__delete",
@@ -553,7 +564,10 @@
     },
     "/api/v1/records/review": {
       "get": {
-        "tags": ["v1", "records"],
+        "tags": [
+          "v1",
+          "records"
+        ],
         "summary": "Get Records To Review",
         "description": "Returns knowledge items whose assembly group was deleted.",
         "operationId": "get_records_to_review_api_v1_records_review_get",
@@ -902,8 +916,12 @@
     },
     "/api/v1/llm/chat": {
       "post": {
-        "tags": ["v1", "llm"],
+        "tags": [
+          "v1",
+          "llm"
+        ],
         "summary": "Chat",
+        "description": "Sends a chat request to an LLM provider and returns the completed response.",
         "operationId": "chat_api_v1_llm_chat_post",
         "requestBody": {
           "content": {
@@ -991,8 +1009,12 @@
     },
     "/api/v1/llm/chat/stream": {
       "post": {
-        "tags": ["v1", "llm"],
+        "tags": [
+          "v1",
+          "llm"
+        ],
         "summary": "Chat Stream",
+        "description": "Streams a chat completion from an LLM provider as server-sent events.",
         "operationId": "chat_stream_api_v1_llm_chat_stream_post",
         "requestBody": {
           "content": {
@@ -1080,8 +1102,12 @@
     },
     "/api/v1/llm/providers": {
       "get": {
-        "tags": ["v1", "llm"],
+        "tags": [
+          "v1",
+          "llm"
+        ],
         "summary": "Providers",
+        "description": "Lists configured LLM providers and their default models.",
         "operationId": "providers_api_v1_llm_providers_get",
         "responses": {
           "200": {
@@ -1103,8 +1129,12 @@
     },
     "/api/v1/llm/models": {
       "get": {
-        "tags": ["v1", "llm"],
+        "tags": [
+          "v1",
+          "llm"
+        ],
         "summary": "Models",
+        "description": "Lists models available from a provider, or from all providers when omitted.",
         "operationId": "models_api_v1_llm_models_get",
         "parameters": [
           {
@@ -1157,6 +1187,166 @@
   },
   "components": {
     "schemas": {
+      "ChatMessage": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "assistant"
+            ],
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 32000,
+            "minLength": 1,
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "ChatMessage"
+      },
+      "ChatRequest": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Messages"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 2.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "maximum": 32768.0,
+            "minimum": 1.0,
+            "title": "Max Tokens",
+            "default": 1024
+          },
+          "top_p": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top P"
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "text",
+              "json_object"
+            ],
+            "title": "Response Format",
+            "default": "text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "title": "ChatRequest"
+      },
+      "ChatResponse": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "finish_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish Reason"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TokenUsage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "content",
+          "request_id"
+        ],
+        "title": "ChatResponse"
+      },
       "EdgeType": {
         "type": "string",
         "enum": [
@@ -1274,6 +1464,24 @@
         },
         "type": "object",
         "description": "JSON object."
+      },
+      "ModelInfo": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "ModelInfo"
       },
       "OntologyClass": {
         "properties": {
@@ -1516,6 +1724,31 @@
         "type": "object",
         "title": "Problem",
         "description": "RFC 9457 Problem object"
+      },
+      "ProviderInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "default_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "default_model"
+        ],
+        "title": "ProviderInfo"
       },
       "RecordAncestors": {
         "properties": {
@@ -1891,7 +2124,10 @@
           }
         },
         "type": "object",
-        "required": ["url", "fields"],
+        "required": [
+          "url",
+          "fields"
+        ],
         "title": "UploadForm",
         "description": "Presigned POST form: send ``fields`` and then the file as ``file`` to ``url``."
       },
