@@ -15,7 +15,6 @@ const machineSchema = z.looseObject({
     identifier: z.string().optional(),
     customer: z.string().optional(),
     description: z.string().optional(),
-    properties: z.looseObject({ size: z.number().optional() }).optional(),
 })
 
 const childSchema = z.looseObject({
@@ -59,7 +58,6 @@ const machineBody = z.object({
     identifier: z.string().optional(),
     customer: z.string().optional(),
     description: z.string().optional(),
-    properties: z.object({ size: z.number() }).optional(),
 })
 
 // JSON Merge Patch: null removes a property
@@ -68,7 +66,6 @@ const machineChanges = z.object({
     identifier: z.string().nullable(),
     customer: z.string().nullable(),
     description: z.string().nullable(),
-    properties: z.object({ size: z.number().nullable() }),
 })
 
 const cadFileBody = z.object({

@@ -9,7 +9,6 @@ import {
     STEP_FILE_MAX_SIZE,
     machineFormSchema,
     orNull,
-    toSize,
     type MachineForm,
 } from '../models/machine-model'
 import {
@@ -69,12 +68,10 @@ function MachineFormBody({ machine, dialog }: MachineFormBodyProps) {
                     identifier: orNull(value.identifier),
                     customer: orNull(value.customer),
                     description: orNull(value.description),
-                    properties: { size: toSize(value.size) },
                 },
             })
             return
         }
-        const size = toSize(value.size)
         const created = await createMachine({
             body: {
                 '@type': 'Machine',
@@ -82,7 +79,6 @@ function MachineFormBody({ machine, dialog }: MachineFormBodyProps) {
                 identifier: value.identifier || undefined,
                 customer: value.customer || undefined,
                 description: value.description || undefined,
-                properties: size === null ? undefined : { size },
             },
         })
         if (!value.file) return
@@ -148,15 +144,6 @@ function MachineFormBody({ machine, dialog }: MachineFormBodyProps) {
                             <form.AppField name="customer">
                                 {(field) => <field.InputForm label="Customer" autoComplete="off" />}
                             </form.AppField>
-                            <form.AppField name="size">
-                                {(field) => (
-                                    <field.InputForm
-                                        label="Size"
-                                        inputMode="decimal"
-                                        autoComplete="off"
-                                    />
-                                )}
-                            </form.AppField>
                             <form.AppField name="description">
                                 {(field) => (
                                     <field.TextareaForm label="Description" autoComplete="off" />
@@ -195,7 +182,6 @@ function toForm(machine: MachineView | undefined): MachineForm {
         identifier: record?.identifier ?? '',
         customer: record?.customer ?? '',
         description: record?.description ?? '',
-        size: record?.properties?.size?.toString() ?? '',
         file: null,
     }
 }

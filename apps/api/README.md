@@ -183,11 +183,13 @@ Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. 
   "name": "Robot cell",
   "description": "Robot cell for loading anodised aluminium housings",
   "customer": "Example GmbH",
-  "properties": {"size": 12}
+  "properties": {"sizeX": 4.2, "sizeY": 3.1, "sizeZ": 2.5}
 }
 ```
 
-### AssemblyGroup
+### AssemblyGroup and AssemblyInstance
+A group is a design, an instance is one placement of it. The instances form the tree of the machine.
+
 `PUT /records/AG-IT-003`
 ```json
 {
@@ -195,8 +197,8 @@ Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. 
   "identifier": "AG-IT-003",
   "name": "Input tray",
   "description": "Drawer tray that feeds anodised housings to the robot",
-  "rootOf": "RC-01",
-  "properties": {"path": "RC-01/AG-IT-003", "dimensions": 800}
+  "definedIn": "RC-01",
+  "properties": {"sizeX": 0.8, "sizeY": 0.6, "sizeZ": 0.2}
 }
 ```
 `PUT /records/AG-IT-003-01`
@@ -205,8 +207,27 @@ Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. 
   "@type": "AssemblyGroup",
   "identifier": "AG-IT-003-01",
   "name": "Drawer slide",
-  "partOf": "AG-IT-003",
-  "properties": {"path": "RC-01/AG-IT-003/AG-IT-003-01"}
+  "definedIn": "RC-01"
+}
+```
+`PUT /records/AI-1`, the root instance (one per machine)
+```json
+{
+  "@type": "AssemblyInstance",
+  "name": "AG-IT-003:1",
+  "instanceOf": "AG-IT-003",
+  "rootOf": "RC-01",
+  "properties": {"path": "AG-IT-003:1"}
+}
+```
+`PUT /records/AI-2`, same for `AI-3` with `AG-IT-003-01:2`
+```json
+{
+  "@type": "AssemblyInstance",
+  "name": "AG-IT-003-01:1",
+  "instanceOf": "AG-IT-003-01",
+  "partOf": "AI-1",
+  "properties": {"path": "AG-IT-003:1/AG-IT-003-01:1"}
 }
 ```
 
@@ -260,6 +281,18 @@ After upload: `POST /records/CF-RC-01/complete`.
   "appliesToMachine": ["RC-01"]
 }
 ```
+`PUT /records/KI-3`, about one placement only
+```json
+{
+  "@type": "KnowledgeItem",
+  "itemType": "lesson learned",
+  "properties": {
+    "name": "Left drawer slide hits the fence",
+    "statement": "The left slide touches the safety fence when fully open."
+  },
+  "appliesToInstance": ["AI-2"]
+}
+```
 
 ### Guideline
 `PUT /records/GL-1`
@@ -277,5 +310,6 @@ After upload: `POST /records/CF-RC-01/complete`.
 - `GET /records?parentId=AG-IT-003`: records linking to `AG-IT-003`.
 - `GET /records/RC-01/tree`: tree from root.
 - `GET /records/KI-1/ancestors`: up to the root.
-- `DELETE /records/AG-IT-003`: deletes `AG-IT-003` and `AG-IT-003-01`, `KI-1` marked for review.
+- `DELETE /records/AI-1`: deletes `AI-1`, `AI-2` and `AI-3`, `KI-3` marked for review.
+- `DELETE /records/AG-IT-003-01`: its instances `AI-2` and `AI-3` stay in the tree without `instanceOf`, `KI-1` marked for review.
 - `GET /records/review`: every record maker for review.

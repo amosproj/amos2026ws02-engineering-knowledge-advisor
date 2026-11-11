@@ -13,27 +13,40 @@
   "@graph": [
     {"@id": "og:Machine", "@type": "rdfs:Class", "displayName": "Machine", "comment": "A special-purpose machine or line, e.g. a robot cell. Stored as a record.", "og:record": true},
     {"@id": "og:MachineProperties", "@type": "rdfs:Class", "displayName": "Machine properties", "comment": "Further properties of a machine."},
-    {"@id": "og:AssemblyGroup", "@type": "rdfs:Class", "displayName": "Assembly group", "comment": "Anchor entity. A mechanical assembly group (Baugruppe) of a machine, which may contain further assembly groups; search results group by it. Stored as a record.", "og:record": true, "og:anchor": true},
+    {"@id": "og:AssemblyGroup", "@type": "rdfs:Class", "displayName": "Assembly group", "comment": "Anchor entity. The design of a mechanical assembly group (Baugruppe) of a machine, e.g. a CAD definition, shared by all its instances; search results group by it. Stored as a record.", "og:record": true, "og:anchor": true},
     {"@id": "og:AssemblyProperties", "@type": "rdfs:Class", "displayName": "Assembly group properties", "comment": "Further properties of an assembly group."},
+    {"@id": "og:AssemblyInstance", "@type": "rdfs:Class", "displayName": "Assembly instance", "comment": "One placement of an assembly group in a machine, e.g. a CAD occurrence. Instances form the assembly tree of the machine. Stored as a record.", "og:record": true},
+    {"@id": "og:InstanceProperties", "@type": "rdfs:Class", "displayName": "Assembly instance properties", "comment": "Further properties of an assembly instance."},
     {"@id": "og:CadFile", "@type": "rdfs:Class", "displayName": "CAD file", "comment": "The CAD model of a machine. Stored as a record, the file itself lives in object storage.", "og:record": true, "og:file": true},
     {"@id": "og:KnowledgeItem", "@type": "rdfs:Class", "displayName": "Knowledge item", "comment": "One piece of engineering knowledge about specific machines or assembly groups: a requirement, consideration, design decision or lesson learned. Stored as a record and extracted from documents.", "og:record": true, "og:extractable": true},
     {"@id": "og:KnowledgeProperties", "@type": "rdfs:Class", "displayName": "Knowledge item properties", "comment": "The content of a knowledge item."},
     {"@id": "og:Guideline", "@type": "rdfs:Class", "displayName": "Guideline", "comment": "A general rule for every machine, e.g. a global requirement. Checked against every answer instead of answering. Stored as a record and extracted from documents.", "og:record": true, "og:extractable": true, "og:guideline": true},
 
-    {"@id": "og:identifier", "@type": "rdf:Property", "domain": ["og:Machine", "og:AssemblyGroup"], "range": "schema:Text", "displayName": "identifier", "comment": "Identifier, e.g. the project or serial number of a machine. An assembly group's stays the same when the same CAD file is imported again.", "og:identity": true, "og:search": ["semantic", "lexical"]},
+    {"@id": "og:identifier", "@type": "rdf:Property", "domain": ["og:Machine", "og:AssemblyGroup"], "range": "schema:Text", "displayName": "identifier", "comment": "Identifier, e.g. the project or serial number of a machine, or the CAD definition name of an assembly group. An assembly group's stays the same when the same CAD file is imported again.", "og:identity": true, "og:search": ["semantic", "lexical"]},
     {"@id": "og:name", "@type": "rdf:Property", "domain": ["og:Machine", "og:AssemblyGroup"], "range": "schema:Text", "displayName": "name", "comment": "Name of the machine or assembly group.", "og:identity": true},
     {"@id": "og:description", "@type": "rdf:Property", "domain": ["og:Machine", "og:AssemblyGroup"], "range": "schema:Text", "displayName": "description", "comment": "Free-text description of the machine or assembly group."},
     {"@id": "og:customer", "@type": "rdf:Property", "domain": "og:Machine", "range": "schema:Text", "displayName": "customer", "comment": "The customer the machine was built for."},
     {"@id": "og:properties", "@type": "rdf:Property", "domain": "og:Machine", "range": "og:MachineProperties", "displayName": "properties", "comment": "Further properties of the machine."},
 
-    {"@id": "og:size", "@type": "rdf:Property", "domain": "og:MachineProperties", "range": "schema:Number", "displayName": "size", "comment": "Size of the machine."},
+    {"@id": "og:sizeX", "@type": "rdf:Property", "domain": "og:MachineProperties", "range": "schema:Number", "displayName": "size x", "comment": "Size of the machine's bounding box along x, in meters."},
+    {"@id": "og:sizeY", "@type": "rdf:Property", "domain": "og:MachineProperties", "range": "schema:Number", "displayName": "size y", "comment": "Size of the machine's bounding box along y, in meters."},
+    {"@id": "og:sizeZ", "@type": "rdf:Property", "domain": "og:MachineProperties", "range": "schema:Number", "displayName": "size z", "comment": "Size of the machine's bounding box along z, in meters."},
 
     {"@id": "og:properties", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:AssemblyProperties", "displayName": "properties", "comment": "Further properties of the assembly group."},
-    {"@id": "og:rootOf", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:Machine", "displayName": "root of", "comment": "The machine whose top assembly group this is.", "og:edgeType": "parent", "og:deleteWithParent": true},
-    {"@id": "og:partOf", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:AssemblyGroup", "displayName": "part of", "comment": "The assembly group this one belongs to.", "og:edgeType": "parent", "og:deleteWithParent": true},
+    {"@id": "og:definedIn", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:Machine", "displayName": "defined in", "comment": "The machine the assembly group is designed for.", "og:edgeType": "parent", "og:deleteWithParent": true},
 
-    {"@id": "og:path", "@type": "rdf:Property", "domain": "og:AssemblyProperties", "range": "schema:Text", "displayName": "path", "comment": "Path of the assembly group, e.g. in the CAD assembly tree.", "og:search": ["lexical"]},
-    {"@id": "og:dimensions", "@type": "rdf:Property", "domain": "og:AssemblyProperties", "range": "schema:Number", "displayName": "dimensions", "comment": "Dimensions of the assembly group."},
+    {"@id": "og:sizeX", "@type": "rdf:Property", "domain": "og:AssemblyProperties", "range": "schema:Number", "displayName": "size x", "comment": "Size of the assembly group's bounding box along x, in meters."},
+    {"@id": "og:sizeY", "@type": "rdf:Property", "domain": "og:AssemblyProperties", "range": "schema:Number", "displayName": "size y", "comment": "Size of the assembly group's bounding box along y, in meters."},
+    {"@id": "og:sizeZ", "@type": "rdf:Property", "domain": "og:AssemblyProperties", "range": "schema:Number", "displayName": "size z", "comment": "Size of the assembly group's bounding box along z, in meters."},
+
+    {"@id": "og:name", "@type": "rdf:Property", "domain": "og:AssemblyInstance", "range": "schema:Text", "displayName": "name", "comment": "Name of the instance, e.g. the CAD instance name G01_001:2.", "og:identity": true},
+    {"@id": "og:properties", "@type": "rdf:Property", "domain": "og:AssemblyInstance", "range": "og:InstanceProperties", "displayName": "properties", "comment": "Further properties of the assembly instance."},
+    {"@id": "og:instanceOf", "@type": "rdf:Property", "domain": "og:AssemblyInstance", "range": "og:AssemblyGroup", "displayName": "instance of", "comment": "The assembly group placed by this instance. Deleting the group keeps its instances.", "og:edgeType": "parent"},
+    {"@id": "og:rootOf", "@type": "rdf:Property", "domain": "og:AssemblyInstance", "range": "og:Machine", "displayName": "root of", "comment": "The machine whose top assembly instance this is. A machine has one.", "og:edgeType": "parent", "og:deleteWithParent": true, "og:maxPerParent": 1},
+    {"@id": "og:partOf", "@type": "rdf:Property", "domain": "og:AssemblyInstance", "range": "og:AssemblyInstance", "displayName": "part of", "comment": "The assembly instance this one is placed in.", "og:edgeType": "parent", "og:deleteWithParent": true},
+
+    {"@id": "og:occurrenceId", "@type": "rdf:Property", "domain": "og:InstanceProperties", "range": "schema:Text", "displayName": "occurrence id", "comment": "Id of the instance's node in the 3D model of the CAD file. Filled by the CAD import.", "og:search": []},
+    {"@id": "og:path", "@type": "rdf:Property", "domain": "og:InstanceProperties", "range": "schema:Text", "displayName": "path", "comment": "Instance names from the root of the assembly tree.", "og:search": ["lexical"]},
 
     {"@id": "og:name", "@type": "rdf:Property", "domain": "og:CadFile", "range": "schema:Text", "displayName": "name", "comment": "File name, e.g. RC-01.step.", "og:search": ["semantic", "lexical"]},
     {"@id": "og:format", "@type": "rdf:Property", "domain": "og:CadFile", "range": "schema:Text", "displayName": "format", "comment": "CAD system or file format, e.g. STEP or CATIA V5."},
@@ -45,8 +58,9 @@
     {"@id": "og:sourceDocumentId", "@type": "rdf:Property", "domain": ["og:KnowledgeItem", "og:Guideline"], "range": "schema:Text", "displayName": "source document", "comment": "Id of the uploaded document the record was extracted from, e.g. a walkthrough transcript. Filled by the extraction.", "og:search": ["semantic", "lexical"], "og:provenance": true},
     {"@id": "og:reference", "@type": "rdf:Property", "domain": ["og:KnowledgeItem", "og:Guideline"], "range": "schema:Text", "displayName": "reference", "comment": "A standard, norm or other reference the record is based on, e.g. DIN EN ISO 13849.", "og:search": ["semantic", "lexical"]},
     {"@id": "og:properties", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "og:KnowledgeProperties", "displayName": "properties", "comment": "The content of the knowledge item."},
-    {"@id": "og:appliesTo", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "og:AssemblyGroup", "displayName": "applies to", "comment": "The assembly groups the item is about.", "og:edgeType": "parent"},
+    {"@id": "og:appliesTo", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "og:AssemblyGroup", "displayName": "applies to", "comment": "The assembly groups the item is about, for every instance of them.", "og:edgeType": "parent"},
     {"@id": "og:appliesToMachine", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "og:Machine", "displayName": "applies to machine", "comment": "The machines the item is about, when it concerns a whole machine.", "og:edgeType": "parent"},
+    {"@id": "og:appliesToInstance", "@type": "rdf:Property", "domain": "og:KnowledgeItem", "range": "og:AssemblyInstance", "displayName": "applies to instance", "comment": "The assembly instances the item is about, when it concerns one placement only. Items about every instance link to the group.", "og:edgeType": "parent"},
 
     {"@id": "og:name", "@type": "rdf:Property", "domain": "og:KnowledgeProperties", "range": "schema:Text", "displayName": "name", "comment": "Short name of the item."},
     {"@id": "og:statement", "@type": "rdf:Property", "domain": "og:KnowledgeProperties", "range": "schema:Text", "displayName": "statement", "comment": "The knowledge in one or two sentences, as the engineer said it."},
