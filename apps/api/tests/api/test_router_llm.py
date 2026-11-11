@@ -108,6 +108,27 @@ def test_stream_openapi_declares_server_sent_events() -> None:
     assert "text/event-stream" in response["content"]
 
 
+def test_llm_openapi_operations_have_descriptions() -> None:
+    paths = build_app().openapi()["paths"]
+    expected_descriptions = {
+        ("/api/v1/llm/chat", "post"): (
+            "Sends a chat request to an LLM provider and returns the completed response."
+        ),
+        ("/api/v1/llm/chat/stream", "post"): (
+            "Streams a chat completion from an LLM provider as server-sent events."
+        ),
+        ("/api/v1/llm/providers", "get"): (
+            "Lists configured LLM providers and their default models."
+        ),
+        ("/api/v1/llm/models", "get"): (
+            "Lists models available from a provider, or from all providers when omitted."
+        ),
+    }
+
+    for (path, method), description in expected_descriptions.items():
+        assert paths[path][method]["description"] == description
+
+
 def test_invalid_chat_body_uses_problem_response() -> None:
     with build_client() as client:
         response = client.post(
