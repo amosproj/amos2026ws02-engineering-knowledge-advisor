@@ -130,7 +130,7 @@ def build_api_sbom() -> dict[str, Any]:
     except subprocess.CalledProcessError as error:
         raise SystemExit(
             f"uv export failed:\n{error.stderr}"
-            "If apps/api/uv.lock is out of date, run: uv lock --directory apps/api"
+            "If apps/api/uv.lock is out of date, run: uv lock --project apps/api"
         ) from error
 
     document: dict[str, Any] = json.loads(raw)

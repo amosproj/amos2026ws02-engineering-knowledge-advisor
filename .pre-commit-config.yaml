@@ -36,7 +36,7 @@ repos:
 
       - id: pytest
         name: pytest
-        entry: uv run --directory apps/api pytest -q
+        entry: uv run --directory apps/api/tests --project .. pytest -q -c ../pyproject.toml
         language: system
         pass_filenames: false
         types_or: [python]

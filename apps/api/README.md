@@ -22,20 +22,17 @@ Settings are read in this order:
 2. `.env`
 3. defaults
 
-`.env` is used from the directory the backend is started from:
-
-- start from `apps/api/` => `apps/api/.env`
-- start from repository root with `--directory` => `apps/api/.env`
-- start from repository root with `--project` => `.env` at root
+`.env` is read from the process working directory. The repository-root commands below
+use `--project apps/api`, so they read the root `.env`.
 
 ## Database
 
 Postgres. Schema changes are Alembic migrations in `migrations/`:
 
 ```sh
-uv run --directory apps/api alembic upgrade head                                # apply
-uv run --directory apps/api alembic revision --autogenerate -m "what changed"   # review the file
-uv run --directory apps/api alembic check                                       # models and migrations agree
+uv run --project apps/api alembic -c apps/api/alembic.ini upgrade head                                # apply
+uv run --project apps/api alembic -c apps/api/alembic.ini revision --autogenerate -m "what changed"   # review the file
+uv run --project apps/api alembic -c apps/api/alembic.ini check                                       # models and migrations agree
 ```
 
 Text columns: `String` (`varchar` without a length) for ids and short values, `Text` for free form text. Postgres stores both the same way. To set a limit, use ``varchar(n)``. Table, column, index and constraint names live in `src/db/names.py`, tables in `src/db/tables.py`.
@@ -124,26 +121,16 @@ for streaming, all provider settings, and error handling.
 
 ## Run
 
+From the repository root, using the root `.env`:
+
 ```sh
-uv run uvicorn main:app
+uv run --project apps/api uvicorn --app-dir apps/api/src main:app
 ```
 
-Or from repository root using root `.env`:
+On Windows, async psycopg needs a selector event loop. Add this flag to the command above:
 
 ```sh
-uv run --project apps/api uvicorn main:app
-```
-
-Or from repository root using API's `.env`:
-
-```sh
-uv run --directory apps/api uvicorn main:app
-```
-
-On Windows, async psycopg needs a selector event loop. Add this flag to any of the above:
-
-```sh
-uv run uvicorn main:app --loop asyncio:SelectorEventLoop
+uv run --project apps/api uvicorn --app-dir apps/api/src main:app --loop asyncio:SelectorEventLoop
 ```
 
 ## Storage and background jobs
@@ -162,9 +149,11 @@ uv run pytest                           # tests only
 Or from repository root:
 
 ```sh
-uv run --directory apps/api pre-commit  # lint + type check + tests
-uv run --directory apps/api pytest      # tests only
+uv run --project apps/api pre-commit                         # lint + type check + tests
+uv run --directory apps/api/tests --project .. pytest -c ../pyproject.toml  # tests only
 ```
+
+The test command runs from the tests directory so API settings do not load the repository-root `.env`.
 
 Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. Test database is wiped on test run.
 

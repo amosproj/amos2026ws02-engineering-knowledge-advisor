@@ -277,19 +277,19 @@ This will install the pre-commit Git hook and auto-init venv based on `apps/api/
 From the repository root, run:
 
 ```sh
-uv run --directory apps/api pre-commit install  # will also run uv sync
+uv run --project apps/api pre-commit install  # will also run uv sync
 ```
 
 (optional) manual test-run:
 
 ```sh
-uv run --directory apps/api pre-commit
+uv run --project apps/api pre-commit
 ```
 
 To uninstall the hook:
 
 ```sh
-uv run --directory apps/api pre-commit uninstall
+uv run --project apps/api pre-commit uninstall
 ```
 
 ## Starting the Application
@@ -538,8 +538,8 @@ npm run test:watch   # re-run on change
 The API can be run locally with uv installed:
 
 ```powershell
-uv sync --directory apps/api
-uv run --directory apps/api uvicorn main:app --reload --host 127.0.0.1 --port 8000
+uv sync --project apps/api
+uv run --project apps/api uvicorn --app-dir apps/api/src main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 The local API runs at `http://127.0.0.1:8000`. Local execution requires any external services that the code actually uses to be configured and reachable.
