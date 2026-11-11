@@ -141,7 +141,7 @@ Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. 
   "name": "Robot cell",
   "description": "Robot cell for loading anodised aluminium housings",
   "customer": "Example GmbH",
-  "properties": {"size": 12}
+  "properties": {"sizeX": 4.2, "sizeY": 3.1, "sizeZ": 2.5}
 }
 ```
 

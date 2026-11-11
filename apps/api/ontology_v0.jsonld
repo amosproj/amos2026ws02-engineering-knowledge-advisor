@@ -28,7 +28,9 @@
     {"@id": "og:customer", "@type": "rdf:Property", "domain": "og:Machine", "range": "schema:Text", "displayName": "customer", "comment": "The customer the machine was built for."},
     {"@id": "og:properties", "@type": "rdf:Property", "domain": "og:Machine", "range": "og:MachineProperties", "displayName": "properties", "comment": "Further properties of the machine."},
 
-    {"@id": "og:size", "@type": "rdf:Property", "domain": "og:MachineProperties", "range": "schema:Number", "displayName": "size", "comment": "Size of the machine."},
+    {"@id": "og:sizeX", "@type": "rdf:Property", "domain": "og:MachineProperties", "range": "schema:Number", "displayName": "size x", "comment": "Size of the machine's bounding box along x, in meters."},
+    {"@id": "og:sizeY", "@type": "rdf:Property", "domain": "og:MachineProperties", "range": "schema:Number", "displayName": "size y", "comment": "Size of the machine's bounding box along y, in meters."},
+    {"@id": "og:sizeZ", "@type": "rdf:Property", "domain": "og:MachineProperties", "range": "schema:Number", "displayName": "size z", "comment": "Size of the machine's bounding box along z, in meters."},
 
     {"@id": "og:properties", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:AssemblyProperties", "displayName": "properties", "comment": "Further properties of the assembly group."},
     {"@id": "og:definedIn", "@type": "rdf:Property", "domain": "og:AssemblyGroup", "range": "og:Machine", "displayName": "defined in", "comment": "The machine the assembly group is designed for.", "og:edgeType": "parent", "og:deleteWithParent": true},

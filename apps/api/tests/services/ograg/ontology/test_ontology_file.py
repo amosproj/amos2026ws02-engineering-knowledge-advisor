@@ -108,6 +108,7 @@ def test_labels_are_read():
     assert onto.class_labels["CadFile"].comment
     assert onto.properties[("AssemblyProperties", "sizeX")].display_name == "size x"
     assert onto.properties[("AssemblyProperties", "sizeX")].comment
+    assert onto.properties[("MachineProperties", "sizeX")].display_name == "size x"
 
 
 @pytest.mark.parametrize(
