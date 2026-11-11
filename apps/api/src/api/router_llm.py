@@ -45,6 +45,7 @@ LLM = Annotated[LLMService, Depends(get_llm_service)]
     },
 )
 async def chat(body: ChatRequest, llm: LLM) -> ChatResponse:
+    """Sends a chat request to an LLM provider and returns the completed response."""
     return await llm.complete(body)
 
 
@@ -61,6 +62,8 @@ async def chat(body: ChatRequest, llm: LLM) -> ChatResponse:
     },
 )
 async def chat_stream(body: ChatRequest, llm: LLM) -> ServerSentEventResponse:
+    """Streams a chat completion from an LLM provider as server-sent events."""
+
     async def events() -> AsyncGenerator[str]:
         try:
             async for chunk in llm.stream(body):
@@ -83,6 +86,7 @@ async def chat_stream(body: ChatRequest, llm: LLM) -> ServerSentEventResponse:
 
 @llm_router.get("/llm/providers")
 async def providers(llm: LLM) -> list[ProviderInfo]:
+    """Lists configured LLM providers and their default models."""
     return llm.list_providers()
 
 
@@ -94,4 +98,5 @@ async def models(
     llm: LLM,
     provider: Annotated[str | None, Query(min_length=1, max_length=40)] = None,
 ) -> list[ModelInfo]:
+    """Lists models available from a provider, or from all providers when omitted."""
     return await llm.list_models(provider)
