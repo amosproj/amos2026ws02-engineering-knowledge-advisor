@@ -20,7 +20,7 @@ from dataclasses import dataclass
 
 from services import Json, Record, Tx
 from services.cad.assembly_tree_node import AssemblyTreeNode
-from services.cad.to_records import build_assembly_group_node, build_machine_node
+from services.cad.to_records import build_assembly_group_node, build_dimensions_node
 from services.catalog import records
 from services.catalog.errors import (
     BusyError,
@@ -434,14 +434,23 @@ class CatalogService:
         cad_file_id: str,
         root_node: AssemblyTreeNode,
     ) -> None:
-        """Import the parsed STEP assembly tree as Machine + AssemblyGroup records.
+        """Import the parsed STEP assembly tree as AssemblyGroup records.
 
-        Creates a Machine from the root node identifier, then AssemblyGroups for each node
-        linked via og:partOf / og:rootOf parent links. Links the existing CadFile to the Machine.
+        The root node becomes the machine's root AssemblyGroup (og:rootOf), every other node an
+        AssemblyGroup linked to its parent via og:partOf.
         """
-        machine_node = build_machine_node(root_node.identifier, root_node.dimensions)
-        created = await self.create_record(session, machine_node)
-        machine_id = created.record.id
+        cad_file: Record = await self.get_record(session, cad_file_id)
+        [machine_id] = self._get_parent_ids(cad_file)
+        if root_node.dimensions is not None:
+            await self.update_record(
+                session,
+                machine_id,
+                {
+                    "properties": {
+                        "dimensions": build_dimensions_node(*root_node.dimensions)
+                    }
+                },
+            )
 
         async def _walk(
             node: AssemblyTreeNode,
@@ -466,8 +475,6 @@ class CatalogService:
             return ag_id
 
         await _walk(root_node, machine_id, "", True)
-
-        await self.update_record(session, cad_file_id, {"partOf": machine_id})
 
     def _get_parent_ids(
         self, record: Record, candidate_ids: list[str] | None = None

@@ -1,19 +1,6 @@
 from services import Json
 
 
-def build_machine_node(
-    identifier: str,
-    dimensions: tuple[float | int, float | int, float | int] | None = None,
-) -> dict[str, Json]:
-    node: dict[str, Json] = {
-        "@type": "og:Machine",
-        "identifier": identifier,
-    }
-    if dimensions is not None:
-        node["properties"] = {"dimensions": build_dimensions_node(*dimensions)}
-    return node
-
-
 def build_dimensions_node(width: float, height: float, depth: float) -> dict[str, Json]:
     return {
         "@type": "og:Dimensions",
