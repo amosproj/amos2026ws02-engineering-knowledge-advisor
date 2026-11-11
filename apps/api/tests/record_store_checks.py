@@ -53,7 +53,7 @@ MACHINE: Record = build_record(
 GROUP: Record = build_record(
     GROUP_ID,
     "AssemblyGroup",
-    [("partOf", MACHINE_ID)],
+    [("definedIn", MACHINE_ID)],
     identifier="AG-IT-003",
     name="Input tray",
 )
@@ -119,7 +119,7 @@ async def check_find_matches_identity_case_insensitively(store: RecordStore) -> 
     twin: Record = build_record(
         TWIN_ID,
         "AssemblyGroup",
-        [("partOf", MACHINE_ID)],
+        [("definedIn", MACHINE_ID)],
         identifier="AG-IT-004",
         name="input TRAY",
     )
@@ -138,7 +138,7 @@ async def check_find_matches_any_value_of_a_list(store: RecordStore) -> None:
     listed: Record = build_record(
         TWIN_ID,
         "AssemblyGroup",
-        [("partOf", MACHINE_ID)],
+        [("definedIn", MACHINE_ID)],
         identifier=["AG-IT-005", "AG-IT-005-OLD"],
         name=["Feed tray", "Input TRAY"],
     )
@@ -158,7 +158,7 @@ async def check_find_follows_the_identity_of_the_last_save(store: RecordStore) -
     renamed: Record = build_record(
         GROUP_ID,
         "AssemblyGroup",
-        [("partOf", MACHINE_ID)],
+        [("definedIn", MACHINE_ID)],
         identifier="AG-IT-003",
         name=["Output tray", "Exit tray"],
     )

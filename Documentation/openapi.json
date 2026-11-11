@@ -7,9 +7,7 @@
   "paths": {
     "/api/health/live": {
       "get": {
-        "tags": [
-          "health"
-        ],
+        "tags": ["health"],
         "summary": "Health",
         "description": "Confirm that the API process is running.",
         "operationId": "health_api_health_live_get",
@@ -185,10 +183,7 @@
     },
     "/api/v1/records/{recordId}": {
       "put": {
-        "tags": [
-          "v1",
-          "records"
-        ],
+        "tags": ["v1", "records"],
         "summary": "Put Record",
         "description": "PUTs a record. Links hold target ids.\n\n``@type`` defaults to anchor class.\n``@id`` is ``record_id``.\nLink targets must already exist.",
         "operationId": "put_record_api_v1_records__recordId__put",
@@ -379,10 +374,7 @@
         }
       },
       "get": {
-        "tags": [
-          "v1",
-          "records"
-        ],
+        "tags": ["v1", "records"],
         "summary": "Get Record",
         "description": "Returns validated record. Links hold target ids.",
         "operationId": "get_record_api_v1_records__recordId__get",
@@ -460,10 +452,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "v1",
-          "records"
-        ],
+        "tags": ["v1", "records"],
         "summary": "Delete Record",
         "description": "Deletes a record and unlinks it everywhere.\n\nRecords left without a parent link are also deleted if ``delete_orphans`` is ``True``, otherwise marked for review.\nRecords whose parent link is marked ``og:deleteWithParent`` are deleted with it.",
         "operationId": "delete_record_api_v1_records__recordId__delete",
@@ -564,10 +553,7 @@
     },
     "/api/v1/records/review": {
       "get": {
-        "tags": [
-          "v1",
-          "records"
-        ],
+        "tags": ["v1", "records"],
         "summary": "Get Records To Review",
         "description": "Returns knowledge items whose assembly group was deleted.",
         "operationId": "get_records_to_review_api_v1_records_review_get",
@@ -907,6 +893,260 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OntologyDescription"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/chat": {
+      "post": {
+        "tags": ["v1", "llm"],
+        "summary": "Chat",
+        "operationId": "chat_api_v1_llm_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid provider or model.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Provider rate limit reached.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Provider is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Provider request timed out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/chat/stream": {
+      "post": {
+        "tags": ["v1", "llm"],
+        "summary": "Chat Stream",
+        "operationId": "chat_stream_api_v1_llm_chat_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid provider or model.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Provider rate limit reached.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Provider request failed.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Provider is unavailable.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Provider request timed out.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/providers": {
+      "get": {
+        "tags": ["v1", "llm"],
+        "summary": "Providers",
+        "operationId": "providers_api_v1_llm_providers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderInfo"
+                  },
+                  "type": "array",
+                  "title": "Response Providers Api V1 Llm Providers Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/llm/models": {
+      "get": {
+        "tags": ["v1", "llm"],
+        "summary": "Models",
+        "operationId": "models_api_v1_llm_models_get",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModelInfo"
+                  },
+                  "title": "Response Models Api V1 Llm Models Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1595,6 +1835,45 @@
         "title": "SearchMode",
         "description": "How a property's values are searched (``og:search``). Members are plain strings."
       },
+      "TokenUsage": {
+        "properties": {
+          "prompt_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Tokens"
+          },
+          "completion_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completion Tokens"
+          },
+          "total_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Tokens"
+          }
+        },
+        "type": "object",
+        "title": "TokenUsage"
+      },
       "UploadForm": {
         "properties": {
           "url": {
@@ -1612,10 +1891,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "url",
-          "fields"
-        ],
+        "required": ["url", "fields"],
         "title": "UploadForm",
         "description": "Presigned POST form: send ``fields`` and then the file as ``file`` to ``url``."
       },

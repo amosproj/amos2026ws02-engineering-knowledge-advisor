@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator, Iterator, Sequence
+from collections.abc import AsyncGenerator, Iterator, Sequence
 from typing import Any
 
 import pytest
@@ -38,7 +38,7 @@ MACHINE: dict[str, Any] = {
 GROUP: dict[str, Any] = {
     "@type": "AssemblyGroup",
     "name": "Input tray",
-    "rootOf": MACHINE_ID,
+    "definedIn": MACHINE_ID,
 }
 ITEM: dict[str, Any] = {
     "@type": "KnowledgeItem",
@@ -77,7 +77,7 @@ def app(service: OgRagService, catalog: CatalogService) -> FastAPI:
     app.state.ograg = service
     app.state.catalog = catalog
 
-    async def session() -> AsyncIterator[str]:
+    async def session() -> AsyncGenerator[str]:
         yield SESSION
 
     app.dependency_overrides[get_session] = session
@@ -222,7 +222,7 @@ def test_every_records_route_documents_its_success_response(app: FastAPI):
 def test_a_record_that_does_not_fit_is_a_422_problem(client: TestClient):
     group_properties: dict[str, Any] = {
         "@type": "AssemblyProperties",
-        "path": "/tray",
+        "sizeX": 0.8,
     }
     assert_problem(
         put_record(client, "P-1", group_properties), 422, "AssemblyProperties"

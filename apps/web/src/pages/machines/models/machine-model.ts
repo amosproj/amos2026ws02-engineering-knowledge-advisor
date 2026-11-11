@@ -29,10 +29,6 @@ export const machineFormSchema = z.object({
     identifier: optionalText('identifier', 255),
     customer: optionalText('customer', 255),
     description: optionalText('description', 1000),
-    size: z
-        .string()
-        .trim()
-        .refine((size) => size === '' || Number.isFinite(Number(size)), 'Enter a number.'),
     file: stepFile,
 })
 
@@ -47,10 +43,6 @@ export type CadFileForm = z.output<typeof cadFileFormSchema>
 /** Blank optional text is sent as null, which clears the field. */
 export function orNull(value: string) {
     return value || null
-}
-
-export function toSize(size: string) {
-    return size === '' ? null : Number(size)
 }
 
 export function findCadFile(machine: MachineView) {

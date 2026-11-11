@@ -59,9 +59,9 @@ MACHINE: dict[str, Any] = {
 GROUP: dict[str, Any] = {
     "@type": "AssemblyGroup",
     "name": "Input tray",
-    "rootOf": MACHINE_ID,
+    "definedIn": MACHINE_ID,
 }
-ORPHAN: dict[str, Any] = {**GROUP, "rootOf": MISSING_MACHINE_ID}
+ORPHAN: dict[str, Any] = {**GROUP, "definedIn": MISSING_MACHINE_ID}
 ITEM_ID: str = "KI-1"
 ITEM: dict[str, Any] = {
     "@type": "KnowledgeItem",

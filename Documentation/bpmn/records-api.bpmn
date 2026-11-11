@@ -1,0 +1,1084 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="Defs_records_api" targetNamespace="https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="18.31.1">
+  <bpmn:error id="Err_not_found" name="Record not found" />
+  <bpmn:error id="Err_unknown_property" name="Unknown property" />
+  <bpmn:error id="Err_invalid" name="Invalid record" />
+  <bpmn:error id="Err_links" name="Invalid links" />
+  <bpmn:error id="Err_version" name="Version changed" />
+  <bpmn:error id="Err_full" name="Parent full" />
+  <bpmn:error id="Err_concurrent" name="Concurrent write" />
+  <bpmn:error id="Err_busy" name="File busy" />
+  <bpmn:error id="Err_linked" name="Still linked" />
+  <bpmn:collaboration id="Collab_records_api">
+    <bpmn:documentation>Records API v1 (2026-11-09): writing (POST, PUT, PATCH), reading and deleting records. The CAD file routes upload-form and complete are part of cad-import.bpmn.</bpmn:documentation>
+    <bpmn:participant id="P_write" name="Records API: write a record" processRef="Proc_write" />
+    <bpmn:participant id="P_client" name="API Client" />
+    <bpmn:participant id="P_read" name="Records API: read records" processRef="Proc_read" />
+    <bpmn:participant id="P_delete" name="Records API: delete a record" processRef="Proc_delete" />
+    <bpmn:participant id="P_s3" name="Object storage (S3)" />
+    <bpmn:messageFlow id="M01" name="POST, PUT or PATCH /records" sourceRef="P_client" targetRef="W_start" />
+    <bpmn:messageFlow id="M02" name="201/200" sourceRef="W_end_ok" targetRef="P_client" />
+    <bpmn:messageFlow id="M03" name="404" sourceRef="W_end_404" targetRef="P_client" />
+    <bpmn:messageFlow id="M04" name="422" sourceRef="W_end_422" targetRef="P_client" />
+    <bpmn:messageFlow id="M05" name="409" sourceRef="W_end_conc" targetRef="P_client" />
+    <bpmn:messageFlow id="M06" name="409" sourceRef="W_end_full" targetRef="P_client" />
+    <bpmn:messageFlow id="M07" name="412" sourceRef="W_end_412" targetRef="P_client" />
+    <bpmn:messageFlow id="M08" name="GET /records…" sourceRef="P_client" targetRef="R_start" />
+    <bpmn:messageFlow id="M09" name="200" sourceRef="R_end_ok" targetRef="P_client" />
+    <bpmn:messageFlow id="M10" name="404" sourceRef="R_end_404" targetRef="P_client" />
+    <bpmn:messageFlow id="M11" name="DELETE /records/{recordId}" sourceRef="P_client" targetRef="D_start" />
+    <bpmn:messageFlow id="M12" name="200 deletedIds, markedIds" sourceRef="D_reported" targetRef="P_client" />
+    <bpmn:messageFlow id="M13" name="409" sourceRef="D_end_busy" targetRef="P_client" />
+    <bpmn:messageFlow id="M14" name="412" sourceRef="D_end_412" targetRef="P_client" />
+    <bpmn:messageFlow id="M15" name="409" sourceRef="D_end_linked" targetRef="P_client" />
+    <bpmn:messageFlow id="M16" name="404" sourceRef="D_end_404" targetRef="P_client" />
+    <bpmn:messageFlow id="M17" name="Delete folders" sourceRef="D_folders" targetRef="P_s3" />
+    <bpmn:textAnnotation id="A_delete">
+      <bpmn:text>Per record: links to it are removed; a record losing its last parent link is marked for review, or deleted too with deleteOrphans.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="A_write">
+      <bpmn:text>One database transaction per request. Malformed requests get 422 before any of these processes starts.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="A_delete_as" sourceRef="A_delete" targetRef="D_delete" />
+  </bpmn:collaboration>
+  <bpmn:process id="Proc_write" isExecutable="false">
+    <bpmn:startEvent id="W_start" name="Write request received">
+      <bpmn:outgoing>F01</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="W_start_def" />
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="W_method" name="Method?">
+      <bpmn:incoming>F01</bpmn:incoming>
+      <bpmn:outgoing>F02</bpmn:outgoing>
+      <bpmn:outgoing>F03</bpmn:outgoing>
+      <bpmn:outgoing>F04</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="W_newid" name="Generate record id">
+      <bpmn:incoming>F02</bpmn:incoming>
+      <bpmn:outgoing>F05</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="W_load" name="Lock and load stored record">
+      <bpmn:incoming>F04</bpmn:incoming>
+      <bpmn:outgoing>F06</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="W_merge" name="Merge changes into stored input">
+      <bpmn:incoming>F06</bpmn:incoming>
+      <bpmn:outgoing>F07</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="W_m1">
+      <bpmn:incoming>F03</bpmn:incoming>
+      <bpmn:incoming>F05</bpmn:incoming>
+      <bpmn:incoming>F07</bpmn:incoming>
+      <bpmn:outgoing>F08</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="W_validate" name="Validate record against the ontology">
+      <bpmn:incoming>F08</bpmn:incoming>
+      <bpmn:outgoing>F09</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="W_ifmatch" name="If-Match sent?">
+      <bpmn:incoming>F09</bpmn:incoming>
+      <bpmn:outgoing>F10</bpmn:outgoing>
+      <bpmn:outgoing>F11</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="W_version" name="Lock record and compare version">
+      <bpmn:incoming>F10</bpmn:incoming>
+      <bpmn:outgoing>F12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="W_m2">
+      <bpmn:incoming>F11</bpmn:incoming>
+      <bpmn:incoming>F12</bpmn:incoming>
+      <bpmn:outgoing>F13</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="W_links" name="Check class, link targets and parent loops">
+      <bpmn:incoming>F13</bpmn:incoming>
+      <bpmn:outgoing>F14</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="W_limits" name="Check parent limits (og:maxPerParent)">
+      <bpmn:incoming>F14</bpmn:incoming>
+      <bpmn:outgoing>F15</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="W_save" name="Save record and links">
+      <bpmn:incoming>F15</bpmn:incoming>
+      <bpmn:outgoing>F16</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="W_reread" name="Read new version">
+      <bpmn:incoming>F16</bpmn:incoming>
+      <bpmn:outgoing>F17</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="W_g422a">
+      <bpmn:incoming>F19</bpmn:incoming>
+      <bpmn:incoming>F20</bpmn:incoming>
+      <bpmn:outgoing>F21</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="W_g422b">
+      <bpmn:incoming>F21</bpmn:incoming>
+      <bpmn:incoming>F22</bpmn:incoming>
+      <bpmn:outgoing>F23</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="W_end_412" name="Version changed (412)">
+      <bpmn:incoming>F24</bpmn:incoming>
+      <bpmn:messageEventDefinition id="W_end_412_def" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="W_end_full" name="Parent full (409)">
+      <bpmn:incoming>F25</bpmn:incoming>
+      <bpmn:messageEventDefinition id="W_end_full_def" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="W_end_conc" name="Concurrent write (409)">
+      <bpmn:incoming>F26</bpmn:incoming>
+      <bpmn:messageEventDefinition id="W_end_conc_def" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="W_end_422" name="Record invalid (422)">
+      <bpmn:incoming>F23</bpmn:incoming>
+      <bpmn:messageEventDefinition id="W_end_422_def" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="W_end_404" name="Record not found (404)">
+      <bpmn:incoming>F18</bpmn:incoming>
+      <bpmn:messageEventDefinition id="W_end_404_def" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="W_end_ok" name="Record saved (201 or 200)">
+      <bpmn:incoming>F17</bpmn:incoming>
+      <bpmn:messageEventDefinition id="W_end_ok_def" />
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="W_b_conc" name="Concurrent write" attachedToRef="W_save">
+      <bpmn:outgoing>F26</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="W_b_conc_def" errorRef="Err_concurrent" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="W_b_full" name="Parent full" attachedToRef="W_limits">
+      <bpmn:outgoing>F25</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="W_b_full_def" errorRef="Err_full" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="W_b_links" name="Invalid links" attachedToRef="W_links">
+      <bpmn:outgoing>F22</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="W_b_links_def" errorRef="Err_links" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="W_b_version" name="Version changed" attachedToRef="W_version">
+      <bpmn:outgoing>F24</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="W_b_version_def" errorRef="Err_version" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="W_b_invalid" name="Invalid record" attachedToRef="W_validate">
+      <bpmn:outgoing>F20</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="W_b_invalid_def" errorRef="Err_invalid" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="W_b_prop" name="Unknown property" attachedToRef="W_merge">
+      <bpmn:outgoing>F19</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="W_b_prop_def" errorRef="Err_unknown_property" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="W_b_404" name="Record not found" attachedToRef="W_load">
+      <bpmn:outgoing>F18</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="W_b_404_def" errorRef="Err_not_found" />
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="F01" sourceRef="W_start" targetRef="W_method" />
+    <bpmn:sequenceFlow id="F02" name="POST" sourceRef="W_method" targetRef="W_newid" />
+    <bpmn:sequenceFlow id="F03" name="PUT" sourceRef="W_method" targetRef="W_m1" />
+    <bpmn:sequenceFlow id="F04" name="PATCH" sourceRef="W_method" targetRef="W_load" />
+    <bpmn:sequenceFlow id="F05" sourceRef="W_newid" targetRef="W_m1" />
+    <bpmn:sequenceFlow id="F06" sourceRef="W_load" targetRef="W_merge" />
+    <bpmn:sequenceFlow id="F07" sourceRef="W_merge" targetRef="W_m1" />
+    <bpmn:sequenceFlow id="F08" sourceRef="W_m1" targetRef="W_validate" />
+    <bpmn:sequenceFlow id="F09" sourceRef="W_validate" targetRef="W_ifmatch" />
+    <bpmn:sequenceFlow id="F10" name="yes" sourceRef="W_ifmatch" targetRef="W_version" />
+    <bpmn:sequenceFlow id="F11" name="no" sourceRef="W_ifmatch" targetRef="W_m2" />
+    <bpmn:sequenceFlow id="F12" sourceRef="W_version" targetRef="W_m2" />
+    <bpmn:sequenceFlow id="F13" sourceRef="W_m2" targetRef="W_links" />
+    <bpmn:sequenceFlow id="F14" sourceRef="W_links" targetRef="W_limits" />
+    <bpmn:sequenceFlow id="F15" sourceRef="W_limits" targetRef="W_save" />
+    <bpmn:sequenceFlow id="F16" sourceRef="W_save" targetRef="W_reread" />
+    <bpmn:sequenceFlow id="F17" sourceRef="W_reread" targetRef="W_end_ok" />
+    <bpmn:sequenceFlow id="F19" sourceRef="W_b_prop" targetRef="W_g422a" />
+    <bpmn:sequenceFlow id="F20" sourceRef="W_b_invalid" targetRef="W_g422a" />
+    <bpmn:sequenceFlow id="F21" sourceRef="W_g422a" targetRef="W_g422b" />
+    <bpmn:sequenceFlow id="F22" sourceRef="W_b_links" targetRef="W_g422b" />
+    <bpmn:sequenceFlow id="F23" sourceRef="W_g422b" targetRef="W_end_422" />
+    <bpmn:sequenceFlow id="F24" sourceRef="W_b_version" targetRef="W_end_412" />
+    <bpmn:sequenceFlow id="F25" sourceRef="W_b_full" targetRef="W_end_full" />
+    <bpmn:sequenceFlow id="F26" sourceRef="W_b_conc" targetRef="W_end_conc" />
+    <bpmn:sequenceFlow id="F18" sourceRef="W_b_404" targetRef="W_end_404" />
+  </bpmn:process>
+  <bpmn:process id="Proc_read" isExecutable="false">
+    <bpmn:startEvent id="R_start" name="Read request received">
+      <bpmn:outgoing>G01</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="R_start_def" />
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="R_which" name="Which read?">
+      <bpmn:incoming>G01</bpmn:incoming>
+      <bpmn:outgoing>G02</bpmn:outgoing>
+      <bpmn:outgoing>G03</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="R_list" name="Load records (all, by class, parent, or marked for review)">
+      <bpmn:incoming>G02</bpmn:incoming>
+      <bpmn:outgoing>G04</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="R_one" name="Load record">
+      <bpmn:incoming>G03</bpmn:incoming>
+      <bpmn:outgoing>G05</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="R_walk_q" name="Tree or ancestors?">
+      <bpmn:incoming>G05</bpmn:incoming>
+      <bpmn:outgoing>G06</bpmn:outgoing>
+      <bpmn:outgoing>G07</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="R_walk" name="Walk parent links down (tree) or up (ancestors)">
+      <bpmn:incoming>G07</bpmn:incoming>
+      <bpmn:outgoing>G08</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="R_m1">
+      <bpmn:incoming>G04</bpmn:incoming>
+      <bpmn:incoming>G06</bpmn:incoming>
+      <bpmn:incoming>G08</bpmn:incoming>
+      <bpmn:outgoing>G09</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="R_include" name="include asked?">
+      <bpmn:incoming>G09</bpmn:incoming>
+      <bpmn:outgoing>G10</bpmn:outgoing>
+      <bpmn:outgoing>G11</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="R_extras" name="Add status, upload and children (batched)">
+      <bpmn:incoming>G10</bpmn:incoming>
+      <bpmn:outgoing>G12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="R_m2">
+      <bpmn:incoming>G11</bpmn:incoming>
+      <bpmn:incoming>G12</bpmn:incoming>
+      <bpmn:outgoing>G13</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="R_end_ok" name="Records returned">
+      <bpmn:incoming>G13</bpmn:incoming>
+      <bpmn:messageEventDefinition id="R_end_ok_def" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="R_end_404" name="Record not found (404)">
+      <bpmn:incoming>G14</bpmn:incoming>
+      <bpmn:messageEventDefinition id="R_end_404_def" />
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="R_b_404" name="Record not found" attachedToRef="R_one">
+      <bpmn:outgoing>G14</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="R_b_404_def" errorRef="Err_not_found" />
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="G01" sourceRef="R_start" targetRef="R_which" />
+    <bpmn:sequenceFlow id="G02" name="list or review" sourceRef="R_which" targetRef="R_list" />
+    <bpmn:sequenceFlow id="G03" name="one or a walk" sourceRef="R_which" targetRef="R_one" />
+    <bpmn:sequenceFlow id="G04" sourceRef="R_list" targetRef="R_m1" />
+    <bpmn:sequenceFlow id="G05" sourceRef="R_one" targetRef="R_walk_q" />
+    <bpmn:sequenceFlow id="G06" name="no" sourceRef="R_walk_q" targetRef="R_m1" />
+    <bpmn:sequenceFlow id="G07" name="yes" sourceRef="R_walk_q" targetRef="R_walk" />
+    <bpmn:sequenceFlow id="G08" sourceRef="R_walk" targetRef="R_m1" />
+    <bpmn:sequenceFlow id="G09" sourceRef="R_m1" targetRef="R_include" />
+    <bpmn:sequenceFlow id="G10" name="yes" sourceRef="R_include" targetRef="R_extras" />
+    <bpmn:sequenceFlow id="G11" name="no" sourceRef="R_include" targetRef="R_m2" />
+    <bpmn:sequenceFlow id="G12" sourceRef="R_extras" targetRef="R_m2" />
+    <bpmn:sequenceFlow id="G13" sourceRef="R_m2" targetRef="R_end_ok" />
+    <bpmn:sequenceFlow id="G14" sourceRef="R_b_404" targetRef="R_end_404" />
+  </bpmn:process>
+  <bpmn:process id="Proc_delete" isExecutable="false">
+    <bpmn:startEvent id="D_start" name="Delete request received">
+      <bpmn:outgoing>H01</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="D_start_def" />
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="D_lock" name="Lock record and everything deleted with it">
+      <bpmn:incoming>H01</bpmn:incoming>
+      <bpmn:outgoing>H02</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="D_ifmatch" name="If-Match sent?">
+      <bpmn:incoming>H02</bpmn:incoming>
+      <bpmn:outgoing>H03</bpmn:outgoing>
+      <bpmn:outgoing>H04</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="D_version" name="Compare version">
+      <bpmn:incoming>H03</bpmn:incoming>
+      <bpmn:outgoing>H05</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="D_m1">
+      <bpmn:incoming>H04</bpmn:incoming>
+      <bpmn:incoming>H05</bpmn:incoming>
+      <bpmn:outgoing>H06</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="D_delete" name="Delete record, children first">
+      <bpmn:incoming>H06</bpmn:incoming>
+      <bpmn:outgoing>H07</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics id="D_delete_mi" isSequential="true" />
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="D_reported" name="Deletion reported">
+      <bpmn:incoming>H07</bpmn:incoming>
+      <bpmn:outgoing>H08</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="D_reported_def" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="D_folders" name="Delete file folders">
+      <bpmn:incoming>H08</bpmn:incoming>
+      <bpmn:outgoing>H09</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="D_end_404" name="Record not found (404)">
+      <bpmn:incoming>H11</bpmn:incoming>
+      <bpmn:messageEventDefinition id="D_end_404_def" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="D_end_linked" name="Still linked (409)">
+      <bpmn:incoming>H13</bpmn:incoming>
+      <bpmn:messageEventDefinition id="D_end_linked_def" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="D_end_412" name="Version changed (412)">
+      <bpmn:incoming>H12</bpmn:incoming>
+      <bpmn:messageEventDefinition id="D_end_412_def" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="D_end_busy" name="File busy (409)">
+      <bpmn:incoming>H10</bpmn:incoming>
+      <bpmn:messageEventDefinition id="D_end_busy_def" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="D_end_ok" name="Record deleted">
+      <bpmn:incoming>H09</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="D_b_linked" name="Still linked" attachedToRef="D_delete">
+      <bpmn:outgoing>H13</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="D_b_linked_def" errorRef="Err_linked" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="D_b_version" name="Version changed" attachedToRef="D_version">
+      <bpmn:outgoing>H12</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="D_b_version_def" errorRef="Err_version" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="D_b_404" name="Record not found" attachedToRef="D_lock">
+      <bpmn:outgoing>H11</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="D_b_404_def" errorRef="Err_not_found" />
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="D_b_busy" name="File busy" attachedToRef="D_lock">
+      <bpmn:outgoing>H10</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="D_b_busy_def" errorRef="Err_busy" />
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="H01" sourceRef="D_start" targetRef="D_lock" />
+    <bpmn:sequenceFlow id="H02" sourceRef="D_lock" targetRef="D_ifmatch" />
+    <bpmn:sequenceFlow id="H03" name="yes" sourceRef="D_ifmatch" targetRef="D_version" />
+    <bpmn:sequenceFlow id="H04" name="no" sourceRef="D_ifmatch" targetRef="D_m1" />
+    <bpmn:sequenceFlow id="H05" sourceRef="D_version" targetRef="D_m1" />
+    <bpmn:sequenceFlow id="H06" sourceRef="D_m1" targetRef="D_delete" />
+    <bpmn:sequenceFlow id="H07" sourceRef="D_delete" targetRef="D_reported" />
+    <bpmn:sequenceFlow id="H08" sourceRef="D_reported" targetRef="D_folders" />
+    <bpmn:sequenceFlow id="H09" sourceRef="D_folders" targetRef="D_end_ok" />
+    <bpmn:sequenceFlow id="H11" sourceRef="D_b_404" targetRef="D_end_404" />
+    <bpmn:sequenceFlow id="H13" sourceRef="D_b_linked" targetRef="D_end_linked" />
+    <bpmn:sequenceFlow id="H12" sourceRef="D_b_version" targetRef="D_end_412" />
+    <bpmn:sequenceFlow id="H10" sourceRef="D_b_busy" targetRef="D_end_busy" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_records_api">
+    <bpmndi:BPMNPlane id="Plane_records_api" bpmnElement="Collab_records_api">
+      <bpmndi:BPMNShape id="P_write_di" bpmnElement="P_write" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="3620" height="880" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_start_di" bpmnElement="W_start">
+        <dc:Bounds x="292" y="502" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="260" y="470" width="100" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_method_di" bpmnElement="W_method" isMarkerVisible="true">
+        <dc:Bounds x="445" y="495" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="382" y="483" width="96" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_newid_di" bpmnElement="W_newid">
+        <dc:Bounds x="570" y="360" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_load_di" bpmnElement="W_load">
+        <dc:Bounds x="570" y="600" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_merge_di" bpmnElement="W_merge">
+        <dc:Bounds x="730" y="600" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_m1_di" bpmnElement="W_m1" isMarkerVisible="true">
+        <dc:Bounds x="925" y="495" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="673" y="389" width="96" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_validate_di" bpmnElement="W_validate">
+        <dc:Bounds x="1050" y="480" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_ifmatch_di" bpmnElement="W_ifmatch" isMarkerVisible="true">
+        <dc:Bounds x="1245" y="495" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1172" y="483" width="96" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_version_di" bpmnElement="W_version">
+        <dc:Bounds x="1370" y="360" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_m2_di" bpmnElement="W_m2" isMarkerVisible="true">
+        <dc:Bounds x="1565" y="495" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1313" y="389" width="96" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_links_di" bpmnElement="W_links">
+        <dc:Bounds x="1690" y="480" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_limits_di" bpmnElement="W_limits">
+        <dc:Bounds x="1850" y="480" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_save_di" bpmnElement="W_save">
+        <dc:Bounds x="2010" y="480" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_reread_di" bpmnElement="W_reread">
+        <dc:Bounds x="2170" y="480" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_g422a_di" bpmnElement="W_g422a" isMarkerVisible="true">
+        <dc:Bounds x="1085" y="735" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="833" y="629" width="96" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_g422b_di" bpmnElement="W_g422b" isMarkerVisible="true">
+        <dc:Bounds x="1725" y="735" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1473" y="629" width="96" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_end_412_di" bpmnElement="W_end_412">
+        <dc:Bounds x="3132" y="142" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3110" y="110" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_end_full_di" bpmnElement="W_end_full">
+        <dc:Bounds x="2972" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2950" y="230" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_end_conc_di" bpmnElement="W_end_conc">
+        <dc:Bounds x="2812" y="382" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2790" y="350" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_end_422_di" bpmnElement="W_end_422">
+        <dc:Bounds x="2492" y="742" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2470" y="710" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_end_404_di" bpmnElement="W_end_404">
+        <dc:Bounds x="2332" y="862" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2310" y="830" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_end_ok_di" bpmnElement="W_end_ok">
+        <dc:Bounds x="2652" y="502" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2630" y="470" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_b_conc_di" bpmnElement="W_b_conc">
+        <dc:Bounds x="2087" y="462" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2020" y="444" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_b_full_di" bpmnElement="W_b_full">
+        <dc:Bounds x="1927" y="462" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1870" y="451" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_b_links_di" bpmnElement="W_b_links">
+        <dc:Bounds x="1732" y="542" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1755" y="573" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_b_version_di" bpmnElement="W_b_version">
+        <dc:Bounds x="1447" y="342" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1390" y="316" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_b_invalid_di" bpmnElement="W_b_invalid">
+        <dc:Bounds x="1092" y="542" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1115" y="573" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_b_prop_di" bpmnElement="W_b_prop">
+        <dc:Bounds x="807" y="662" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="847" y="693" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="W_b_404_di" bpmnElement="W_b_404">
+        <dc:Bounds x="647" y="662" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="687" y="693" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="F01_di" bpmnElement="F01">
+        <di:waypoint x="328" y="520" />
+        <di:waypoint x="445" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F02_di" bpmnElement="F02">
+        <di:waypoint x="470" y="495" />
+        <di:waypoint x="470" y="400" />
+        <di:waypoint x="570" y="400" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="525" y="413" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F03_di" bpmnElement="F03">
+        <di:waypoint x="495" y="520" />
+        <di:waypoint x="925" y="520" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="899" y="533" width="22" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F04_di" bpmnElement="F04">
+        <di:waypoint x="470" y="545" />
+        <di:waypoint x="470" y="640" />
+        <di:waypoint x="570" y="640" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="522" y="653" width="36" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F05_di" bpmnElement="F05">
+        <di:waypoint x="690" y="400" />
+        <di:waypoint x="950" y="400" />
+        <di:waypoint x="950" y="495" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F06_di" bpmnElement="F06">
+        <di:waypoint x="690" y="640" />
+        <di:waypoint x="730" y="640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F07_di" bpmnElement="F07">
+        <di:waypoint x="850" y="640" />
+        <di:waypoint x="950" y="640" />
+        <di:waypoint x="950" y="545" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F08_di" bpmnElement="F08">
+        <di:waypoint x="975" y="520" />
+        <di:waypoint x="1050" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F09_di" bpmnElement="F09">
+        <di:waypoint x="1170" y="520" />
+        <di:waypoint x="1245" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F10_di" bpmnElement="F10">
+        <di:waypoint x="1270" y="495" />
+        <di:waypoint x="1270" y="400" />
+        <di:waypoint x="1370" y="400" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1341" y="403" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F11_di" bpmnElement="F11">
+        <di:waypoint x="1295" y="520" />
+        <di:waypoint x="1565" y="520" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1543" y="533" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F12_di" bpmnElement="F12">
+        <di:waypoint x="1490" y="400" />
+        <di:waypoint x="1590" y="400" />
+        <di:waypoint x="1590" y="495" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F13_di" bpmnElement="F13">
+        <di:waypoint x="1615" y="520" />
+        <di:waypoint x="1690" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F14_di" bpmnElement="F14">
+        <di:waypoint x="1810" y="520" />
+        <di:waypoint x="1850" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F15_di" bpmnElement="F15">
+        <di:waypoint x="1970" y="520" />
+        <di:waypoint x="2010" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F16_di" bpmnElement="F16">
+        <di:waypoint x="2130" y="520" />
+        <di:waypoint x="2170" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F17_di" bpmnElement="F17">
+        <di:waypoint x="2290" y="520" />
+        <di:waypoint x="2652" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F19_di" bpmnElement="F19">
+        <di:waypoint x="825" y="698" />
+        <di:waypoint x="825" y="760" />
+        <di:waypoint x="1085" y="760" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F20_di" bpmnElement="F20">
+        <di:waypoint x="1110" y="578" />
+        <di:waypoint x="1110" y="735" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F21_di" bpmnElement="F21">
+        <di:waypoint x="1135" y="760" />
+        <di:waypoint x="1725" y="760" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F22_di" bpmnElement="F22">
+        <di:waypoint x="1750" y="578" />
+        <di:waypoint x="1750" y="735" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F23_di" bpmnElement="F23">
+        <di:waypoint x="1775" y="760" />
+        <di:waypoint x="2492" y="760" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F24_di" bpmnElement="F24">
+        <di:waypoint x="1465" y="342" />
+        <di:waypoint x="1465" y="160" />
+        <di:waypoint x="3132" y="160" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F25_di" bpmnElement="F25">
+        <di:waypoint x="1945" y="462" />
+        <di:waypoint x="1945" y="280" />
+        <di:waypoint x="2972" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F26_di" bpmnElement="F26">
+        <di:waypoint x="2105" y="462" />
+        <di:waypoint x="2105" y="400" />
+        <di:waypoint x="2812" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F18_di" bpmnElement="F18">
+        <di:waypoint x="665" y="698" />
+        <di:waypoint x="665" y="880" />
+        <di:waypoint x="2332" y="880" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="P_client_di" bpmnElement="P_client" isHorizontal="true" bioc:stroke="#205022" bioc:fill="#c8e6c9" color:background-color="#c8e6c9" color:border-color="#205022">
+        <dc:Bounds x="160" y="1030" width="3620" height="60" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P_read_di" bpmnElement="P_read" isHorizontal="true">
+        <dc:Bounds x="160" y="1160" width="3620" height="520" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="R_start_di" bpmnElement="R_start">
+        <dc:Bounds x="292" y="1342" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="277" y="1378" width="66" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="R_which_di" bpmnElement="R_which" isMarkerVisible="true">
+        <dc:Bounds x="445" y="1335" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="372" y="1323" width="96" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="R_list_di" bpmnElement="R_list">
+        <dc:Bounds x="570" y="1200" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="R_one_di" bpmnElement="R_one">
+        <dc:Bounds x="570" y="1320" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="R_walk_q_di" bpmnElement="R_walk_q" isMarkerVisible="true">
+        <dc:Bounds x="765" y="1335" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="742" y="1323" width="96" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="R_walk_di" bpmnElement="R_walk">
+        <dc:Bounds x="890" y="1440" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="R_m1_di" bpmnElement="R_m1" isMarkerVisible="true">
+        <dc:Bounds x="1085" y="1335" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="833" y="1229" width="96" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="R_include_di" bpmnElement="R_include" isMarkerVisible="true">
+        <dc:Bounds x="1245" y="1335" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1172" y="1323" width="96" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="R_extras_di" bpmnElement="R_extras">
+        <dc:Bounds x="1370" y="1200" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="R_m2_di" bpmnElement="R_m2" isMarkerVisible="true">
+        <dc:Bounds x="1565" y="1335" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1313" y="1229" width="96" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="R_end_ok_di" bpmnElement="R_end_ok">
+        <dc:Bounds x="1732" y="1342" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1710" y="1382" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="R_end_404_di" bpmnElement="R_end_404">
+        <dc:Bounds x="1832" y="1582" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1810" y="1622" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="R_b_404_di" bpmnElement="R_b_404">
+        <dc:Bounds x="647" y="1382" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="665" y="1423" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="G01_di" bpmnElement="G01">
+        <di:waypoint x="328" y="1360" />
+        <di:waypoint x="445" y="1360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G02_di" bpmnElement="G02">
+        <di:waypoint x="470" y="1335" />
+        <di:waypoint x="470" y="1240" />
+        <di:waypoint x="570" y="1240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="502" y="1253" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G03_di" bpmnElement="G03">
+        <di:waypoint x="495" y="1360" />
+        <di:waypoint x="570" y="1360" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="500" y="1373" width="66" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G04_di" bpmnElement="G04">
+        <di:waypoint x="690" y="1240" />
+        <di:waypoint x="1110" y="1240" />
+        <di:waypoint x="1110" y="1335" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G05_di" bpmnElement="G05">
+        <di:waypoint x="690" y="1360" />
+        <di:waypoint x="765" y="1360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G06_di" bpmnElement="G06">
+        <di:waypoint x="815" y="1360" />
+        <di:waypoint x="1085" y="1360" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1063" y="1373" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G07_di" bpmnElement="G07">
+        <di:waypoint x="790" y="1385" />
+        <di:waypoint x="790" y="1480" />
+        <di:waypoint x="890" y="1480" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="861" y="1493" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G08_di" bpmnElement="G08">
+        <di:waypoint x="1010" y="1480" />
+        <di:waypoint x="1110" y="1480" />
+        <di:waypoint x="1110" y="1385" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G09_di" bpmnElement="G09">
+        <di:waypoint x="1135" y="1360" />
+        <di:waypoint x="1245" y="1360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G10_di" bpmnElement="G10">
+        <di:waypoint x="1270" y="1335" />
+        <di:waypoint x="1270" y="1240" />
+        <di:waypoint x="1370" y="1240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1341" y="1253" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G11_di" bpmnElement="G11">
+        <di:waypoint x="1295" y="1360" />
+        <di:waypoint x="1565" y="1360" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1543" y="1373" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G12_di" bpmnElement="G12">
+        <di:waypoint x="1490" y="1240" />
+        <di:waypoint x="1590" y="1240" />
+        <di:waypoint x="1590" y="1335" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G13_di" bpmnElement="G13">
+        <di:waypoint x="1615" y="1360" />
+        <di:waypoint x="1732" y="1360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G14_di" bpmnElement="G14">
+        <di:waypoint x="665" y="1418" />
+        <di:waypoint x="665" y="1600" />
+        <di:waypoint x="1832" y="1600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="P_delete_di" bpmnElement="P_delete" isHorizontal="true">
+        <dc:Bounds x="160" y="1750" width="3620" height="760" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_start_di" bpmnElement="D_start">
+        <dc:Bounds x="2052" y="2172" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2034" y="2208" width="72" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_lock_di" bpmnElement="D_lock">
+        <dc:Bounds x="2170" y="2150" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_ifmatch_di" bpmnElement="D_ifmatch" isMarkerVisible="true">
+        <dc:Bounds x="2365" y="2165" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2302" y="2153" width="96" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_version_di" bpmnElement="D_version">
+        <dc:Bounds x="2490" y="2030" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_m1_di" bpmnElement="D_m1" isMarkerVisible="true">
+        <dc:Bounds x="2685" y="2165" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2433" y="2059" width="96" height="28" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_delete_di" bpmnElement="D_delete">
+        <dc:Bounds x="2810" y="2150" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_reported_di" bpmnElement="D_reported">
+        <dc:Bounds x="3012" y="2172" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2988" y="2208" width="85" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_folders_di" bpmnElement="D_folders">
+        <dc:Bounds x="3130" y="2150" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_end_404_di" bpmnElement="D_end_404">
+        <dc:Bounds x="3682" y="2412" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3660" y="2452" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_end_linked_di" bpmnElement="D_end_linked">
+        <dc:Bounds x="3552" y="2292" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3530" y="2332" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_end_412_di" bpmnElement="D_end_412">
+        <dc:Bounds x="3422" y="1932" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3400" y="1972" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_end_busy_di" bpmnElement="D_end_busy">
+        <dc:Bounds x="3292" y="1802" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3270" y="1842" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_end_ok_di" bpmnElement="D_end_ok">
+        <dc:Bounds x="3422" y="2172" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3403" y="2208" width="75" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_b_linked_di" bpmnElement="D_b_linked">
+        <dc:Bounds x="2887" y="2212" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2895" y="2253" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_b_version_di" bpmnElement="D_b_version">
+        <dc:Bounds x="2567" y="2012" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2510" y="1986" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_b_404_di" bpmnElement="D_b_404">
+        <dc:Bounds x="2247" y="2212" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2275" y="2253" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="D_b_busy_di" bpmnElement="D_b_busy">
+        <dc:Bounds x="2247" y="2132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2163" y="2114" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="H01_di" bpmnElement="H01">
+        <di:waypoint x="2088" y="2190" />
+        <di:waypoint x="2170" y="2190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="H02_di" bpmnElement="H02">
+        <di:waypoint x="2290" y="2190" />
+        <di:waypoint x="2365" y="2190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="H03_di" bpmnElement="H03">
+        <di:waypoint x="2390" y="2165" />
+        <di:waypoint x="2390" y="2070" />
+        <di:waypoint x="2490" y="2070" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2453" y="2083" width="34" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="H04_di" bpmnElement="H04">
+        <di:waypoint x="2415" y="2190" />
+        <di:waypoint x="2685" y="2190" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2663" y="2203" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="H05_di" bpmnElement="H05">
+        <di:waypoint x="2610" y="2070" />
+        <di:waypoint x="2710" y="2070" />
+        <di:waypoint x="2710" y="2165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="H06_di" bpmnElement="H06">
+        <di:waypoint x="2735" y="2190" />
+        <di:waypoint x="2810" y="2190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="H07_di" bpmnElement="H07">
+        <di:waypoint x="2930" y="2190" />
+        <di:waypoint x="3012" y="2190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="H08_di" bpmnElement="H08">
+        <di:waypoint x="3048" y="2190" />
+        <di:waypoint x="3130" y="2190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="H09_di" bpmnElement="H09">
+        <di:waypoint x="3250" y="2190" />
+        <di:waypoint x="3422" y="2190" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="H11_di" bpmnElement="H11">
+        <di:waypoint x="2265" y="2248" />
+        <di:waypoint x="2265" y="2430" />
+        <di:waypoint x="3682" y="2430" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="H13_di" bpmnElement="H13">
+        <di:waypoint x="2905" y="2248" />
+        <di:waypoint x="2905" y="2310" />
+        <di:waypoint x="3552" y="2310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="H12_di" bpmnElement="H12">
+        <di:waypoint x="2585" y="2012" />
+        <di:waypoint x="2585" y="1950" />
+        <di:waypoint x="3422" y="1950" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="H10_di" bpmnElement="H10">
+        <di:waypoint x="2265" y="2132" />
+        <di:waypoint x="2265" y="1820" />
+        <di:waypoint x="3292" y="1820" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="P_s3_di" bpmnElement="P_s3" isHorizontal="true" bioc:stroke="#0d4372" bioc:fill="#bbdefb" color:background-color="#bbdefb" color:border-color="#0d4372">
+        <dc:Bounds x="160" y="2580" width="3620" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="A_delete_as_di" bpmnElement="A_delete_as">
+        <di:waypoint x="2870" y="2082" />
+        <di:waypoint x="2870" y="2150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="A_delete_di" bpmnElement="A_delete">
+        <dc:Bounds x="2740" y="2010" width="210" height="72" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="A_write_di" bpmnElement="A_write">
+        <dc:Bounds x="210" y="330" width="230" height="57" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="M01_di" bpmnElement="M01">
+        <di:waypoint x="310" y="1030" />
+        <di:waypoint x="310" y="538" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="926" width="150" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M07_di" bpmnElement="M07">
+        <di:waypoint x="3150" y="178" />
+        <di:waypoint x="3150" y="1030" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3154" y="943" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M06_di" bpmnElement="M06">
+        <di:waypoint x="2990" y="298" />
+        <di:waypoint x="2990" y="1030" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2994" y="943" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M05_di" bpmnElement="M05">
+        <di:waypoint x="2830" y="418" />
+        <di:waypoint x="2830" y="1030" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2834" y="943" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M04_di" bpmnElement="M04">
+        <di:waypoint x="2510" y="778" />
+        <di:waypoint x="2510" y="1030" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2514" y="943" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M03_di" bpmnElement="M03">
+        <di:waypoint x="2350" y="898" />
+        <di:waypoint x="2350" y="1030" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2354" y="943" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M02_di" bpmnElement="M02">
+        <di:waypoint x="2670" y="538" />
+        <di:waypoint x="2670" y="1030" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2680" y="943" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M09_di" bpmnElement="M09">
+        <di:waypoint x="1750" y="1342" />
+        <di:waypoint x="1750" y="1090" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1754" y="1173" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M10_di" bpmnElement="M10">
+        <di:waypoint x="1850" y="1582" />
+        <di:waypoint x="1850" y="1090" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1854" y="1173" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M12_di" bpmnElement="M12">
+        <di:waypoint x="3030" y="2172" />
+        <di:waypoint x="3030" y="1090" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3034" y="1763" width="150" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M13_di" bpmnElement="M13">
+        <di:waypoint x="3310" y="1802" />
+        <di:waypoint x="3310" y="1090" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3314" y="1763" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M14_di" bpmnElement="M14">
+        <di:waypoint x="3440" y="1932" />
+        <di:waypoint x="3440" y="1090" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3440" y="1763" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M15_di" bpmnElement="M15">
+        <di:waypoint x="3570" y="2292" />
+        <di:waypoint x="3570" y="1090" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3574" y="1763" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M16_di" bpmnElement="M16">
+        <di:waypoint x="3700" y="2412" />
+        <di:waypoint x="3700" y="1090" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3704" y="1763" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M08_di" bpmnElement="M08">
+        <di:waypoint x="310" y="1090" />
+        <di:waypoint x="310" y="1342" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="285" y="1173" width="150" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M11_di" bpmnElement="M11">
+        <di:waypoint x="2070" y="1090" />
+        <di:waypoint x="2070" y="2172" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2074" y="1763" width="150" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M17_di" bpmnElement="M17">
+        <di:waypoint x="3190" y="2230" />
+        <di:waypoint x="3190" y="2580" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3155" y="2493" width="150" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -4,24 +4,26 @@ FastAPI backend. Requires Python 3.13 and [uv](https://docs.astral.sh/uv/).
 
 ## Configuration
 
-| Variable                  | Values                                   | Default              |
-|---------------------------|------------------------------------------|----------------------|
-| `API_PROFILE`             | `dev`, `prod`                            | `dev`                |
-| `API_DATABASE_URL`        | `postgresql+psycopg://user:pw@host/db`   | none (required)      |
-| `API_OGRAG_ONTOLOGY_PATH` | JSON-LD ontology file                    | none (required)      |
-| `API_S3_ENDPOINT_URL`     | S3 endpoint, e.g. `http://minio:9000`    | none (required)      |
-| `API_S3_BUCKET`           | bucket of the uploaded files             | none (required)      |
-| `API_S3_ACCESS_KEY`       | S3 access key                            | none (required)      |
-| `API_S3_SECRET_KEY`       | S3 secret key                            | none (required)      |
-| `API_S3_REGION`           | S3 region, e.g. `us-east-1`              | none (required)      |
+| Variable                  | Values                                                 | Default         |
+| ------------------------- | ------------------------------------------------------ | --------------- |
+| `API_PROFILE`             | `dev`, `prod`                                          | `dev`           |
+| `API_DATABASE_URL`        | `postgresql+psycopg://user:pw@host/db`                 | none (required) |
+| `API_OGRAG_ONTOLOGY_PATH` | JSON-LD ontology file                                  | none (required) |
+| `API_S3_ENDPOINT_URL`     | S3 endpoint, e.g. `http://minio:9000`                  | none (required) |
+| `API_S3_BUCKET`           | bucket of the uploaded files                           | none (required) |
+| `API_S3_ACCESS_KEY`       | S3 access key                                          | none (required) |
+| `API_S3_SECRET_KEY`       | S3 secret key                                          | none (required) |
+| `API_S3_REGION`           | S3 region, e.g. `us-east-1`                            | none (required) |
 | `API_S3_PUBLIC_URL`       | where the browser reaches the storage, e.g. `/storage` | none (required) |
 
 Settings are read in this order:
+
 1. environment variables (prefix `API_`)
 2. `.env`
 3. defaults
 
 `.env` is used from the directory the backend is started from:
+
 - start from `apps/api/` => `apps/api/.env`
 - start from repository root with `--directory` => `apps/api/.env`
 - start from repository root with `--project` => `.env` at root
@@ -29,6 +31,7 @@ Settings are read in this order:
 ## Database
 
 Postgres. Schema changes are Alembic migrations in `migrations/`:
+
 ```sh
 uv run --directory apps/api alembic upgrade head                                # apply
 uv run --directory apps/api alembic revision --autogenerate -m "what changed"   # review the file
@@ -68,6 +71,8 @@ Loaded on start with the ontology. Invalid ontology stops the start. JSON fields
 
 ### Parallel editing (If-Match)
 
+TODO: can become a problem if multiple people want to edit different parts of the same record at the same time
+
 Postgres `xmin`: `ETag` header of `GET /records/{id}`, and a `version` field in write responses, include wrappers, `/tree`, `/ancestors` and `/records/review`.
 
 Send it back as `If-Match: "<version>"` with `PUT`, `PATCH` or `DELETE`. If someone saved the record in between, the answer is `412` and nothing changes. In that case the record should be read again.
@@ -84,6 +89,41 @@ A record of a class marked `og:file` (CadFile) carries one file, upload state in
 3. Client posts the file straight to S3 based on form, then `POST /records/{id}/complete`.
 4. Worker checks the file: `processing`, then `ready` or `failed`.
 
+## LLM integration
+
+The provider-neutral chat API, supported providers, environment settings, streaming
+format, error codes, and extension instructions are documented in
+[LLM integration](../../Documentation/architecture/llm-integration.md). Providers
+are disabled by default; configure credentials with environment variables or a
+deployment secret store.
+
+For example, to enable Google Gemini, add the following to the API environment
+(replace the key with a secret from your secret store):
+
+```dotenv
+API_LLM_DEFAULT_PROVIDER=google
+API_LLM_GOOGLE__ENABLED=true
+API_LLM_GOOGLE__API_KEY=<google-api-key>
+API_LLM_GOOGLE__DEFAULT_MODEL=gemini-2.0-flash
+```
+
+Then send a chat request through the provider-neutral API:
+
+```sh
+curl http://localhost:8080/api/v1/llm/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "google",
+    "model": "gemini-3.6-flash",
+    "messages": [
+      {"role": "user", "content": "Explain a gear train."}
+    ]
+  }'
+```
+
+See the [LLM integration guide](../../Documentation/architecture/llm-integration.md)
+for streaming, all provider settings, and error handling.
+
 ## Run
 
 ```sh
@@ -91,16 +131,19 @@ uv run uvicorn main:app
 ```
 
 Or from repository root using root `.env`:
+
 ```sh
 uv run --project apps/api uvicorn main:app
 ```
 
 Or from repository root using API's `.env`:
+
 ```sh
 uv run --directory apps/api uvicorn main:app
 ```
 
 On Windows, async psycopg needs a selector event loop. Add this flag to any of the above:
+
 ```sh
 uv run uvicorn main:app --loop asyncio:SelectorEventLoop
 ```
@@ -119,6 +162,7 @@ uv run pytest                           # tests only
 ```
 
 Or from repository root:
+
 ```sh
 uv run --directory apps/api pre-commit  # lint + type check + tests
 uv run --directory apps/api pytest      # tests only
@@ -139,11 +183,13 @@ Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. 
   "name": "Robot cell",
   "description": "Robot cell for loading anodised aluminium housings",
   "customer": "Example GmbH",
-  "properties": {"size": 12}
+  "properties": {"sizeX": 4.2, "sizeY": 3.1, "sizeZ": 2.5}
 }
 ```
 
-### AssemblyGroup
+### AssemblyGroup and AssemblyInstance
+A group is a design, an instance is one placement of it. The instances form the tree of the machine.
+
 `PUT /records/AG-IT-003`
 ```json
 {
@@ -151,8 +197,8 @@ Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. 
   "identifier": "AG-IT-003",
   "name": "Input tray",
   "description": "Drawer tray that feeds anodised housings to the robot",
-  "rootOf": "RC-01",
-  "properties": {"path": "RC-01/AG-IT-003", "dimensions": 800}
+  "definedIn": "RC-01",
+  "properties": {"sizeX": 0.8, "sizeY": 0.6, "sizeZ": 0.2}
 }
 ```
 `PUT /records/AG-IT-003-01`
@@ -161,8 +207,27 @@ Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. 
   "@type": "AssemblyGroup",
   "identifier": "AG-IT-003-01",
   "name": "Drawer slide",
-  "partOf": "AG-IT-003",
-  "properties": {"path": "RC-01/AG-IT-003/AG-IT-003-01"}
+  "definedIn": "RC-01"
+}
+```
+`PUT /records/AI-1`, the root instance (one per machine)
+```json
+{
+  "@type": "AssemblyInstance",
+  "name": "AG-IT-003:1",
+  "instanceOf": "AG-IT-003",
+  "rootOf": "RC-01",
+  "properties": {"path": "AG-IT-003:1"}
+}
+```
+`PUT /records/AI-2`, same for `AI-3` with `AG-IT-003-01:2`
+```json
+{
+  "@type": "AssemblyInstance",
+  "name": "AG-IT-003-01:1",
+  "instanceOf": "AG-IT-003-01",
+  "partOf": "AI-1",
+  "properties": {"path": "AG-IT-003:1/AG-IT-003-01:1"}
 }
 ```
 
@@ -216,6 +281,18 @@ After upload: `POST /records/CF-RC-01/complete`.
   "appliesToMachine": ["RC-01"]
 }
 ```
+`PUT /records/KI-3`, about one placement only
+```json
+{
+  "@type": "KnowledgeItem",
+  "itemType": "lesson learned",
+  "properties": {
+    "name": "Left drawer slide hits the fence",
+    "statement": "The left slide touches the safety fence when fully open."
+  },
+  "appliesToInstance": ["AI-2"]
+}
+```
 
 ### Guideline
 `PUT /records/GL-1`
@@ -233,5 +310,6 @@ After upload: `POST /records/CF-RC-01/complete`.
 - `GET /records?parentId=AG-IT-003`: records linking to `AG-IT-003`.
 - `GET /records/RC-01/tree`: tree from root.
 - `GET /records/KI-1/ancestors`: up to the root.
-- `DELETE /records/AG-IT-003`: deletes `AG-IT-003` and `AG-IT-003-01`, `KI-1` marked for review.
+- `DELETE /records/AI-1`: deletes `AI-1`, `AI-2` and `AI-3`, `KI-3` marked for review.
+- `DELETE /records/AG-IT-003-01`: its instances `AI-2` and `AI-3` stay in the tree without `instanceOf`, `KI-1` marked for review.
 - `GET /records/review`: every record maker for review.

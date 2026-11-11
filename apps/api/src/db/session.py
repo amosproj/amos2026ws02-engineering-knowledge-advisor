@@ -1,4 +1,4 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 from fastapi import Request
 from sqlalchemy.ext.asyncio import (
@@ -11,7 +11,9 @@ from sqlalchemy.ext.asyncio import (
 from config.settings import Settings
 from db.model_base import get_ograg_tables
 from logger import logger
+from services import LLMService
 from services.catalog import CatalogService
+from services.llm.service import ConfiguredLLMService
 from services.ograg.ontology import Ontology
 from services.ograg.service import OgRagService
 from services.postgres.record_store import PgRecordStore
@@ -45,7 +47,7 @@ def create_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]
     return async_sessionmaker(engine, expire_on_commit=False)
 
 
-async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
+async def get_session(request: Request) -> AsyncGenerator[AsyncSession]:
     """Request's unit of work, an ``AsyncSession`` inside ``session.begin()``.
 
     Commits when route returns, rolls back when it raises.
@@ -81,3 +83,8 @@ def create_catalog_service(settings: Settings, ograg: OgRagService) -> CatalogSe
         PgUploadStore(get_ograg_tables()),
         S3ObjectStorage(settings),
     )
+
+
+def create_llm_service(settings: Settings) -> LLMService:
+    """The LLM service. One per process."""
+    return ConfiguredLLMService(settings)

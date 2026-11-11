@@ -53,7 +53,7 @@ def test_an_ordinary_link_to_the_own_class_is_allowed():
 def test_nested_properties_are_neither_links_nor_literals():
     onto: Ontology = load_ontology()
     assert onto.is_nested(onto.properties[("AssemblyGroup", "properties")])
-    assert not onto.is_nested(onto.properties[("AssemblyGroup", "partOf")])
+    assert not onto.is_nested(onto.properties[("AssemblyGroup", "definedIn")])
     assert not onto.is_nested(onto.properties[("AssemblyGroup", "name")])
 
 
@@ -62,9 +62,15 @@ def test_parent_link_names_of_a_class():
     assert onto.get_parent_link_names("KnowledgeItem") == {
         "appliesTo",
         "appliesToMachine",
+        "appliesToInstance",
     }
     assert onto.get_parent_link_names("CadFile") == {"partOf"}
-    assert onto.get_parent_link_names("AssemblyGroup") == {"rootOf", "partOf"}
+    assert onto.get_parent_link_names("AssemblyGroup") == {"definedIn"}
+    assert onto.get_parent_link_names("AssemblyInstance") == {
+        "instanceOf",
+        "rootOf",
+        "partOf",
+    }
     assert onto.get_parent_link_names("Machine") == set()
 
 
@@ -91,15 +97,9 @@ def test_describe_lists_every_class_with_its_properties():
     assert group.properties["name"].identity
     assert SearchMode.LEXICAL in group.properties["identifier"].search
 
-    machine_properties: ClassDescription = described["MachineProperties"]
-    assert not machine_properties.record
-    assert machine_properties.properties["dimensions"].range == "Dimensions"
-    assert machine_properties.properties["dimensions"].nested
-
     group_properties: ClassDescription = described["AssemblyProperties"]
     assert not group_properties.record
-    assert group_properties.properties["dimensions"].range == "Dimensions"
-    assert group_properties.properties["dimensions"].nested
+    assert group_properties.properties["sizeX"].range == "Number"
 
     item: ClassDescription = described["KnowledgeItem"]
     assert item.extractable and not item.guideline

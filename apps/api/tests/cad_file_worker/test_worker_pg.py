@@ -3,7 +3,7 @@
 import asyncio
 import os
 import threading
-from collections.abc import AsyncIterator, Callable, Coroutine, Generator, Iterator
+from collections.abc import AsyncGenerator, Callable, Coroutine, Generator, Iterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -190,7 +190,7 @@ def run_async(check: Callable[[], Coroutine[Any, Any, None]]) -> None:
 
 
 @asynccontextmanager
-async def open_worker() -> AsyncIterator[Worker]:
+async def open_worker() -> AsyncGenerator[Worker]:
     """Fresh tables with a machine."""
     engine: AsyncEngine = create_async_engine(URL)
     tables: Tables = define_tables(MetaData())

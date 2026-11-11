@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import (
-    AsyncIterator,
+    AsyncGenerator,
     Awaitable,
     Callable,
     Collection,
@@ -578,7 +578,7 @@ class CatalogService:
         return upload
 
     @asynccontextmanager
-    async def _busy_after_lock_timeout(self, session: Tx) -> AsyncIterator[None]:
+    async def _busy_after_lock_timeout(self, session: Tx) -> AsyncGenerator[None]:
         """Waits only briefly for a locked row, then raises ``BusyError`` instead of waiting for the worker."""
         try:
             async with self.uploads.limit_lock_wait(session):
