@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from OCP.Bnd import Bnd_Box
 from OCP.BRepBndLib import BRepBndLib
@@ -7,21 +7,18 @@ from OCP.collections import Sequence_TDF_Label
 from OCP.gp import gp_Pnt
 from OCP.TDF import TDF_Label
 from OCP.TDocStd import TDocStd_Document
-from OCP.TopAbs import TopAbs_FACE, TopAbs_SOLID
+from OCP.TopAbs import TopAbs_FACE
 from OCP.TopLoc import TopLoc_Location
 from OCP.XCAFDoc import XCAFDoc_DocumentTool, XCAFDoc_LengthUnit, XCAFDoc_ShapeTool
 
+from logger import logger
 from services.cad.errors import StepImportError
 from services.cad.model import (
     BoundingBox,
     CadDefinition,
     CadModel,
     CadOccurrence,
-    DefinitionKind,
-    ImportWarning,
-    Matrix4,
     Vector3,
-    WarningCode,
 )
 from services.cad.xde import count_subshapes, label_entry, label_name
 
@@ -67,19 +64,20 @@ class DocumentWalker:
         self.infos: dict[str, _DefinitionInfo] = {}
         self.definitions: dict[str, CadDefinition] = {}
         self.occurrences: list[CadOccurrence] = []
-        self.warnings: list[ImportWarning] = []
-        self.warned: set[tuple[WarningCode, str]] = set()
+        self.dropped: set[str] = set()
 
     def walk(self) -> CadModel:
         self._check_cycles()
         roots = Sequence_TDF_Label()
         self.shape_tool.GetFreeShapes(roots)
+        box: BoundingBox | None = None
         for index in range(1, roots.Length() + 1):
-            self._visit(roots.Value(index), None, TopLoc_Location())
-        if not any(
-            definition.kind is DefinitionKind.PART
-            for definition in self.definitions.values()
-        ):
+            root: TDF_Label = roots.Value(index)
+            self._visit(root, None)
+            root_box: BoundingBox | None = self._placed_box(root)
+            if root_box is not None:
+                box = root_box if box is None else box.union(root_box)
+        if not any(not self.infos[key].components for key in self.definitions):
             raise StepImportError(
                 f"No visible shapes found in STEP file: {self.source_name}"
             )
@@ -87,8 +85,7 @@ class DocumentWalker:
             source_name=self.source_name,
             definitions=self.definitions,
             occurrences=self.occurrences,
-            warnings=self.warnings,
-            source_length_unit=self.unit,
+            bounding_box=box,
             document=self.document,
         )
 
@@ -164,8 +161,6 @@ class DocumentWalker:
             definition=CadDefinition(
                 id=definition_id,
                 name=label_name(definition),
-                kind=DefinitionKind.ASSEMBLY if components else DefinitionKind.PART,
-                solid_count=count_subshapes(shape, TopAbs_SOLID),
                 bounding_box=self._definition_box(definition, components, face_count),
             ),
             components=components,
@@ -180,28 +175,27 @@ class DocumentWalker:
         components: tuple[TDF_Label, ...],
         face_count: int,
     ) -> BoundingBox | None:
-        """Box in the definition's own coordinates. ``None`` for a dropped part.
-
-        An assembly's is the union of its children's boxes placed by their location, so it can be slightly larger
-        than the geometry when a child is rotated by an angle that is not a multiple of 90°.
-        """
+        """Box in the definition's own coordinates. ``None`` for a dropped part."""
         if not components:
             if face_count == 0:
                 return None
-            return self._bounding_box(definition, TopLoc_Location())
+            return self._bounding_box(definition)
         box: BoundingBox | None = None
         for component in components:
-            child: TDF_Label | None = self._resolve(component)
-            if child is None:
-                continue
-            child_box: BoundingBox | None = self._info(child).definition.bounding_box
-            if child_box is None:
-                continue
-            placed: BoundingBox = self._place_box(
-                child_box, XCAFDoc_ShapeTool.GetLocation_s(component)
-            )
-            box = placed if box is None else box.union(placed)
+            placed: BoundingBox | None = self._placed_box(component)
+            if placed is not None:
+                box = placed if box is None else box.union(placed)
         return box
+
+    def _placed_box(self, label: TDF_Label) -> BoundingBox | None:
+        """Box of the definition behind ``label``, placed by the location of ``label``."""
+        definition: TDF_Label | None = self._resolve(label)
+        if definition is None:
+            return None
+        box: BoundingBox | None = self._info(definition).definition.bounding_box
+        if box is None:
+            return None
+        return self._place_box(box, XCAFDoc_ShapeTool.GetLocation_s(label))
 
     def _place_box(self, box: BoundingBox, location: TopLoc_Location) -> BoundingBox:
         transform = location.Transformation()
@@ -225,24 +219,15 @@ class DocumentWalker:
             ),
         )
 
-    def _warn_once(self, code: WarningCode, key: str, warning: ImportWarning) -> None:
-        if (code, key) not in self.warned:
-            self.warned.add((code, key))
-            self.warnings.append(warning)
-
-    def _visit(
-        self,
-        label: TDF_Label,
-        parent_id: str | None,
-        parent_location: TopLoc_Location,
-    ) -> BoundingBox | None:
+    def _visit(self, label: TDF_Label, parent_id: str | None) -> None:
         entry: str = label_entry(label)
         occurrence_id: str = f"{parent_id}/{entry}" if parent_id else entry
-        definition_label: TDF_Label | None = self._resolve_occurrence(
-            label, occurrence_id
-        )
+        definition_label: TDF_Label | None = self._resolve(label)
         if definition_label is None:
-            return None
+            logger.warning(
+                f"{self.source_name}: skipped component whose reference cannot be resolved: {occurrence_id}"
+            )
+            return
 
         info: _DefinitionInfo = self._info(definition_label)
         definition: CadDefinition = info.definition
@@ -251,139 +236,28 @@ class DocumentWalker:
             instance_name = ""
         name: str = definition.name or instance_name
 
-        if not self._keep_part(info, name):
-            return None
-        name = self._display_name(name, occurrence_id)
+        if not info.components and info.face_count == 0:
+            if definition.id not in self.dropped:
+                self.dropped.add(definition.id)
+                logger.warning(
+                    f"{self.source_name}: dropped part without faces: {name or definition.id}"
+                )
+            return
 
-        local_location: TopLoc_Location = XCAFDoc_ShapeTool.GetLocation_s(label)
-        world_location: TopLoc_Location = parent_location.Multiplied(local_location)
-        index: int = len(self.occurrences)
         self.occurrences.append(
-            self._occurrence(
-                occurrence_id,
-                parent_id,
-                definition.id,
-                name,
-                instance_name,
-                local_location,
+            CadOccurrence(
+                id=occurrence_id,
+                definition_id=definition.id,
+                parent_id=parent_id,
+                name=name or UNNAMED,
+                instance_name=instance_name
+                if instance_name and instance_name != name
+                else None,
             )
         )
         self.definitions[definition.id] = definition
-
-        box: BoundingBox | None
-        if definition.kind is DefinitionKind.PART:
-            box = self._bounding_box(definition_label, world_location)
-        else:
-            box = self._children_box(info, occurrence_id, world_location)
-
-        self.occurrences[index] = replace(
-            self.occurrences[index], world_bounding_box=box
-        )
-        return box
-
-    def _resolve_occurrence(
-        self, label: TDF_Label, occurrence_id: str
-    ) -> TDF_Label | None:
-        definition: TDF_Label | None = self._resolve(label)
-        if definition is None:
-            self.warnings.append(
-                ImportWarning(
-                    WarningCode.UNRESOLVED_REFERENCE,
-                    f"Skipped component whose reference cannot be resolved: {occurrence_id}",
-                    occurrence_id=occurrence_id,
-                )
-            )
-        return definition
-
-    def _keep_part(self, info: _DefinitionInfo, name: str) -> bool:
-        definition: CadDefinition = info.definition
-        if definition.kind is DefinitionKind.ASSEMBLY:
-            return True
-        if info.face_count == 0:
-            self._warn_once(
-                WarningCode.NO_VISIBLE_GEOMETRY,
-                definition.id,
-                ImportWarning(
-                    WarningCode.NO_VISIBLE_GEOMETRY,
-                    f"Dropped part without faces: {name or definition.id}",
-                    definition_id=definition.id,
-                ),
-            )
-            return False
-        if definition.solid_count > 1:
-            self._warn_once(
-                WarningCode.MULTIPLE_SOLIDS,
-                definition.id,
-                ImportWarning(
-                    WarningCode.MULTIPLE_SOLIDS,
-                    f"Part {name!r} has {definition.solid_count} solids; kept as one part",
-                    definition_id=definition.id,
-                ),
-            )
-        return True
-
-    def _display_name(self, name: str, occurrence_id: str) -> str:
-        if name:
-            return name
-        self.warnings.append(
-            ImportWarning(
-                WarningCode.MISSING_NAME,
-                f"Occurrence has no name: {occurrence_id}",
-                occurrence_id=occurrence_id,
-            )
-        )
-        return UNNAMED
-
-    def _occurrence(
-        self,
-        occurrence_id: str,
-        parent_id: str | None,
-        definition_id: str,
-        name: str,
-        instance_name: str,
-        location: TopLoc_Location,
-    ) -> CadOccurrence:
-        return CadOccurrence(
-            id=occurrence_id,
-            definition_id=definition_id,
-            parent_id=parent_id,
-            name=name,
-            instance_name=instance_name
-            if instance_name and instance_name != name
-            else None,
-            local_transform=self._matrix(location),
-            world_bounding_box=None,
-        )
-
-    def _children_box(
-        self,
-        info: _DefinitionInfo,
-        occurrence_id: str,
-        world_location: TopLoc_Location,
-    ) -> BoundingBox | None:
-        box: BoundingBox | None = None
         for component in info.components:
-            child_box: BoundingBox | None = self._visit(
-                component, occurrence_id, world_location
-            )
-            if child_box is not None:
-                box = child_box if box is None else box.union(child_box)
-        return box
-
-    def _matrix(self, location: TopLoc_Location) -> Matrix4:
-        transform = location.Transformation()
-        rows: list[tuple[float, float, float, float]] = []
-        for row in range(1, 4):
-            rows.append(
-                (
-                    _round(transform.Value(row, 1)),
-                    _round(transform.Value(row, 2)),
-                    _round(transform.Value(row, 3)),
-                    _round(transform.Value(row, 4) * self.unit),
-                )
-            )
-        rows.append((0.0, 0.0, 0.0, 1.0))
-        return tuple(rows)
+            self._visit(component, occurrence_id)
 
     def _meters(self, point: gp_Pnt) -> Vector3:
         return (
@@ -392,11 +266,8 @@ class DocumentWalker:
             _round(point.Z() * self.unit),
         )
 
-    def _bounding_box(
-        self, definition: TDF_Label, world: TopLoc_Location
-    ) -> BoundingBox | None:
-        shape = self.shape_tool.GetShape_s(definition)
-        shape = shape.Located(TopLoc_Location()).Moved(world)
+    def _bounding_box(self, definition: TDF_Label) -> BoundingBox | None:
+        shape = self.shape_tool.GetShape_s(definition).Located(TopLoc_Location())
         box = Bnd_Box()
         # Add_s bounds surfaces by their control points, which can be meters off for swept surfaces
         BRepBndLib.AddOptimal_s(shape, box, False, False)

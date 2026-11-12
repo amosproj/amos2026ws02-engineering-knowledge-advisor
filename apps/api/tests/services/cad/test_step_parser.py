@@ -1,7 +1,9 @@
+import logging
+import math
 from pathlib import Path
 
 import pytest
-from OCP.gp import gp_Trsf, gp_Vec
+from OCP.gp import gp_Ax1, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
 from OCP.IFSelect import IFSelect_RetDone, IFSelect_ReturnStatus
 from OCP.Interface import Interface_Static
 from OCP.Standard import Standard_Failure
@@ -13,14 +15,7 @@ from OCP.XCAFDoc import XCAFDoc_DocumentTool
 from step_documents import DocumentBuilder, box, compound, point, set_name
 
 from services.cad.errors import StepImportError
-from services.cad.model import (
-    BoundingBox,
-    CadDefinition,
-    CadModel,
-    CadOccurrence,
-    DefinitionKind,
-    WarningCode,
-)
+from services.cad.model import BoundingBox, CadDefinition, CadModel, CadOccurrence
 from services.cad.step_parser import StepParser, document_walker, parser
 from services.cad.xde import label_entry
 
@@ -40,6 +35,18 @@ def parse(builder: DocumentBuilder) -> CadModel:
 
 def by_name(model: CadModel, name: str) -> list[CadOccurrence]:
     return [occ for occ in model.occurrences if occ.name == name]
+
+
+def children_of(model: CadModel, occurrence: CadOccurrence) -> list[CadOccurrence]:
+    return [occ for occ in model.occurrences if occ.parent_id == occurrence.id]
+
+
+def logged_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelno == logging.WARNING
+    ]
 
 
 def definition_of(model: CadModel, occurrence: CadOccurrence) -> CadDefinition:
@@ -71,13 +78,10 @@ def test_repeated_part_keeps_one_occurrence_per_placement(
     assert screws[0].id != screws[1].id
     assert screws[0].definition_id == screws[1].definition_id
     assert {screw.parent_id for screw in screws} == {model.roots[0].id}
-    assert [row[3] for row in screws[1].local_transform] == pytest.approx(
-        [0.1, 0, 0, 1], abs=1e-6
-    )
-    assert_box(screws[1].world_bounding_box, (0.1, 0, 0), (0.11, 0.01, 0.01))
+    assert_box(model.bounding_box, (0, 0, 0), (0.11, 0.01, 0.01))
 
 
-def test_reused_subassembly_composes_nested_transforms(builder: DocumentBuilder):
+def test_reused_subassembly_has_one_occurrence_per_path(builder: DocumentBuilder):
     machine: TDF_Label = builder.assembly("Machine")
     module: TDF_Label = builder.assembly("Module")
     builder.add(module, builder.part("Screw", box()), translation=(10, 0, 0))
@@ -89,9 +93,8 @@ def test_reused_subassembly_composes_nested_transforms(builder: DocumentBuilder)
     assert len(model.occurrences) == 5
     assert len({occ.id for occ in model.occurrences}) == 5
     second_module: CadOccurrence = by_name(model, "Module")[1]
-    (screw_in_second,) = model.children_of(second_module.id)
-    assert_box(screw_in_second.world_bounding_box, (-0.01, 0.21, 0), (0, 0.22, 0.01))
-    assert second_module.world_bounding_box == screw_in_second.world_bounding_box
+    (screw_in_second,) = children_of(model, second_module)
+    assert screw_in_second.id.startswith(f"{second_module.id}/")
 
 
 def test_definition_box_is_in_its_own_coordinates(builder: DocumentBuilder):
@@ -117,7 +120,7 @@ def test_definition_box_is_in_its_own_coordinates(builder: DocumentBuilder):
     assert_box(
         definition_of(model, root).bounding_box, (-0.01, 0, 0), (0.02, 0.22, 0.01)
     )
-    assert definition_of(model, root).bounding_box == root.world_bounding_box
+    assert model.bounding_box == definition_of(model, root).bounding_box
 
 
 def test_definition_box_ignores_dropped_parts(builder: DocumentBuilder):
@@ -144,19 +147,20 @@ def test_multiple_roots_and_duplicate_names_stay_distinct(builder: DocumentBuild
     assert [occ.name for occ in model.roots] == ["Bracket", "Bracket"]
 
 
-def test_multi_solid_part_is_kept_whole_with_warning(builder: DocumentBuilder):
+def test_multi_solid_part_is_kept_whole(builder: DocumentBuilder):
     builder.part("Weldment", compound(box(10), box(10, origin=(20, 0, 0))))
 
     model: CadModel = parse(builder)
 
     (weldment,) = model.occurrences
-    definition: CadDefinition = definition_of(model, weldment)
-    assert definition.kind is DefinitionKind.PART
-    assert definition.solid_count == 2
-    assert [warning.code for warning in model.warnings] == [WarningCode.MULTIPLE_SOLIDS]
+    assert_box(
+        definition_of(model, weldment).bounding_box, (0, 0, 0), (0.03, 0.01, 0.01)
+    )
 
 
-def test_shape_type_placeholders_are_merged_into_their_part(builder: DocumentBuilder):
+def test_shape_type_placeholders_are_merged_into_their_part(
+    builder: DocumentBuilder, caplog: pytest.LogCaptureFixture
+):
     # Inventor export: a part holding its body and its origin point
     housing: TDF_Label = builder.assembly("Housing")
     builder.add(housing, builder.part("COMPOUND", compound(box())))
@@ -166,15 +170,15 @@ def test_shape_type_placeholders_are_merged_into_their_part(builder: DocumentBui
 
     (occurrence,) = model.occurrences
     assert occurrence.name == "Housing"
-    assert definition_of(model, occurrence).kind is DefinitionKind.PART
-    assert_box(occurrence.world_bounding_box, (0, 0, 0), (0.01, 0.01, 0.01))
-    assert (
-        definition_of(model, occurrence).bounding_box == occurrence.world_bounding_box
+    assert_box(
+        definition_of(model, occurrence).bounding_box, (0, 0, 0), (0.01, 0.01, 0.01)
     )
-    assert model.warnings == []
+    assert logged_warnings(caplog) == []
 
 
-def test_parts_without_faces_are_dropped_with_warning(builder: DocumentBuilder):
+def test_parts_without_faces_are_dropped_with_warning(
+    builder: DocumentBuilder, caplog: pytest.LogCaptureFixture
+):
     machine: TDF_Label = builder.assembly("Machine")
     builder.add(machine, builder.part("Plate", box()))
     builder.add(machine, builder.part("Origin", point()))
@@ -182,18 +186,15 @@ def test_parts_without_faces_are_dropped_with_warning(builder: DocumentBuilder):
     model: CadModel = parse(builder)
 
     assert [occ.name for occ in model.occurrences] == ["Machine", "Plate"]
-    assert [warning.code for warning in model.warnings] == [
-        WarningCode.NO_VISIBLE_GEOMETRY
-    ]
+    assert logged_warnings(caplog) == ["model.step: dropped part without faces: Origin"]
 
 
-def test_missing_names_fall_back_with_warning(builder: DocumentBuilder):
+def test_missing_names_fall_back_to_unnamed(builder: DocumentBuilder):
     builder.part(None, box())
 
     model: CadModel = parse(builder)
 
     assert model.occurrences[0].name == "Unnamed"
-    assert [warning.code for warning in model.warnings] == [WarningCode.MISSING_NAME]
 
 
 def test_missing_file_raises(tmp_path: Path):
@@ -298,32 +299,25 @@ def test_product_and_instance_name_precedence(
 
     model: CadModel = parse(builder)
 
-    occurrence: CadOccurrence = model.children_of(model.roots[0].id)[0]
+    occurrence: CadOccurrence = children_of(model, model.roots[0])[0]
     assert occurrence.name == expected
     assert occurrence.instance_name == stored_instance
-    assert [warning.code for warning in model.warnings] == (
-        [WarningCode.MISSING_NAME] if expected == "Unnamed" else []
-    )
 
 
-def test_geometry_warnings_are_once_per_definition(builder: DocumentBuilder):
+def test_dropped_parts_are_logged_once_per_definition(
+    builder: DocumentBuilder, caplog: pytest.LogCaptureFixture
+):
     assembly: TDF_Label = builder.assembly("Assembly")
     invisible: TDF_Label = builder.part("Origin", point())
-    multiple: TDF_Label = builder.part(
-        "Weldment", compound(box(), box(origin=(20, 0, 0)))
-    )
+    visible: TDF_Label = builder.part("Plate", box())
     for translation in [(0, 0, 0), (100, 0, 0)]:
         builder.add(assembly, invisible, translation)
-        builder.add(assembly, multiple, translation)
+        builder.add(assembly, visible, translation)
 
     model: CadModel = parse(builder)
 
     assert len(model.occurrences) == 3
-    assert [warning.code for warning in model.warnings] == [
-        WarningCode.NO_VISIBLE_GEOMETRY,
-        WarningCode.MULTIPLE_SOLIDS,
-    ]
-    assert len({warning.definition_id for warning in model.warnings}) == 2
+    assert len(logged_warnings(caplog)) == 1
 
 
 def test_mixed_named_components_are_not_normalized(builder: DocumentBuilder):
@@ -333,8 +327,7 @@ def test_mixed_named_components_are_not_normalized(builder: DocumentBuilder):
 
     model: CadModel = parse(builder)
 
-    assert len(model.occurrences) == 3
-    assert definition_of(model, model.roots[0]).kind is DefinitionKind.ASSEMBLY
+    assert [occ.name for occ in model.occurrences] == ["Assembly", "SOLID", "Named"]
 
 
 def test_explicit_document_unit_applies_to_translations_and_boxes(
@@ -347,12 +340,9 @@ def test_explicit_document_unit_applies_to_translations_and_boxes(
 
     model: CadModel = StepParser().parse_document(document, "centimeters.step")
 
-    part: CadOccurrence = model.children_of(model.roots[0].id)[0]
-    assert part.local_transform[0][3] == 0.2
-    assert_box(part.world_bounding_box, (0.2, 0, 0), (0.3, 0.1, 0.1))
-    assert_box(
-        definition_of(model, model.roots[0]).bounding_box, (0.2, 0, 0), (0.3, 0.1, 0.1)
-    )
+    part: CadOccurrence = children_of(model, model.roots[0])[0]
+    assert_box(definition_of(model, part).bounding_box, (0, 0, 0), (0.1, 0.1, 0.1))
+    assert_box(model.bounding_box, (0.2, 0, 0), (0.3, 0.1, 0.1))
     assert model.document is document
 
 
@@ -376,7 +366,9 @@ def test_utf8_detection_handles_chunk_boundaries_and_truncated_sequences(
 
 
 def test_unresolved_component_warns_and_keeps_valid_siblings(
-    builder: DocumentBuilder, monkeypatch: pytest.MonkeyPatch
+    builder: DocumentBuilder,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ):
     assembly: TDF_Label = builder.assembly("Assembly")
     builder.add(assembly, builder.part("Visible", box()))
@@ -395,10 +387,9 @@ def test_unresolved_component_warns_and_keeps_valid_siblings(
     model: CadModel = parse(builder)
 
     assert [occ.name for occ in model.occurrences] == ["Assembly", "Visible"]
-    (warning,) = model.warnings
-    assert warning.code is WarningCode.UNRESOLVED_REFERENCE
-    assert warning.occurrence_id == f"{model.roots[0].id}/{unresolved_entry}"
-    assert model.roots[0].world_bounding_box == model.occurrences[1].world_bounding_box
+    (warning,) = logged_warnings(caplog)
+    assert warning.endswith(f": {model.roots[0].id}/{unresolved_entry}")
+    assert model.bounding_box == definition_of(model, model.occurrences[1]).bounding_box
 
 
 def test_unicode_product_name_survives_step_round_trip(
@@ -409,7 +400,7 @@ def test_unicode_product_name_survives_step_round_trip(
     assert model.occurrences[0].name == "Pièce 日本"
 
 
-def test_located_root_keeps_transform_and_world_box(builder: DocumentBuilder):
+def test_located_root_places_the_model_box(builder: DocumentBuilder):
     transform = gp_Trsf()
     transform.SetTranslation(gp_Vec(100, 200, 300))
     builder.part("Located", box().Moved(TopLoc_Location(transform)))
@@ -417,8 +408,20 @@ def test_located_root_keeps_transform_and_world_box(builder: DocumentBuilder):
     model: CadModel = parse(builder)
 
     (root,) = model.roots
-    assert [row[3] for row in root.local_transform] == pytest.approx(
-        (0.1, 0.2, 0.3, 1), abs=1e-6
-    )
-    assert_box(root.world_bounding_box, (0.1, 0.2, 0.3), (0.11, 0.21, 0.31))
+    assert_box(model.bounding_box, (0.1, 0.2, 0.3), (0.11, 0.21, 0.31))
     assert_box(definition_of(model, root).bounding_box, (0, 0, 0), (0.01, 0.01, 0.01))
+
+
+def test_model_box_unites_placed_roots_and_skips_dropped_ones(builder: DocumentBuilder):
+    rotation = gp_Trsf()
+    rotation.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), math.pi / 2)
+    builder.part("Rotated", box().Moved(TopLoc_Location(rotation)))
+    translation = gp_Trsf()
+    translation.SetTranslation(gp_Vec(100, 0, 0))
+    builder.part("Shifted", box().Moved(TopLoc_Location(translation)))
+    builder.part("Origin", point().Moved(TopLoc_Location(translation.Inverted())))
+
+    model: CadModel = parse(builder)
+
+    assert [occ.name for occ in model.roots] == ["Rotated", "Shifted"]
+    assert_box(model.bounding_box, (-0.01, 0, 0), (0.11, 0.01, 0.01))

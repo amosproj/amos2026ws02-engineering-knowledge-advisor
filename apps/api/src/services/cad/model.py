@@ -1,22 +1,8 @@
 from dataclasses import dataclass, field
-from enum import StrEnum
 
 from OCP.TDocStd import TDocStd_Document
 
 type Vector3 = tuple[float, float, float]
-type Matrix4 = tuple[tuple[float, float, float, float], ...]
-
-
-class DefinitionKind(StrEnum):
-    ASSEMBLY = "assembly"
-    PART = "part"
-
-
-class WarningCode(StrEnum):
-    UNRESOLVED_REFERENCE = "unresolved_reference"
-    NO_VISIBLE_GEOMETRY = "no_visible_geometry"
-    MULTIPLE_SOLIDS = "multiple_solids"
-    MISSING_NAME = "missing_name"
 
 
 @dataclass(frozen=True)
@@ -56,8 +42,6 @@ class CadDefinition:
 
     id: str
     name: str
-    kind: DefinitionKind
-    solid_count: int
     bounding_box: BoundingBox | None
 
 
@@ -74,16 +58,6 @@ class CadOccurrence:
     parent_id: str | None
     name: str
     instance_name: str | None
-    local_transform: Matrix4
-    world_bounding_box: BoundingBox | None
-
-
-@dataclass(frozen=True)
-class ImportWarning:
-    code: WarningCode
-    message: str
-    definition_id: str | None = None
-    occurrence_id: str | None = None
 
 
 @dataclass
@@ -93,9 +67,7 @@ class CadModel:
     source_name: str
     definitions: dict[str, CadDefinition]
     occurrences: list[CadOccurrence]
-    warnings: list[ImportWarning] = field(default_factory=list)
-    source_length_unit: float = 0.001
-    """Meters per length unit of ``document`` (model values are already in meters)"""
+    bounding_box: BoundingBox | None
 
     document: TDocStd_Document | None = field(default=None, repr=False, compare=False)
     """The Open CASCADE XDE document, kept for geometry export"""
@@ -103,6 +75,3 @@ class CadModel:
     @property
     def roots(self) -> list[CadOccurrence]:
         return [occ for occ in self.occurrences if occ.parent_id is None]
-
-    def children_of(self, occurrence_id: str) -> list[CadOccurrence]:
-        return [occ for occ in self.occurrences if occ.parent_id == occurrence_id]

@@ -10,7 +10,7 @@ def test_generate_only_reports_it_is_not_implemented(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ):
     output: Path = tmp_path / "model.glb"
-    GlbGenerator().generate(CadModel("RC-01.step", {}, []), output)
+    GlbGenerator().generate(CadModel("RC-01.step", {}, [], None), output)
 
     assert capsys.readouterr().out == (
         f"GLB generation not implemented yet: RC-01.step -> {output}\n"
