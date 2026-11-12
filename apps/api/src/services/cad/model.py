@@ -98,7 +98,7 @@ class CadModel:
     """Meters per length unit of ``document`` (model values are already in meters)"""
 
     document: TDocStd_Document | None = field(default=None, repr=False, compare=False)
-    """The Open CASCADE XDE document, keptt for geometry export"""
+    """The Open CASCADE XDE document, kept for geometry export"""
 
     @property
     def roots(self) -> list[CadOccurrence]:
