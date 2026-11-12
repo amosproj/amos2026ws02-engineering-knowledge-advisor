@@ -19,6 +19,7 @@ from services.cad.model import (
     CadModel,
     CadOccurrence,
     Vector3,
+    round_length,
 )
 from services.cad.xde import count_subshapes, label_entry, label_name
 
@@ -40,8 +41,6 @@ SHAPE_TYPE_NAMES: frozenset[str] = frozenset(
 UNNAMED: str = "Unnamed"
 # Open CASCADE reads STEP lengths in millimeters by default
 DEFAULT_LENGTH_UNIT: float = 0.001
-# nanometers: hides floating-point noise
-COORDINATE_DIGITS: int = 9
 
 
 @dataclass(frozen=True)
@@ -261,9 +260,9 @@ class DocumentWalker:
 
     def _meters(self, point: gp_Pnt) -> Vector3:
         return (
-            _round(point.X() * self.unit),
-            _round(point.Y() * self.unit),
-            _round(point.Z() * self.unit),
+            round_length(point.X() * self.unit),
+            round_length(point.Y() * self.unit),
+            round_length(point.Z() * self.unit),
         )
 
     def _bounding_box(self, definition: TDF_Label) -> BoundingBox | None:
@@ -276,8 +275,3 @@ class DocumentWalker:
         return BoundingBox(
             min=self._meters(box.CornerMin()), max=self._meters(box.CornerMax())
         )
-
-
-def _round(value: float) -> float:
-    # adding 0.0 turns -0.0 into 0.0
-    return round(value, COORDINATE_DIGITS) + 0.0

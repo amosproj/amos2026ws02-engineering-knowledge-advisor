@@ -4,6 +4,14 @@ from OCP.TDocStd import TDocStd_Document
 
 type Vector3 = tuple[float, float, float]
 
+# nanometers: hides floating-point noise
+LENGTH_DIGITS: int = 9
+
+
+def round_length(value: float) -> float:
+    # adding 0.0 turns -0.0 into 0.0
+    return round(value, LENGTH_DIGITS) + 0.0
+
 
 @dataclass(frozen=True)
 class BoundingBox:
@@ -13,9 +21,9 @@ class BoundingBox:
     @property
     def size(self) -> Vector3:
         return (
-            self.max[0] - self.min[0],
-            self.max[1] - self.min[1],
-            self.max[2] - self.min[2],
+            round_length(self.max[0] - self.min[0]),
+            round_length(self.max[1] - self.min[1]),
+            round_length(self.max[2] - self.min[2]),
         )
 
     def union(self, other: "BoundingBox") -> "BoundingBox":
