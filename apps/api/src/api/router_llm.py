@@ -7,10 +7,10 @@ from fastapi.responses import StreamingResponse
 
 from api.router_builder import ApiRouterBuilder
 from model.problem import Problem
+from services import LLMService
 from services.llm import (
     ChatRequest,
     ChatResponse,
-    LLMService,
     ModelInfo,
     ProviderInfo,
 )
