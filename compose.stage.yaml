@@ -114,7 +114,7 @@ services:
     restart: unless-stopped
 
   migrate:
-    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/${MIGRATE_IMAGE_NAME:-engineering-knowledge-advisor-migrate}:${IMAGE_TAG:-development}
+    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/${API_IMAGE_NAME:-engineering-knowledge-advisor-api}:${IMAGE_TAG:-development}
     # Also creates the storage bucket when it does not exist yet
     command:
       - sh
@@ -129,7 +129,7 @@ services:
     restart: "no"
 
   cad-file-worker:
-    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/${CAD_FILE_WORKER_IMAGE_NAME:-engineering-knowledge-advisor-cad-file-worker}:${IMAGE_TAG:-development}
+    image: ${DOCKERHUB_USER:?Set DOCKERHUB_USER}/${API_IMAGE_NAME:-engineering-knowledge-advisor-api}:${IMAGE_TAG:-development}
     command: ["uv", "run", "--no-sync", "python", "-m", "cad_file_worker"]
     environment: *api-environment
     depends_on:
