@@ -6,4 +6,5 @@ Build, user, and technical documentation
 
 - `sbom/` - CycloneDX software bill of materials for the application dependencies
 - [`received-data-overview.md`](received-data-overview.md) - data received from Bosch, what is missing, open points
+- `cad/` - how the STEP parser reads the component structure and identifies components
 - `bpmn/` - BPMN 2.0 process flow diagrams, open in `bpmn.io` or other process modellers

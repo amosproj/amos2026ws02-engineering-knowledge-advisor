@@ -19,8 +19,6 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from services import Json, Record, Tx
-from services.cad.assembly_tree_node import AssemblyTreeNode
-from services.cad.to_records import build_assembly_group_node, build_dimensions_node
 from services.catalog import records
 from services.catalog.errors import (
     BusyError,
@@ -427,54 +425,6 @@ class CatalogService:
     def delete_source_folders(self, source_keys: list[str]) -> None:
         """Deletes the folder of each source key. Blocking, call it after the commit."""
         self.storage.delete_folders_quietly([get_folder(key) for key in source_keys])
-
-    async def import_cad_file_tree(
-        self,
-        session: Tx,
-        cad_file_id: str,
-        root_node: AssemblyTreeNode,
-    ) -> None:
-        """Import the parsed STEP assembly tree as AssemblyGroup records.
-
-        The root node becomes the machine's root AssemblyGroup (og:rootOf), every other node an
-        AssemblyGroup linked to its parent via og:partOf.
-        """
-        cad_file: Record = await self.get_record(session, cad_file_id)
-        [machine_id] = self._get_parent_ids(cad_file)
-        if root_node.dimensions is not None:
-            await self.update_record(
-                session,
-                machine_id,
-                {
-                    "properties": {
-                        "dimensions": build_dimensions_node(*root_node.dimensions)
-                    }
-                },
-            )
-
-        async def _walk(
-            node: AssemblyTreeNode,
-            parent_id: str,
-            path: str,
-            is_root: bool,
-        ) -> str:
-            ag_node = build_assembly_group_node(
-                identifier=node.identifier,
-                name=node.identifier,
-                path=path,
-                dimensions=node.dimensions,
-                parent_id=parent_id,
-                is_root=is_root,
-            )
-            ag_created = await self.create_record(session, ag_node)
-            ag_id = ag_created.record.id
-
-            child_path = f"{path}/{node.identifier}" if path else node.identifier
-            for child in node.children:
-                await _walk(child, ag_id, child_path, False)
-            return ag_id
-
-        await _walk(root_node, machine_id, "", True)
 
     def _get_parent_ids(
         self, record: Record, candidate_ids: list[str] | None = None
