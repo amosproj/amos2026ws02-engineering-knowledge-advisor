@@ -4,6 +4,9 @@ const errorMessages: Record<string, string> = {
     upload_not_found: 'The file did not reach the server. Upload it again.',
     file_mismatch: 'The uploaded file does not match the selected file. Upload it again.',
     invalid_step_file: 'The file is not a valid STEP file.',
+    parse_error: 'The STEP file could not be read.',
+    import_error: 'The assembly tree could not be imported. The machine may already have one.',
+    processing_timeout: 'Processing the file took too long.',
     upload_exists: 'The file is already processed or ready.',
     max_per_parent: 'This machine already has a CAD file.',
 }

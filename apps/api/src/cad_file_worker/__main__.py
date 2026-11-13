@@ -1,6 +1,5 @@
 """CAD file worker: checks uploaded STEP files and cleans up abandoned uploads and orphan objects.
 
-This will be also used to process other background jobs in the future, such as extracting the Tree structure from the STEP file.
 Run with `python -m cad_file_worker`. See the "Storage and background jobs" section of the api/README.
 """
 
