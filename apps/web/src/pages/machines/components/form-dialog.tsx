@@ -41,7 +41,6 @@ export function FormDialog({
     trigger,
     open: controlledOpen,
     onOpenChange,
-    scrollable = false,
     children,
 }: FormDialogProps) {
     const [ownOpen, setOwnOpen] = useState(false)
