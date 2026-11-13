@@ -246,6 +246,42 @@ def test_two_cad_files_written_at_once_take_one_place():
     run_async(run_check)
 
 
+@pytest.mark.parametrize("batch_first", [True, False], ids=["batch", "single"])
+def test_two_roots_written_at_once_take_one_place(batch_first: bool):
+    async def run_check() -> None:
+        engine: AsyncEngine = create_async_engine(URL)
+        service: OgRagService = create_service_on(
+            engine, await create_fresh_tables(engine)
+        )
+        root: dict[str, Any] = {
+            "@type": "AssemblyInstance",
+            "name": "Root",
+            "instanceOf": GROUP_ID,
+            "rootOf": MACHINE_ID,
+        }
+        try:
+            await service.upsert_records({MACHINE_ID: MACHINE, GROUP_ID: GROUP})
+            async with AsyncSession(engine) as session, session.begin():
+                if batch_first:
+                    await service.upsert_records({"AI-1": root}, tx=session)
+                    second: asyncio.Task[list[str]] = asyncio.create_task(
+                        service.upsert_record("AI-2", root)
+                    )
+                else:
+                    await service.upsert_record("AI-1", root, tx=session)
+                    second = asyncio.create_task(service.upsert_records({"AI-2": root}))
+                await asyncio.sleep(0.5)
+                # waits for the machine's lock until the first root is committed
+                assert not second.done()
+            with pytest.raises(ParentLimitError):
+                await second
+            assert await service.store.get_record("AI-2") is None
+        finally:
+            await engine.dispose()
+
+    run_async(run_check)
+
+
 def test_the_records_api_commits_or_rolls_back_with_the_request():
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
