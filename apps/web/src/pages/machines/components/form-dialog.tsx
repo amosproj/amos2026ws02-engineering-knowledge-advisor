@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Alert02Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import { cn } from 'cn'
 
 import {
     Alert,
@@ -30,6 +31,7 @@ type FormDialogProps = {
     trigger?: React.ReactElement
     open?: boolean
     onOpenChange?: (open: boolean) => void
+    scrollable?: boolean
     // The form, mounted again on each opening so it starts from fresh values
     children: (dialog: FormDialogControls) => React.ReactNode
 }
@@ -40,6 +42,7 @@ export function FormDialog({
     trigger,
     open: controlledOpen,
     onOpenChange,
+    scrollable = false,
     children,
 }: FormDialogProps) {
     const [ownOpen, setOwnOpen] = useState(false)
@@ -54,12 +57,24 @@ export function FormDialog({
     return (
         <Dialog open={open} onOpenChange={(nextOpen) => !busy && setOpen(nextOpen)}>
             {trigger ? <DialogTrigger render={trigger} /> : null}
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent
+                className={cn(
+                    'sm:max-w-lg max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden',
+                )}
+            >
                 <DialogHeader>
-                    <DialogTitle>{title}</DialogTitle>
+                    <DialogTitle>
+                        {title}
+                    </DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
-                {children({ close: () => setOpen(false), setBusy })}
+                {scrollable ? (
+                    <div className="min-h-0 -mr-2 overflow-y-auto px-2 [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
+                        {children({ close: () => setOpen(false), setBusy })}
+                    </div>
+                ) : (
+                    children({ close: () => setOpen(false), setBusy })
+                )}
             </DialogContent>
         </Dialog>
     )
