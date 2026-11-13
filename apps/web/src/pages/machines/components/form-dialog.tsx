@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Alert02Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { cn } from 'cn'
 
 import {
     Alert,
@@ -57,24 +56,17 @@ export function FormDialog({
     return (
         <Dialog open={open} onOpenChange={(nextOpen) => !busy && setOpen(nextOpen)}>
             {trigger ? <DialogTrigger render={trigger} /> : null}
-            <DialogContent
-                className={cn(
-                    'sm:max-w-lg max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden',
-                )}
-            >
+            <DialogContent className="sm:max-w-lg max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden">
                 <DialogHeader>
                     <DialogTitle>
                         {title}
                     </DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
-                {scrollable ? (
-                    <div className="min-h-0 -mr-2 overflow-y-auto px-2 [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
-                        {children({ close: () => setOpen(false), setBusy })}
-                    </div>
-                ) : (
-                    children({ close: () => setOpen(false), setBusy })
-                )}
+               
+                <div className="min-h-0 -mr-2 overflow-y-auto px-2 [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
+                    {children({ close: () => setOpen(false), setBusy })}
+                </div>                
             </DialogContent>
         </Dialog>
     )
