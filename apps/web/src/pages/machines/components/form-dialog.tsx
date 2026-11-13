@@ -55,17 +55,15 @@ export function FormDialog({
     return (
         <Dialog open={open} onOpenChange={(nextOpen) => !busy && setOpen(nextOpen)}>
             {trigger ? <DialogTrigger render={trigger} /> : null}
-            <DialogContent className="sm:max-w-lg max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden">
+            <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>
-                        {title}
-                    </DialogTitle>
+                    <DialogTitle>{title}</DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
-               
-                <div className="min-h-0 -mr-2 overflow-y-auto px-2 [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
+
+                <div className="-mr-2 min-h-0 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] overflow-y-auto px-2">
                     {children({ close: () => setOpen(false), setBusy })}
-                </div>                
+                </div>
             </DialogContent>
         </Dialog>
     )
