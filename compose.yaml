@@ -82,6 +82,7 @@ services:
     restart: unless-stopped
 
   api:
+    image: engineering-knowledge-advisor-api:local
     build:
       context: apps/api
       dockerfile: Dockerfile
@@ -129,12 +130,8 @@ services:
     restart: unless-stopped
 
   migrate:
-    build:
-      context: apps/api
-      dockerfile: Dockerfile
-      target: ${API_PROFILE:-prod}
-      args:
-        API_PROFILE: ${API_PROFILE:-prod}
+    image: engineering-knowledge-advisor-api:local
+    pull_policy: never
     # Also creates the storage bucket when it does not exist yet
     command:
       - sh
@@ -149,12 +146,8 @@ services:
     restart: "no"
 
   cad-file-worker:
-    build:
-      context: apps/api
-      dockerfile: Dockerfile
-      target: ${API_PROFILE:-prod}
-      args:
-        API_PROFILE: ${API_PROFILE:-prod}
+    image: engineering-knowledge-advisor-api:local
+    pull_policy: never
     command: ["uv", "run", "--no-sync", "python", "-m", "cad_file_worker"]
     environment: *api-environment
     depends_on:

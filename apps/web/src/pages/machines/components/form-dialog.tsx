@@ -54,12 +54,15 @@ export function FormDialog({
     return (
         <Dialog open={open} onOpenChange={(nextOpen) => !busy && setOpen(nextOpen)}>
             {trigger ? <DialogTrigger render={trigger} /> : null}
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
-                {children({ close: () => setOpen(false), setBusy })}
+
+                <div className="-mr-2 min-h-0 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] overflow-y-auto px-2">
+                    {children({ close: () => setOpen(false), setBusy })}
+                </div>
             </DialogContent>
         </Dialog>
     )
