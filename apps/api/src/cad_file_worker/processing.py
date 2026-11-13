@@ -6,6 +6,7 @@ from contextlib import closing
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from cad_file_worker.errors import StopRequested
 from cad_file_worker.step_file import StepFileScan, scan_step_file
 from logger import logger
 from services.catalog import CatalogService
@@ -16,10 +17,6 @@ MAX_PROCESSING_SECONDS = 30 * 60
 
 UPLOAD_NOT_FOUND = "upload_not_found"
 INVALID_STEP_FILE = "invalid_step_file"
-
-
-class StopRequested(Exception):
-    """The worker is shutting down: the file is left in processing for the next start."""
 
 
 async def process_next_cad_upload(
