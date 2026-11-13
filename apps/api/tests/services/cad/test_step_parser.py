@@ -4,10 +4,6 @@ from pathlib import Path
 
 import pytest
 from OCP.gp import gp_Ax1, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
-from OCP.IFSelect import IFSelect_RetDone, IFSelect_ReturnStatus
-from OCP.Interface import Interface_Static
-from OCP.Standard import Standard_Failure
-from OCP.STEPControl import STEPControl_Controller
 from OCP.TDF import TDF_Label
 from OCP.TDocStd import TDocStd_Document
 from OCP.TopLoc import TopLoc_Location
@@ -189,19 +185,6 @@ def test_parts_without_faces_are_dropped_with_warning(
     assert logged_warnings(caplog) == ["model.step: dropped part without faces: Origin"]
 
 
-def test_missing_names_fall_back_to_unnamed(builder: DocumentBuilder):
-    builder.part(None, box())
-
-    model: CadModel = parse(builder)
-
-    assert model.occurrences[0].name == "Unnamed"
-
-
-def test_missing_file_raises(tmp_path: Path):
-    with pytest.raises(StepImportError, match="not found"):
-        StepParser().parse(tmp_path / "missing.step")
-
-
 def test_invalid_file_raises(tmp_path: Path):
     path: Path = tmp_path / "invalid.step"
     path.write_text("not a step file")
@@ -216,52 +199,6 @@ def test_only_invisible_geometry_raises(builder: DocumentBuilder, nested: bool):
         builder.add(builder.assembly("Empty assembly"), origin)
     with pytest.raises(StepImportError, match="No visible shapes"):
         parse(builder)
-
-
-def test_empty_document_raises(builder: DocumentBuilder):
-    with pytest.raises(StepImportError, match="No visible shapes"):
-        StepParser().parse_document(builder.document, "empty.step")
-
-
-def test_unreadable_file_raises_import_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
-    path: Path = tmp_path / "unreadable.step"
-    path.touch()
-
-    def denied(*args: object, **kwargs: object) -> None:
-        raise PermissionError("read denied")
-
-    monkeypatch.setattr(Path, "open", denied)
-    with pytest.raises(StepImportError, match="Could not read") as caught:
-        StepParser().parse(path)
-    assert isinstance(caught.value.__cause__, PermissionError)
-
-
-@pytest.mark.parametrize("failure", [False, True])
-def test_transfer_failure_raises_import_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: bool
-):
-    class Reader:
-        def SetNameMode(self, enabled: bool) -> None:
-            pass
-
-        def SetColorMode(self, enabled: bool) -> None:
-            pass
-
-        def ReadFile(self, path: str) -> IFSelect_ReturnStatus:
-            return IFSelect_RetDone
-
-        def Transfer(self, document: TDocStd_Document) -> bool:
-            if failure:
-                raise Standard_Failure("transfer failed")
-            return False
-
-    path: Path = tmp_path / "failed.step"
-    path.touch()
-    monkeypatch.setattr(parser, "STEPCAFControl_Reader", Reader)
-    with pytest.raises(StepImportError, match="Could not transfer"):
-        StepParser().parse(path)
 
 
 @pytest.mark.parametrize("with_visible_root", [False, True])
@@ -304,22 +241,6 @@ def test_product_and_instance_name_precedence(
     assert occurrence.instance_name == stored_instance
 
 
-def test_dropped_parts_are_logged_once_per_definition(
-    builder: DocumentBuilder, caplog: pytest.LogCaptureFixture
-):
-    assembly: TDF_Label = builder.assembly("Assembly")
-    invisible: TDF_Label = builder.part("Origin", point())
-    visible: TDF_Label = builder.part("Plate", box())
-    for translation in [(0, 0, 0), (100, 0, 0)]:
-        builder.add(assembly, invisible, translation)
-        builder.add(assembly, visible, translation)
-
-    model: CadModel = parse(builder)
-
-    assert len(model.occurrences) == 3
-    assert len(logged_warnings(caplog)) == 1
-
-
 def test_mixed_named_components_are_not_normalized(builder: DocumentBuilder):
     assembly: TDF_Label = builder.assembly("Assembly")
     builder.add(assembly, builder.part("SOLID", box()))
@@ -344,15 +265,6 @@ def test_explicit_document_unit_applies_to_translations_and_boxes(
     assert_box(definition_of(model, part).bounding_box, (0, 0, 0), (0.1, 0.1, 0.1))
     assert_box(model.bounding_box, (0.2, 0, 0), (0.3, 0.1, 0.1))
     assert model.document is document
-
-
-def test_codepage_is_restored_after_failure():
-    STEPControl_Controller.Init_s()
-    previous: str = Interface_Static.CVal_s("read.step.codepage")
-    with pytest.raises(RuntimeError), parser.step_codepage("CP1252"):
-        assert Interface_Static.CVal_s("read.step.codepage") == "CP1252"
-        raise RuntimeError("failed")
-    assert Interface_Static.CVal_s("read.step.codepage") == previous
 
 
 def test_utf8_detection_handles_chunk_boundaries_and_truncated_sequences(

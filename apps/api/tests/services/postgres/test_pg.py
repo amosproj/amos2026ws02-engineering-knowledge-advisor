@@ -26,6 +26,7 @@ from db.session import create_sessionmaker
 from handler.exception_handler import register
 from handler.service_exception_handler import register as register_service
 from services import Lane, SearchMode, UnstorableValueError
+from services.cad.model import BoundingBox, CadDefinition, CadModel, CadOccurrence
 from services.catalog import CatalogService
 from services.ograg.ontology import Ontology
 from services.ograg.service import (
@@ -276,6 +277,52 @@ def test_two_roots_written_at_once_take_one_place(batch_first: bool):
             with pytest.raises(ParentLimitError):
                 await second
             assert await service.store.get_record("AI-2") is None
+        finally:
+            await engine.dispose()
+
+    run_async(run_check)
+
+
+def test_an_import_waits_for_its_cad_file_to_move_to_another_machine():
+    async def run_check() -> None:
+        engine: AsyncEngine = create_async_engine(URL)
+        tables: Tables = await create_fresh_tables(engine)
+        service: OgRagService = create_service_on(engine, tables)
+        catalog = CatalogService(service, PgUploadStore(tables), MemoryStorage())
+        cad_file: dict[str, Any] = {"@type": "CadFile", "name": "cell.step"}
+        model = CadModel(
+            source_name="cell.step",
+            definitions={"frame": CadDefinition("frame", "Frame", None)},
+            occurrences=[CadOccurrence("frame", "frame", None, "Frame", None)],
+            bounding_box=BoundingBox((0, 0, 0), (1, 2, 3)),
+        )
+
+        async def import_tree() -> None:
+            async with AsyncSession(engine) as session, session.begin():
+                await catalog.import_cad_file_tree(session, "CF-1", model)
+
+        try:
+            await service.upsert_records(
+                {
+                    MACHINE_ID: MACHINE,
+                    OTHER_MACHINE_ID: {**MACHINE, "identifier": OTHER_MACHINE_ID},
+                    "CF-1": {**cad_file, "partOf": MACHINE_ID},
+                }
+            )
+            async with AsyncSession(engine) as session, session.begin():
+                await service.upsert_record(
+                    "CF-1", {**cad_file, "partOf": OTHER_MACHINE_ID}, tx=session
+                )
+                imported: asyncio.Task[None] = asyncio.create_task(import_tree())
+                await asyncio.sleep(0.5)
+                assert not imported.done()
+            await imported
+
+            machine = await service.store.get_record(OTHER_MACHINE_ID)
+            assert machine is not None
+            assert machine.input["properties"] == {"sizeX": 1, "sizeY": 2, "sizeZ": 3}
+            linking = await service.store.get_linking_records([MACHINE_ID])
+            assert linking == []
         finally:
             await engine.dispose()
 

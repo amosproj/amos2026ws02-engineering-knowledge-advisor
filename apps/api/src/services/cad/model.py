@@ -1,6 +1,11 @@
-from dataclasses import dataclass, field
+from __future__ import annotations
 
-from OCP.TDocStd import TDocStd_Document
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Open CASCADE takes seconds to load, the API only needs the data
+    from OCP.TDocStd import TDocStd_Document
 
 type Vector3 = tuple[float, float, float]
 
@@ -26,7 +31,7 @@ class BoundingBox:
             round_length(self.max[2] - self.min[2]),
         )
 
-    def union(self, other: "BoundingBox") -> "BoundingBox":
+    def union(self, other: BoundingBox) -> BoundingBox:
         return BoundingBox(
             min=(
                 min(self.min[0], other.min[0]),

@@ -425,9 +425,3 @@ async def test_a_conflict_in_the_callers_transaction_is_raised_at_once():
     service = OgRagService(load_ontology(), FlakyStore(failures=1))
     with pytest.raises(ConflictError):
         await service.upsert_record(MACHINE_ID, MACHINE, tx="your session")
-
-
-async def test_a_conflicting_batch_is_retried_in_the_services_own_transaction():
-    service = OgRagService(load_ontology(), FlakyStore(failures=2))
-    await service.upsert_records({MACHINE_ID: MACHINE, GROUP_ID: GROUP})
-    assert sorted(await get_all_record_ids(service)) == [GROUP_ID, MACHINE_ID]

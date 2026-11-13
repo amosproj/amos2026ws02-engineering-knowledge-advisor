@@ -18,7 +18,9 @@ from collections.abc import (
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
-from services import Json, Record, Tx
+from services import Json, JsonObject, Record, Tx
+from services.cad.model import CadModel
+from services.cad.to_records import CadRecords, to_records
 from services.catalog import records
 from services.catalog.errors import (
     BusyError,
@@ -42,6 +44,9 @@ STATUS_PRIORITY: tuple[UploadStatus, ...] = (
 )
 
 ERROR_NO_FILE: str = "a {cls} carries no file"
+ERROR_NO_MACHINE: str = "CAD file {cad_file_id!r} belongs to no machine"
+CAD_FILE: str = "CadFile"
+CAD_FILE_MACHINE_LINK: str = "partOf"
 
 
 @dataclass(frozen=True)
@@ -421,6 +426,39 @@ class CatalogService:
         if mismatch:
             return UploadMismatch(upload.source_key)
         return changed
+
+    async def import_cad_file_tree(
+        self, session: Tx, cad_file_id: str, model: CadModel
+    ) -> list[str]:
+        """Stores the model's assembly groups and instances under the CAD file's machine and sets the machine's size.
+
+        All or nothing. Returns the validation warnings.
+
+        Raises:
+            NotFoundError: no CadFile ``cad_file_id``.
+            RecordError: the CAD file belongs to no machine, or a record is invalid.
+            ParentLimitError: the machine has an assembly tree already, or the model has several roots.
+        """
+        # locked before its machine, as upsert_record does, so the CAD file cannot move to another machine meanwhile
+        await self.ograg.store.lock_record(cad_file_id, session)
+        cad_file: Record = await self.get_record(session, cad_file_id, CAD_FILE)
+        machine_ids: list[str] = [
+            link.target_id
+            for link in cad_file.links
+            if link.property_name == CAD_FILE_MACHINE_LINK
+        ]
+        if not machine_ids:
+            raise RecordError(ERROR_NO_MACHINE.format(cad_file_id=cad_file_id))
+        # read under lock, so the size does not overwrite a concurrent change of the machine
+        await self.ograg.store.lock_record(machine_ids[0], session)
+        machine: Record = await self.get_record(session, machine_ids[0])
+        cad_records: CadRecords = to_records(model, machine.id)
+        machine_node: JsonObject = records.patch_input(
+            machine, {"properties": cad_records.machine_properties}
+        )
+        return await self.ograg.upsert_records(
+            cad_records.nodes | {machine.id: machine_node}, session
+        )
 
     def delete_source_folders(self, source_keys: list[str]) -> None:
         """Deletes the folder of each source key. Blocking, call it after the commit."""

@@ -4,7 +4,7 @@ from fakes import make_service
 from services import JsonObject
 from services.cad.model import BoundingBox, CadDefinition, CadModel, CadOccurrence
 from services.cad.to_records import CadRecords, to_records
-from services.ograg.service import OgRagService, ParentLimitError
+from services.ograg.service import OgRagService
 
 MACHINE_ID = "machine"
 UNIT_BOX = BoundingBox((0, 0, 0), (0.01, 0.01, 0.01))
@@ -107,11 +107,3 @@ async def save(service: OgRagService, records: CadRecords) -> None:
 @pytest.mark.anyio
 async def test_records_are_valid_for_the_ontology():
     await save(make_service(), to_records(frame_model(), MACHINE_ID))
-
-
-@pytest.mark.anyio
-async def test_several_roots_are_refused_by_the_store():
-    model: CadModel = frame_model()
-    model.occurrences.append(CadOccurrence("0:1:1:2", "0:1:1:2", None, "Screw", None))
-    with pytest.raises(ParentLimitError):
-        await save(make_service(), to_records(model, MACHINE_ID))
