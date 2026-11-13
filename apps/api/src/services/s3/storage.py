@@ -34,7 +34,7 @@ DELETE_BATCH_SIZE = 1000
 
 
 @contextmanager
-def _storage_errors() -> Iterator[None]:
+def _storage_errors() -> Generator[None]:
     try:
         yield
     except (BotoCoreError, ClientError) as error:
