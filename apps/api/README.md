@@ -112,13 +112,13 @@ A record of a class marked `og:file` (CadFile) carries one file, upload state in
 1. `POST /records` creates the record without file (status `empty`).
 2. `POST /records/{id}/upload-form` with `{"size": ...}` returns a presigned form.
 3. Client posts the file straight to S3 based on form, then `POST /records/{id}/complete`.
-4. Worker checks the file: `processing`, then `ready` or `failed`.
+4. Worker checks the file and imports its assembly tree: `processing`, then `ready` or `failed` with an error code.
 
 ## Storage and background jobs
 
 Uploaded files are stored in S3 (MinIO in Docker). The `migrate` service applies the migrations, then creates the bucket if it does not exist yet (`python -m services.s3`).
 
-The `cad-file-worker` service (`python -m cad_file_worker`, code in `src/cad_file_worker/`) checks the uploaded STEP files and, every hour, deletes abandoned uploads and orphan objects, but their records stay. It touches `/tmp/cad-file-worker-heartbeat` every 10 s, and the container is reported unhealthy when the file is older than one minute.
+The `cad-file-worker` service (`python -m cad_file_worker`, code in `src/cad_file_worker/`) checks the uploaded STEP files, parses them in a child process and imports their assembly tree under the machine, and, every hour, deletes abandoned uploads and orphan objects, but their records stay. It touches `/tmp/cad-file-worker-heartbeat` every 10 s, and the container is reported unhealthy when the file is older than one minute.
 
 ## LLM integration
 

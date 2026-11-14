@@ -37,7 +37,6 @@ export function MachineFormDialog({ machine, ...dialogProps }: MachineFormDialog
                     ? 'Only the name is required.'
                     : 'Only the name is required. The STEP file uploads in the background, keep this tab open until it is uploaded.'
             }
-            scrollable
             {...dialogProps}
         >
             {(dialog) => <MachineFormBody machine={machine} dialog={dialog} />}

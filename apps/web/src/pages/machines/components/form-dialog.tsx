@@ -30,7 +30,6 @@ type FormDialogProps = {
     trigger?: React.ReactElement
     open?: boolean
     onOpenChange?: (open: boolean) => void
-    scrollable?: boolean
     // The form, mounted again on each opening so it starts from fresh values
     children: (dialog: FormDialogControls) => React.ReactNode
 }

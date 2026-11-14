@@ -144,6 +144,34 @@ class OgRagService:
         )
         return warnings
 
+    async def upsert_records(
+        self, nodes: Mapping[str, Mapping[str, Json]], tx: Tx | None = None
+    ) -> list[str]:
+        """Validates ``nodes`` and update-or-inserts them as records, all or none, with the checks of ``upsert_record``.
+
+        Links may point to other nodes of the batch. Reads and saves the batch at once, e.g. for an import.
+
+        Args:
+            nodes: JSON-LD nodes by record id, like the ``node`` of ``upsert_record``.
+            tx: transaction, or ``None``.
+
+        Returns:
+            Warnings: validation drops.
+
+        Raises:
+            RecordError, ParentLimitError, UnstorableValueError, ConflictError: as ``upsert_record``.
+        """
+        records: list[Record] = []
+        warnings: list[str] = []
+        for record_id, node in nodes.items():
+            cls: str = self._get_record_class(node)
+            submitted: JsonObject = self._get_submitted(record_id, cls, node)
+            record, record_warnings = self._validate_record(record_id, cls, submitted)
+            records.append(record)
+            warnings += record_warnings
+        await self._run_with_retries(lambda own: self._write_records(records, own), tx)
+        return warnings
+
     async def check_version(
         self, record_id: str, expected_versions: Collection[str] | None, tx: Tx
     ) -> None:
@@ -295,6 +323,126 @@ class OgRagService:
         await self._check_no_parent_loop(record, tx)
         await self.store.save_records([record], tx)
 
+    async def _write_records(self, records: list[Record], tx: Tx) -> None:
+        """Locks, checks and saves ``records`` like ``_write_record``, reading the store once per check.
+
+        Locks the stored records of the batch that ``_write_record`` would lock (sorted by id), then the limited
+        parents, then the ancestors: a record before its parents, as ``_write_record`` does.
+        """
+        batch: dict[str, Record] = {record.id: record for record in records}
+        stored: dict[str, Record] = {
+            rec.id: rec for rec in await self.store.get_records(sorted(batch), tx)
+        }
+        for record_id in sorted(stored):
+            if self._is_locked_on_write(stored[record_id].cls):
+                await self.store.lock_record(record_id, tx)
+        for record in records:
+            existing: Record | None = stored.get(record.id)
+            if existing is not None and existing.cls != record.cls:
+                raise RecordError(
+                    ERROR_CLASS_CHANGED.format(
+                        record_id=record.id, old_cls=existing.cls, new_cls=record.cls
+                    )
+                )
+        await self._check_link_targets_of_batch(batch, tx)
+        await self._check_max_per_parent_of_batch(batch, tx)
+        await self._check_no_parent_loop_of_batch(batch, tx)
+        await self.store.save_records(records, tx)
+
+    async def _check_link_targets_of_batch(
+        self, batch: Mapping[str, Record], tx: Tx
+    ) -> None:
+        """Like ``_check_link_target``, a target may be in ``batch``."""
+        outside_ids: set[str] = {
+            link.target_id for record in batch.values() for link in record.links
+        } - batch.keys()
+        targets: dict[str, Record] = {
+            rec.id: rec for rec in await self.store.get_records(sorted(outside_ids), tx)
+        } | dict(batch)
+        for record in batch.values():
+            for link in record.links:
+                target: Record | None = targets.get(link.target_id)
+                self._check_link_class(
+                    record, link, None if target is None else target.cls
+                )
+
+    async def _check_max_per_parent_of_batch(
+        self, batch: Mapping[str, Record], tx: Tx
+    ) -> None:
+        """Like ``_check_max_per_parent``: locks each limited parent, sorted by id, then counts the records that will
+        link to it, from ``batch`` and the store. A parent already over its limit refuses the batch.
+        """
+        linking: dict[tuple[Link, str], set[str]] = {}
+        for record in batch.values():
+            for link in record.links:
+                if self._get_max_per_parent(record.cls, link) is not None:
+                    linking.setdefault((link, record.cls), set()).add(record.id)
+        for link, cls in sorted(
+            linking, key=lambda key: (key[0].target_id, key[0].property_name, key[1])
+        ):
+            await self.store.lock_record(link.target_id, tx)
+            count: int = len(linking[link, cls]) + sum(
+                1
+                for rec in await self.store.get_linking_records([link.target_id], tx)
+                if rec.id not in batch and rec.cls == cls and link in rec.links
+            )
+            limit: int | None = self._get_max_per_parent(cls, link)
+            if limit is not None and count > limit:
+                raise ParentLimitError(
+                    ERROR_MAX_PER_PARENT.format(
+                        target_id=link.target_id,
+                        limit=limit,
+                        cls=cls,
+                        prop_name=link.property_name,
+                    )
+                )
+
+    async def _check_no_parent_loop_of_batch(
+        self, batch: Mapping[str, Record], tx: Tx
+    ) -> None:
+        """Like ``_check_no_parent_loop``, the parents of a record in ``batch`` are the ones it will have.
+
+        Visits each record once, locks every stored ancestor outside ``batch`` on the way.
+        """
+        read: dict[str, Record | None] = {}
+
+        async def get_parent_ids(record_id: str, cls: str) -> list[str]:
+            record: Record | None = batch.get(record_id)
+            if record is None:
+                if record_id not in read:
+                    await self.store.lock_record(record_id, tx)
+                    read[record_id] = await self.store.get_record(record_id, tx)
+                record = read[record_id]
+            if record is None:
+                return []
+            return _get_target_ids(record, self._get_tree_link_names(cls))
+
+        done: set[str] = set()
+        for start in batch.values():
+            prop_names: list[str] = self._get_tree_link_names(start.cls)
+            if not prop_names or start.id in done:
+                continue
+            active: set[str] = set()
+            pending: list[tuple[str, bool]] = [(start.id, False)]
+            while pending:
+                record_id, leaving = pending.pop()
+                if leaving:
+                    active.remove(record_id)
+                    done.add(record_id)
+                elif record_id in active:
+                    raise RecordError(
+                        ERROR_PARENT_LOOP.format(
+                            cls=start.cls, record_id=record_id, prop_names=prop_names
+                        )
+                    )
+                elif record_id not in done:
+                    active.add(record_id)
+                    pending.append((record_id, True))
+                    pending += [
+                        (parent_id, False)
+                        for parent_id in await get_parent_ids(record_id, start.cls)
+                    ]
+
     async def _check_class_is_kept(self, record: Record, tx: Tx) -> None:
         """
         Raises:
@@ -365,10 +513,20 @@ class OgRagService:
                 - target of ``link`` doesn't exist
                 - or target of ``link`` doesn't have the class its property expects.
         """
+        self._check_link_class(
+            record, link, await self._get_class_of(link.target_id, record, tx)
+        )
+
+    def _check_link_class(
+        self, record: Record, link: Link, actual_cls: str | None
+    ) -> None:
+        """
+        Raises:
+            RecordError: target of ``link`` doesn't exist (``actual_cls`` is ``None``) or isn't of the expected class.
+        """
         expected_cls: str = self.ontology.properties[
             record.cls, link.property_name
         ].range
-        actual_cls: str | None = await self._get_class_of(link.target_id, record, tx)
         if actual_cls != expected_cls:
             problem = (
                 LINK_NOT_FOUND
@@ -393,11 +551,7 @@ class OgRagService:
         Raises:
             RecordError: ``record`` would become its own ancestor.
         """
-        prop_names: list[str] = sorted(
-            name
-            for name in self.ontology.get_parent_link_names(record.cls)
-            if self.ontology.properties[record.cls, name].range == record.cls
-        )
+        prop_names: list[str] = self._get_tree_link_names(record.cls)
         if not prop_names:
             return
         await self.store.lock_record(record.id, tx)
@@ -418,6 +572,21 @@ class OgRagService:
             ancestor: Record | None = await self.store.get_record(ancestor_id, tx)
             if ancestor is not None:
                 pending_ids += _get_target_ids(ancestor, prop_names)
+
+    def _is_locked_on_write(self, cls: str) -> bool:
+        """Returns whether ``_write_record`` locks a record of ``cls``: it has a limited or a tree link."""
+        return bool(self._get_tree_link_names(cls)) or any(
+            self.ontology.properties[cls, name].max_per_parent is not None
+            for name in self.ontology.get_link_names(cls)
+        )
+
+    def _get_tree_link_names(self, cls: str) -> list[str]:
+        """Returns the parent links of ``cls`` to its own class, sorted."""
+        return sorted(
+            name
+            for name in self.ontology.get_parent_link_names(cls)
+            if self.ontology.properties[cls, name].range == cls
+        )
 
     async def _get_class_of(
         self, record_id: str, writing: Record, tx: Tx

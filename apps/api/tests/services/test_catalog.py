@@ -4,6 +4,7 @@ import pytest
 from fakes import build_ontology_with, make_catalog, make_service
 
 from services import Json, Link, Record
+from services.cad.model import BoundingBox, CadDefinition, CadModel, CadOccurrence
 from services.catalog import CatalogService, TreeNode
 from services.catalog.records import (
     NotFoundError,
@@ -15,7 +16,12 @@ from services.catalog.records import (
     update_record,
 )
 from services.catalog.service import get_files_status
-from services.ograg.service import DeleteResult, OgRagService, RecordError
+from services.ograg.service import (
+    DeleteResult,
+    OgRagService,
+    ParentLimitError,
+    RecordError,
+)
 from services.uploads import UploadStatus
 
 pytestmark = pytest.mark.anyio
@@ -370,3 +376,63 @@ async def test_a_record_with_another_parent_left_is_kept_with_what_hangs_below_i
     # once the last such parent goes, it goes too, with what hangs below it
     whole: list[Record] = await lock_tree(ograg, TX, machine_id)
     assert {rec.id for rec in whole} >= {second_id, shared_id, below_id}
+
+
+def cad_model(*roots: str) -> CadModel:
+    """Each root is a frame holding one screw."""
+    screw_box = BoundingBox((0, 0, 0), (0.01, 0.01, 0.01))
+    occurrences: list[CadOccurrence] = []
+    for root in roots:
+        occurrences += [
+            CadOccurrence(root, "frame", None, "Frame", root),
+            CadOccurrence(f"{root}/1", "screw", root, "Screw", None),
+        ]
+    return CadModel(
+        source_name="cell.step",
+        definitions={
+            "frame": CadDefinition("frame", "Frame", screw_box),
+            "screw": CadDefinition("screw", "Screw", screw_box),
+        },
+        occurrences=occurrences,
+        bounding_box=BoundingBox((0, 0, 0), (1, 2, 3)),
+    )
+
+
+async def test_an_import_stores_the_tree_under_the_cad_files_machine():
+    ograg: OgRagService = make_service()
+    machine_id, _, cad_file_id = await create_tree(ograg)
+    await update_record(ograg, TX, machine_id, {"customer": "ACME"})
+
+    warnings: list[str] = await make_catalog(ograg).import_cad_file_tree(
+        TX, cad_file_id, cad_model("A")
+    )
+
+    assert warnings == []
+    machine: Record = await get_record(ograg, TX, machine_id)
+    assert machine.graph["customer"] == "ACME"
+    assert machine.input["properties"] == {"sizeX": 1, "sizeY": 2, "sizeZ": 3}
+    tree: TreeNode = await make_catalog(ograg).get_tree(TX, machine_id)
+    (root,) = [node for node in tree.linked if node.record.cls == "AssemblyInstance"]
+    assert root.record.graph["name"] == "A"
+    assert [node.record.graph["name"] for node in root.linked] == ["Screw"]
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [(("A",), ("B",)), ((), ("B", "C"))],
+    ids=["machine_has_a_tree", "several_roots"],
+)
+async def test_an_import_is_refused_as_a_whole(
+    first: tuple[str, ...], second: tuple[str, ...]
+):
+    ograg: OgRagService = make_service()
+    _, _, cad_file_id = await create_tree(ograg)
+    catalog: CatalogService = make_catalog(ograg)
+    if first:
+        await catalog.import_cad_file_tree(TX, cad_file_id, cad_model(*first))
+    stored: list[Record] = await catalog.get_records(TX)
+
+    with pytest.raises(ParentLimitError):
+        await catalog.import_cad_file_tree(TX, cad_file_id, cad_model(*second))
+
+    assert await catalog.get_records(TX) == stored

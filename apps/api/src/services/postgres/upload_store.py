@@ -33,6 +33,8 @@ from services.uploads import (
 # the worker keeps the row of the file it processes locked
 LOCK_TIMEOUT: str = "2s"
 LOCK_NOT_AVAILABLE: str = "55P03"
+# the worker importing a file waits for its record, which a request holds while waiting for the upload
+DEADLOCK_DETECTED: str = "40P01"
 SET_LOCK_TIMEOUT: str = f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT}'"
 ERROR_LOCK_TIMEOUT: str = "a row stayed locked longer than {timeout}"
 
@@ -50,7 +52,10 @@ class PgUploadStore(UploadStore):
         try:
             yield
         except DBAPIError as exc:
-            if getattr(exc.orig, "sqlstate", None) != LOCK_NOT_AVAILABLE:
+            if getattr(exc.orig, "sqlstate", None) not in (
+                LOCK_NOT_AVAILABLE,
+                DEADLOCK_DETECTED,
+            ):
                 raise
             raise LockTimeoutError(
                 ERROR_LOCK_TIMEOUT.format(timeout=LOCK_TIMEOUT)

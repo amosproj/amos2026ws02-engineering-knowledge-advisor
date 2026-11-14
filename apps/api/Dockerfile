@@ -6,6 +6,13 @@ FROM python:3.13-slim as api-base
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /bin/
 
+# Install system dependencies required by OpenCASCADE/OCP (CAD parser)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libfontconfig1 \
+    libfreetype6 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Run as a non-root user that owns /app, files are written as this user so no chown layer copies them
 RUN useradd --create-home --uid 1000 appuser \
     && mkdir /app && chown appuser:appuser /app

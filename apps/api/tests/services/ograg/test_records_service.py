@@ -316,6 +316,83 @@ async def test_an_instance_cannot_become_its_own_ancestor(
     assert (await get_stored_record(service, record_id)).graph["name"] != "Moved"
 
 
+async def test_a_batch_links_its_records_in_any_order():
+    service: OgRagService = make_service()
+    await service.upsert_record(MACHINE_ID, MACHINE)
+    warnings: list[str] = await service.upsert_records(
+        {
+            "AI-2": instance("Gripper", INSTANCE_ID),
+            INSTANCE_ID: INSTANCE,
+            GROUP_ID: {**GROUP, **UNKNOWN},
+        }
+    )
+    assert len(warnings) == 1
+    assert sorted(await get_all_record_ids(service)) == sorted(
+        ["AI-2", INSTANCE_ID, GROUP_ID, MACHINE_ID]
+    )
+
+
+@pytest.mark.parametrize(
+    "nodes",
+    [
+        {GROUP_ID: GROUP, INSTANCE_ID: {**INSTANCE, "instanceOf": "AG-missing"}},
+        {GROUP_ID: GROUP, INSTANCE_ID: {**INSTANCE, "instanceOf": "AI-2"}},
+        {GROUP_ID: GROUP, MACHINE_ID: GROUP},
+        {GROUP_ID: GROUP, INSTANCE_ID: {"@type": "AssemblyInstance"}},
+    ],
+    ids=["missing target", "target of the wrong class", "class change", "invalid"],
+)
+async def test_a_batch_is_refused_as_a_whole(nodes: dict[str, dict[str, Any]]):
+    service: OgRagService = make_service()
+    await service.upsert_record(MACHINE_ID, MACHINE)
+    with pytest.raises(RecordError):
+        await service.upsert_records(
+            {"AI-2": instance("Gripper", INSTANCE_ID), **nodes}
+        )
+    assert await get_all_record_ids(service) == [MACHINE_ID]
+
+
+async def test_a_batch_counts_its_own_records_against_the_parent_limit():
+    service: OgRagService = make_service()
+    await service.upsert_record(MACHINE_ID, MACHINE)
+    await service.upsert_record(GROUP_ID, GROUP)
+    with pytest.raises(ParentLimitError):
+        await service.upsert_records({INSTANCE_ID: INSTANCE, "AI-2": INSTANCE})
+    assert await service.store.get_record(INSTANCE_ID) is None
+
+
+async def test_a_batch_counts_the_stored_records_against_the_parent_limit():
+    service: OgRagService = await create_loaded_service()
+    with pytest.raises(ParentLimitError):
+        await service.upsert_records({"AI-2": INSTANCE})
+    # the stored root keeps its place, a repeated link counts once
+    await service.upsert_records(
+        {INSTANCE_ID: {**INSTANCE, "rootOf": [MACHINE_ID, MACHINE_ID]}}
+    )
+
+
+@pytest.mark.parametrize(
+    "nodes",
+    [
+        {"AI-2": instance("Gripper", "AI-2")},
+        {"AI-2": instance("Gripper", "AI-3"), "AI-3": instance("Finger", "AI-2")},
+        {
+            "AI-2": instance("Gripper", INSTANCE_ID),
+            INSTANCE_ID: instance("Root", "AI-2"),
+        },
+    ],
+    ids=["itself", "within the batch", "through a stored record"],
+)
+async def test_a_batch_cannot_make_a_record_its_own_ancestor(
+    nodes: dict[str, dict[str, Any]],
+):
+    service: OgRagService = await create_loaded_service()
+    with pytest.raises(RecordError) as raised:
+        await service.upsert_records(nodes)
+    assert_mentions(str(raised.value), "ancestor", "partOf")
+    assert await service.store.get_record("AI-2") is None
+
+
 async def test_deleting_a_missing_record_deletes_nothing():
     result: DeleteResult = await make_service().delete_record("nope")
     assert result.deleted_ids == []
