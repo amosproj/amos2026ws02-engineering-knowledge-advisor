@@ -22,7 +22,7 @@ def app(monkeypatch: pytest.MonkeyPatch) -> Iterator[FastAPI]:
     from main import app
 
     monkeypatch.setenv("API_DATABASE_URL", TEST_DATABASE_URL)
-    monkeypatch.setenv("API_OGRAG_ONTOLOGY_PATH", str(ONTOLOGY_PATH))
+    monkeypatch.setenv("API_ONTOLOGY_PATH", str(ONTOLOGY_PATH))
     for name, value in S3_ENV.items():
         monkeypatch.setenv(name, value)
     get_settings.cache_clear()

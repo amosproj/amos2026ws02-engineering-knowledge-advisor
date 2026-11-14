@@ -32,7 +32,7 @@ from services.records import ERROR_STILL_LINKED
 class PgRecordStore(RecordStore):
     """Postgres-based ``RecordStore``.
 
-    Links are rows of ``ograg_links`` with foreign keys: ``ON DELETE CASCADE`` on source, ``RESTRICT`` on target.
+    Links are rows of ``record_links`` with foreign keys: ``ON DELETE CASCADE`` on source, ``RESTRICT`` on target.
     A linked record cannot be deleted.
     """
 
@@ -59,7 +59,7 @@ class PgRecordStore(RecordStore):
         """
         self.engine: AsyncEngine = engine
         self.table: Table = tables.records
-        self.links: Table = tables.links
+        self.links: Table = tables.record_links
         self.identity_property_names: dict[str, list[str]] = {
             cls: list(prop_names)
             for cls, prop_names in (identity_property_names or {}).items()

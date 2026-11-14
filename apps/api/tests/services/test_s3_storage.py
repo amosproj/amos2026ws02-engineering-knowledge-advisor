@@ -36,7 +36,7 @@ def client() -> MagicMock:
 def storage(client: MagicMock, monkeypatch: pytest.MonkeyPatch) -> S3ObjectStorage:
     storage = S3ObjectStorage(
         Settings(
-            ograg_ontology_path=Path("ontology.jsonld"),
+            ontology_path=Path("ontology.jsonld"),
             s3_endpoint_url="http://localhost:9000",
             s3_bucket="bucket",
             s3_access_key="key",
@@ -232,7 +232,7 @@ def test_links_are_signed_with_signature_version_4(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(s3_storage.boto3, "client", client)
     S3ObjectStorage(
         Settings(
-            ograg_ontology_path=Path("ontology.jsonld"),
+            ontology_path=Path("ontology.jsonld"),
             s3_endpoint_url="http://localhost:9000",
             s3_bucket="bucket",
             s3_access_key="key",

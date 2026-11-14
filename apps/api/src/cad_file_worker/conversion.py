@@ -1,6 +1,9 @@
 """Converts a STEP file in a child process, so a crash or a hang of Open CASCADE cannot take the worker down."""
 
+from __future__ import annotations
+
 import multiprocessing
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -12,7 +15,12 @@ from cad_file_worker.errors import ConversionTimeoutError, StopRequested
 from services.cad.errors import StepImportError
 from services.cad.model import CadModel
 
-POLL_SECONDS = 0.5
+if sys.platform == "win32":
+    from multiprocessing.connection import PipeConnection as Receiver
+else:
+    from multiprocessing.connection import Connection as Receiver
+
+POLL_SECONDS: float = 0.5
 
 
 @dataclass(frozen=True)
@@ -36,9 +44,9 @@ class _Failure:
 class _Reader(threading.Thread):
     """Receives the child's result, so the child never blocks on a full pipe and the parent never on a partial one."""
 
-    def __init__(self, receiver: Connection) -> None:
+    def __init__(self, receiver: Receiver[object, Conversion | _Failure]) -> None:
         super().__init__(daemon=True)
-        self.receiver: Connection = receiver
+        self.receiver: Receiver[object, Conversion | _Failure] = receiver
         self.result: Conversion | _Failure | None = None
 
     def run(self) -> None:

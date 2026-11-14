@@ -33,7 +33,7 @@
     <bpmn:messageFlow id="M23" name="Delete folder" sourceRef="C_expire" targetRef="P_s3" />
     <bpmn:messageFlow id="M24" name="Delete orphan objects" sourceRef="C_orphans" targetRef="P_s3" />
     <bpmn:textAnnotation id="A_shared_state">
-      <bpmn:text>The Records API sets the upload to processing on complete (Postgres, cad_uploads). The worker picks it up from there.</bpmn:text>
+      <bpmn:text>The Records API sets the upload to processing on complete (Postgres, uploads). The worker picks it up from there.</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:textAnnotation id="A_page_left">
       <bpmn:text>Leaving the page only stops following the import. The server finishes it.</bpmn:text>

@@ -13,7 +13,7 @@ ONTOLOGY_PATH: str = "ontology.jsonld"
 def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("API_PROFILE", raising=False)
-    monkeypatch.setenv("API_OGRAG_ONTOLOGY_PATH", ONTOLOGY_PATH)
+    monkeypatch.setenv("API_ONTOLOGY_PATH", ONTOLOGY_PATH)
     for name, value in S3_ENV.items():
         monkeypatch.setenv(name, value)
     return tmp_path

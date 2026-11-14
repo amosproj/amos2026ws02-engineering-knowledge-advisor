@@ -49,10 +49,6 @@ EMPTY_STEP: bytes = (
     b"ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n"
 )
 NOT_STEP: bytes = b"solid cube\nendsolid cube\n"
-SELECT_OGRAG_TABLES: str = (
-    "SELECT tablename FROM pg_tables"
-    " WHERE schemaname = current_schema() AND tablename LIKE 'ograg\\_%'"
-)
 LONG_AGO: datetime = datetime(2020, 1, 1, tzinfo=UTC)
 
 type Sessions = async_sessionmaker[AsyncSession]
@@ -216,8 +212,7 @@ async def open_worker() -> AsyncGenerator[Worker]:
     tables: Tables = define_tables(MetaData())
     try:
         async with engine.begin() as conn:
-            await conn.execute(text(f'DROP TABLE IF EXISTS "{TableName.CAD_UPLOADS}"'))
-            for name in (await conn.execute(text(SELECT_OGRAG_TABLES))).scalars():
+            for name in TableName:
                 await conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
             await conn.run_sync(tables.metadata.create_all)
         ontology: Ontology = load_ontology()
