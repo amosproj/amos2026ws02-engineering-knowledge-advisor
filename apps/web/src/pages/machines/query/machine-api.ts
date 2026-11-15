@@ -30,6 +30,38 @@ const machineViewSchema = z.object({
     children: z.array(childSchema),
 })
 
+const machineDetailSchema = machineViewSchema.omit({ children: true })
+
+const instanceSchema = z.looseObject({
+    '@id': z.string(),
+    '@type': z.string(),
+    name: z.string().optional(),
+    instanceOf: z.string().optional(),
+})
+
+type RecordTree = { record: z.output<typeof instanceSchema>; children: RecordTree[] }
+
+const recordTreeSchema: z.ZodType<RecordTree> = z.object({
+    record: instanceSchema,
+    get children() {
+        return z.array(recordTreeSchema)
+    },
+})
+
+const groupSchema = z.looseObject({
+    '@id': z.string(),
+    name: z.string(),
+    identifier: z.string().optional(),
+    description: z.string().optional(),
+    properties: z
+        .looseObject({
+            sizeX: z.number().optional(),
+            sizeY: z.number().optional(),
+            sizeZ: z.number().optional(),
+        })
+        .optional(),
+})
+
 const uploadSchema = z.object({
     id: z.string(),
     status: uploadStatus,
@@ -82,6 +114,9 @@ export type Machine = z.output<typeof machineSchema>
 export type MachineView = z.output<typeof machineViewSchema>
 export type FileStatus = z.output<typeof fileStatus>
 export type CadFileView = z.output<typeof cadFileViewSchema>
+export type MachineDetail = z.output<typeof machineDetailSchema>
+export type AssemblyGroup = z.output<typeof groupSchema>
+export type { RecordTree }
 
 export const listMachines = queryMaker({
     method: 'GET',
@@ -135,6 +170,35 @@ export const getCadFile = queryMaker({
     response: cadFileViewSchema,
 })
 
+export const getMachine = queryMaker({
+    method: 'GET',
+    path: '/v1/records/:id',
+    params: idParams,
+    search: includeSearch,
+    response: machineDetailSchema,
+})
+
+export const listChildInstances = queryMaker({
+    method: 'GET',
+    path: '/v1/records',
+    search: z.object({ cls: z.literal('AssemblyInstance'), parentId: z.string() }),
+    response: z.array(instanceSchema),
+})
+
+export const getRecordTree = queryMaker({
+    method: 'GET',
+    path: '/v1/records/:id/tree',
+    params: idParams,
+    response: recordTreeSchema,
+})
+
+export const getAssemblyGroup = queryMaker({
+    method: 'GET',
+    path: '/v1/records/:id',
+    params: idParams,
+    response: groupSchema,
+})
+
 export const requestUploadForm = queryMaker({
     method: 'POST',
     path: '/v1/records/:id/upload-form',
@@ -164,4 +228,30 @@ export const cadFileQuery = (id: string) =>
         queryKey: [...machinesQueryKey, 'cad-files', id],
         queryFn: ({ signal }) =>
             getCadFile({ params: { id }, search: { include: 'status,upload' }, signal }),
+    })
+
+export const machineQuery = (id: string) =>
+    queryOptions({
+        queryKey: [...machinesQueryKey, id],
+        queryFn: ({ signal }) =>
+            getMachine({ params: { id }, search: { include: 'status' }, signal }),
+    })
+
+// null when the machine has no assembly tree
+export const assemblyTreeQuery = (machineId: string) =>
+    queryOptions({
+        queryKey: [...machinesQueryKey, machineId, 'tree'],
+        queryFn: async ({ signal }) => {
+            const [root] = await listChildInstances({
+                search: { cls: 'AssemblyInstance', parentId: machineId },
+                signal,
+            })
+            return root ? getRecordTree({ params: { id: root['@id'] }, signal }) : null
+        },
+    })
+
+export const assemblyGroupQuery = (id: string) =>
+    queryOptions({
+        queryKey: [...machinesQueryKey, 'groups', id],
+        queryFn: ({ signal }) => getAssemblyGroup({ params: { id }, signal }),
     })

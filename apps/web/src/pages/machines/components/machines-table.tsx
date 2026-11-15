@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 
 import {
     ConfirmationPopup,
@@ -28,8 +29,6 @@ import { CadFileDialog } from './cad-file-dialog'
 import { MachineFormDialog } from './machine-form-dialog'
 import { StatusBadge } from './status-badge'
 
-const COLUMNS = 6
-
 export function MachinesTable({ machines }: { machines: MachineView[] | undefined }) {
     return (
         <Table>
@@ -52,7 +51,7 @@ export function MachinesTable({ machines }: { machines: MachineView[] | undefine
                       ))
                     : Array.from({ length: 5 }, (_, index) => (
                           <TableRow key={index}>
-                              {Array.from({ length: COLUMNS }, (_, cell) => (
+                              {Array.from({ length: 6 }, (_, cell) => (
                                   <TableCell key={cell}>
                                       <Skeleton className="h-5 w-full" />
                                   </TableCell>
@@ -99,9 +98,15 @@ function MachineRow({ machine }: { machine: MachineView }) {
     })
 
     return (
-        <TableRow>
+        <TableRow className="has-[a:focus-visible]:ring-ring relative cursor-pointer has-[a:focus-visible]:ring-2">
             <TableCell className="max-w-64">
-                <p className="truncate font-medium">{record.name}</p>
+                <Link
+                    to="/machines/$machineId"
+                    params={{ machineId }}
+                    className="block truncate font-medium outline-none after:absolute after:inset-0"
+                >
+                    {record.name}
+                </Link>
                 {record.description ? (
                     <p className="text-muted-foreground truncate">{record.description}</p>
                 ) : null}
@@ -115,7 +120,7 @@ function MachineRow({ machine }: { machine: MachineView }) {
                     <CadFileError cadFileId={cadFile['@id']} />
                 ) : null}
             </TableCell>
-            <TableCell className="text-right">
+            <TableCell className="relative z-10 text-right">
                 <ActionsMenu label={`Actions of ${record.name}`} size="icon-sm" actions={actions} />
                 <MachineFormDialog machine={machine} open={editing} onOpenChange={setEditing} />
                 {cadFileAction ? (
