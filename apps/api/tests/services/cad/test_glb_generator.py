@@ -7,7 +7,7 @@ from step_documents import DocumentBuilder, box, point
 
 from services.cad.errors import GlbGenerationError
 from services.cad.glb_generator import GlbGenerator, generator
-from services.cad.glb_generator.glb_file import read_glb_json
+from services.cad.glb_generator.glb_file import read_glb, write_glb
 from services.cad.model import CadModel, CadOccurrence
 from services.cad.step_parser import StepParser
 
@@ -21,7 +21,7 @@ def parse(builder: DocumentBuilder, tmp_path: Path) -> CadModel:
 def generate(model: CadModel, tmp_path: Path) -> dict[str, Any]:
     output: Path = tmp_path / "model.glb"
     GlbGenerator().generate(model, output)
-    return read_glb_json(output)
+    return read_glb(output)[0]
 
 
 def walk(gltf: dict[str, Any]) -> Iterator[tuple[Node, Node | None]]:
@@ -114,18 +114,40 @@ def test_unnamed_part_keeps_its_node(tmp_path: Path):
     assert all(node["name"] for node in nodes.values())
 
 
-def test_nodes_without_an_occurrence_carry_no_extras(tmp_path: Path):
+def test_points_lose_their_mesh_and_keep_the_ids_above_them(tmp_path: Path):
     builder = DocumentBuilder()
     cell = builder.assembly("Cell")
     builder.add(cell, builder.part("Plate", box()))
-    builder.add(cell, builder.part("Marker", point()))
+    marker = builder.part("Marker", point())
+    builder.add(cell, marker)
+    markers = builder.assembly("Markers")
+    builder.add(markers, marker)
+    builder.add(cell, markers)
     model: CadModel = parse(builder, tmp_path)
 
     gltf = generate(model, tmp_path)
 
-    occurrence_ids: set[str] = {occ.id for occ in model.occurrences}
-    assert set(occurrence_nodes(gltf)) == occurrence_ids
-    assert "Marker" not in [occ.name for occ in model.occurrences]
+    assert set(occurrence_nodes(gltf)) == {occ.id for occ in model.occurrences}
+    assert "Markers" in [occ.name for occ in model.occurrences]
+    nodes: list[Node] = [node for node, _ in walk(gltf)]
+    assert all("mesh" not in node for node in nodes if node["name"] == "Marker")
+    assert all(
+        primitive.get("mode", 4) == 4
+        for node in nodes
+        if "mesh" in node
+        for primitive in gltf["meshes"][node["mesh"]]["primitives"]
+    )
+
+
+def test_parts_without_color_get_a_matte_material(tmp_path: Path):
+    gltf = generate(parse(gripper(), tmp_path), tmp_path)
+
+    for node, _ in walk(gltf):
+        for primitive in (
+            gltf["meshes"][node["mesh"]]["primitives"] if "mesh" in node else []
+        ):
+            material = gltf["materials"][primitive["material"]]
+            assert material["pbrMetallicRoughness"]["metallicFactor"] == 0
 
 
 def test_non_ascii_names_survive(tmp_path: Path):
@@ -176,3 +198,28 @@ def test_a_newline_in_a_name_keeps_the_ids_below_it():
         "0:1:1:1",
         "0:1:1:1/0:1:1:1:1",
     ]
+
+
+def test_an_occurrence_without_a_node_raises():
+    occurrences: list[CadOccurrence] = [
+        CadOccurrence("0:1:1:1", "0:1:1:1", None, "Cell", None),
+        CadOccurrence("0:1:1:1/0:1:1:1:1", "0:1:1:2", "0:1:1:1", "Plate", None),
+    ]
+    gltf: dict[str, Any] = {
+        "scenes": [{"nodes": [0]}],
+        "nodes": [{"name": "Cell [0:1:1:1]"}],
+    }
+
+    with pytest.raises(GlbGenerationError):
+        generator._set_ids(gltf, occurrences)  # pyright: ignore[reportPrivateUsage]
+
+
+def test_rewriting_the_json_keeps_the_binary_chunk(tmp_path: Path):
+    output: Path = tmp_path / "model.glb"
+    GlbGenerator().generate(parse(gripper(), tmp_path), output)
+    original: bytes = output.read_bytes()
+
+    gltf, rest = read_glb(output)
+    write_glb(output, gltf, rest)
+
+    assert output.read_bytes() == original

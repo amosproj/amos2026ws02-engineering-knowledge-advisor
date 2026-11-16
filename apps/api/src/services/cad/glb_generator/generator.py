@@ -16,7 +16,7 @@ from OCP.TDocStd import TDocStd_Document
 from OCP.XCAFDoc import XCAFDoc_DocumentTool, XCAFDoc_ShapeTool
 
 from services.cad.errors import GlbGenerationError
-from services.cad.glb_generator.glb_file import read_glb_json, write_glb_json
+from services.cad.glb_generator.glb_file import read_glb, write_glb
 from services.cad.model import CadModel, CadOccurrence
 from services.cad.xde import document_length_unit
 
@@ -49,6 +49,9 @@ ENTRY_SUFFIX: re.Pattern[str] = re.compile(
     r"^(.*?)\s*(?:\[[^\]]*\]\s*)*\[([0-9:]+)\]$", re.DOTALL
 )
 UNNAMED: str = "Unnamed"
+# for parts without a color in the STEP file
+DEFAULT_GREY: float = 0.7
+TRIANGLES: int = 4
 
 
 class GlbGenerator:
@@ -69,9 +72,11 @@ class GlbGenerator:
             raise GlbGenerationError(f"No document to export: {model.source_name}")
         try:
             _write(model.document, output)
-            gltf: dict[str, Any] = read_glb_json(output)
+            gltf, rest = read_glb(output)
             _set_ids(gltf, model.occurrences)
-            write_glb_json(output, gltf)
+            _drop_points_and_lines(gltf)
+            _make_matte(gltf)
+            write_glb(output, gltf, rest)
         except (Standard_Failure, OSError, ValueError) as error:
             raise GlbGenerationError(f"Could not write the GLB: {error}") from error
 
@@ -107,7 +112,11 @@ def _write(document: TDocStd_Document, path: Path) -> None:
 
 
 def _set_ids(gltf: dict[str, Any], occurrences: list[CadOccurrence]) -> None:
-    """Names each node after its occurrence and adds the ids, matched by the path of label entries."""
+    """Names each node after its occurrence and adds the ids, matched by the path of label entries.
+
+    Raises:
+        GlbGenerationError: an occurrence has no node.
+    """
     by_id: dict[str, CadOccurrence] = {occ.id: occ for occ in occurrences}
     nodes: list[dict[str, Any]] = gltf.get("nodes", [])
     roots: list[int] = [
@@ -127,7 +136,53 @@ def _set_ids(gltf: dict[str, Any], occurrences: list[CadOccurrence]) -> None:
         if occurrence is not None:
             node["name"] = occurrence.name
             node["extras"] = {"occurrenceId": occurrence.id}
+            del by_id[occurrence.id]
         else:
             node["name"] = product or UNNAMED
             node.pop("extras", None)
         pending += [(child, path) for child in node.get("children", [])]
+    if by_id:
+        raise GlbGenerationError(
+            f"{len(by_id)} occurrences have no glTF node, e.g. {next(iter(by_id))}"
+        )
+
+
+def _drop_points_and_lines(gltf: dict[str, Any]) -> None:
+    """Unlinks the meshes of free vertices and edges: invisible, but viewers pick them and select the wrong part."""
+    meshes: list[dict[str, Any]] = gltf.get("meshes", [])
+    for node in gltf.get("nodes", []):
+        if "mesh" in node and not any(
+            primitive.get("mode", TRIANGLES) == TRIANGLES
+            for primitive in meshes[node["mesh"]]["primitives"]
+        ):
+            del node["mesh"]
+
+
+def _make_matte(gltf: dict[str, Any]) -> None:
+    """glTF defaults to fully metallic, which renders almost black without an environment map.
+
+    Primitives without a material (parts without a color) get a grey one.
+    """
+    materials: list[dict[str, Any]] = gltf.setdefault("materials", [])
+    for material in materials:
+        material.setdefault("pbrMetallicRoughness", {}).setdefault(
+            "metallicFactor", 0.0
+        )
+    uncolored: list[dict[str, Any]] = [
+        primitive
+        for mesh in gltf.get("meshes", [])
+        for primitive in mesh["primitives"]
+        if "material" not in primitive
+    ]
+    if uncolored:
+        materials.append(
+            {
+                "name": "default",
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [DEFAULT_GREY, DEFAULT_GREY, DEFAULT_GREY, 1.0],
+                    "metallicFactor": 0.0,
+                },
+            }
+        )
+        for primitive in uncolored:
+            primitive["material"] = len(materials) - 1

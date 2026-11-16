@@ -14,8 +14,8 @@ HEADER_SIZE: int = 12
 CHUNK_HEADER_SIZE: int = 8
 
 
-def _split(path: Path) -> tuple[bytes, bytes]:
-    """The JSON chunk's content and every chunk after it, as stored."""
+def read_glb(path: Path) -> tuple[dict[str, Any], bytes]:
+    """The JSON chunk, parsed, and every byte after it, as stored."""
     data: bytes = path.read_bytes()
     if len(data) < HEADER_SIZE + CHUNK_HEADER_SIZE or data[:4] != MAGIC:
         raise GlbGenerationError(f"Not a GLB file: {path.name}")
@@ -23,16 +23,11 @@ def _split(path: Path) -> tuple[bytes, bytes]:
     if chunk_type != JSON_CHUNK:
         raise GlbGenerationError(f"GLB file without JSON chunk: {path.name}")
     start: int = HEADER_SIZE + CHUNK_HEADER_SIZE
-    return data[start : start + length], data[start + length :]
+    return json.loads(data[start : start + length]), data[start + length :]
 
 
-def read_glb_json(path: Path) -> dict[str, Any]:
-    return json.loads(_split(path)[0])
-
-
-def write_glb_json(path: Path, gltf: dict[str, Any]) -> None:
-    """Replaces the JSON chunk, keeping the binary chunk."""
-    rest: bytes = _split(path)[1]
+def write_glb(path: Path, gltf: dict[str, Any], rest: bytes) -> None:
+    """Writes ``gltf`` as the JSON chunk, followed by ``rest`` from ``read_glb``."""
     text: bytes = json.dumps(gltf, ensure_ascii=False, separators=(",", ":")).encode()
     # chunks are 4-byte aligned, the JSON chunk with spaces
     text += b" " * (-len(text) % 4)
