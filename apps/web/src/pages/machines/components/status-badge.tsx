@@ -25,9 +25,10 @@ const statusLabels: Record<FileStatus, string> = {
 type StatusBadgeProps = {
     status: FileStatus
     importItem?: ImportItem
+    children?: React.ReactNode
 }
 
-export function StatusBadge({ status, importItem }: StatusBadgeProps) {
+export function StatusBadge({ status, importItem, children }: StatusBadgeProps) {
     if (importItem?.phase === 'uploading') {
         return (
             <Badge className={cn('tabular-nums', statusStyles.uploading)}>
@@ -36,5 +37,10 @@ export function StatusBadge({ status, importItem }: StatusBadgeProps) {
         )
     }
     const shown: FileStatus = importItem ? 'processing' : status
-    return <Badge className={statusStyles[shown]}>{statusLabels[shown]}</Badge>
+    return (
+        <Badge className={statusStyles[shown]}>
+            {statusLabels[shown]}
+            {children}
+        </Badge>
+    )
 }

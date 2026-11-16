@@ -60,7 +60,7 @@ export function FormDialog({
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
 
-                <div className="-mr-2 min-h-0 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] overflow-y-auto px-2">
+                <div className="-mr-2 min-h-0 overflow-y-auto px-2">
                     {children({ close: () => setOpen(false), setBusy })}
                 </div>
             </DialogContent>

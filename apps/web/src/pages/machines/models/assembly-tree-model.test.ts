@@ -1,0 +1,74 @@
+import { describe, expect, it } from 'vitest'
+
+import type { RecordTree } from '../query/machine-api'
+import { formatDimensions, toAssemblyNode, visibleRows } from './assembly-tree-model'
+
+function instance(id: string, name: string, children: RecordTree[] = []): RecordTree {
+    return {
+        record: { '@id': id, '@type': 'AssemblyInstance', name, instanceOf: `G-${id}` },
+        children,
+    }
+}
+
+describe('toAssemblyNode', () => {
+    it('keeps only instances and sorts them by name naturally', () => {
+        const tree = instance('root', 'Cell', [
+            instance('b', 'Gripper:10'),
+            { record: { '@id': 'k', '@type': 'KnowledgeItem' }, children: [] },
+            instance('a', 'Gripper:2', [instance('c', 'Screw:1')]),
+        ])
+
+        const node = toAssemblyNode(tree)
+
+        expect(node.children.map((child) => child.name)).toEqual(['Gripper:2', 'Gripper:10'])
+        expect(node.children[0].children[0]).toMatchObject({
+            id: 'c',
+            groupId: 'G-c',
+        })
+    })
+})
+
+describe('visibleRows', () => {
+    it('lists children only below expanded nodes', () => {
+        const root = toAssemblyNode(
+            instance('root', 'Cell', [
+                instance('a', 'Frame', [instance('c', 'Screw')]),
+                instance('b', 'Gripper', [instance('d', 'Finger')]),
+            ]),
+        )
+
+        const rows = visibleRows(root, new Set(['root', 'a']))
+
+        expect(
+            rows.map(({ node, parentId, level, position, setSize }) => [
+                node.id,
+                parentId,
+                level,
+                `${position}/${setSize}`,
+            ]),
+        ).toEqual([
+            ['root', undefined, 1, '1/1'],
+            ['a', 'root', 2, '1/2'],
+            ['c', 'a', 3, '1/1'],
+            ['b', 'root', 2, '2/2'],
+        ])
+    })
+})
+
+describe('formatDimensions', () => {
+    it('converts meters to millimeters', () => {
+        const group = {
+            '@id': 'g',
+            name: 'Frame',
+            properties: { sizeX: 1.25, sizeY: 0.0805, sizeZ: 2 },
+        }
+
+        expect(formatDimensions(group)).toMatch(/^1.?250 × 80\.5 × 2.?000 mm$/)
+    })
+
+    it('returns undefined when a size is missing', () => {
+        expect(
+            formatDimensions({ '@id': 'g', name: 'Frame', properties: { sizeX: 1 } }),
+        ).toBeUndefined()
+    })
+})
