@@ -16,9 +16,7 @@ export function AssemblyDetails({ node, machineName }: AssemblyDetailsProps) {
     return (
         <div className="grid gap-1 p-1 text-sm">
             {!node.groupId ? (
-                <p className="text-muted-foreground">
-                    The assembly group of this instance no longer exists.
-                </p>
+                <p className="text-muted-foreground">No assembly group assigned.</p>
             ) : group.isPending ? (
                 <div className="grid gap-2">
                     <Skeleton className="h-5 w-3/4" />
