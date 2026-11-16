@@ -148,12 +148,8 @@ class PgRecordStore(RecordStore):
             .order_by(order.desc())
         )
         rows: Sequence[RowMapping] = (await conn.execute(stmt)).mappings().all()
-        record_ids: list[str] = [row[CommonColumn.ID] for row in rows]
-        links: dict[str, list[Link]] = await self._fetch_links(conn, record_ids)
-        return [
-            (self._to_record(row, links.get(rec_id, [])), row["similarity"])
-            for row, rec_id in zip(rows, record_ids)
-        ]
+        records = await self._rows_to_records(conn, rows)
+        return [(record, row["similarity"]) for row, record in zip(rows, records)]
 
     @override
     async def get_records(
@@ -323,6 +319,12 @@ class PgRecordStore(RecordStore):
         """Returns records matching all ``conditions`` sorted by id. Returns all records if ``conditions`` is empty."""
         stmt: Select = self._select_records().where(*conditions)
         rows: Sequence[RowMapping] = (await conn.execute(stmt)).mappings().all()
+        return await self._rows_to_records(conn, rows)
+
+    async def _rows_to_records(
+        self, conn: PgTx, rows: Sequence[RowMapping]
+    ) -> list[Record]:
+        """Converts rows to records with their links."""
         record_ids: list[str] = [row[CommonColumn.ID] for row in rows]
         links: dict[str, list[Link]] = await self._fetch_links(conn, record_ids)
         return [
