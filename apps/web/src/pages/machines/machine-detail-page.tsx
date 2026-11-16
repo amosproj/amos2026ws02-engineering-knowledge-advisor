@@ -133,7 +133,7 @@ function MachineView({ machineId }: { machineId: string }) {
     }
 
     return (
-        <div className="relative -mx-4 -mb-4 min-h-128 flex-1">
+        <div className="relative -mx-4 -mb-4 flex-1">
             {viewer}
             <div className="pointer-events-none absolute inset-2">
                 <ResizablePanelGroup>
