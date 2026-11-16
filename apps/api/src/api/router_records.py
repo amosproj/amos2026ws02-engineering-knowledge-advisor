@@ -279,9 +279,14 @@ async def query_records(
         str, Query(description="Only records matching this query lexically.")
     ],
     cls: Annotated[str | None, Query(description="Only records of this class.")] = None,
+    limit: Annotated[
+        int | None, Query(description="Maximum number of records to return.")
+    ] = None,
 ) -> list[RecordNodeWithScore] | list[RecordView]:
     """Query records by a search term."""
-    found: list[tuple[Record, float]] = await catalog.query_records(session, query, cls)
+    found: list[tuple[Record, float]] = await catalog.query_records(
+        session, query, cls, limit
+    )
     if not include:
         return [
             RecordNodeWithScore(record=to_node(record), similarity_score=score)

@@ -117,7 +117,11 @@ class PgRecordStore(RecordStore):
 
     @override
     async def query_records(
-        self, query: str, cls: str | None = None, tx: PgTx | None = None
+        self,
+        query: str,
+        cls: str | None = None,
+        limit: int | None = None,
+        tx: PgTx | None = None,
     ) -> list[tuple[Record, float]]:
         graph_text = cast(self.table.c[RecordColumn.GRAPH], Text)
         similarity = func.similarity(graph_text, query)
@@ -130,13 +134,18 @@ class PgRecordStore(RecordStore):
                     self.table.c[RecordColumn.CLS] == cls,
                     condition,
                     order=similarity,
+                    limit=limit,
                 )
             return await self._fetch_records_by_similarity(
-                conn, condition, order=similarity
+                conn, condition, order=similarity, limit=limit
             )
 
     async def _fetch_records_by_similarity(
-        self, conn: PgTx, *conditions: ColumnElement[bool], order: ColumnElement[Any]
+        self,
+        conn: PgTx,
+        *conditions: ColumnElement[bool],
+        order: ColumnElement[Any],
+        limit: int | None = None,
     ) -> list[tuple[Record, float]]:
         stmt: Select = (
             select(
@@ -147,6 +156,8 @@ class PgRecordStore(RecordStore):
             .where(*conditions)
             .order_by(order.desc())
         )
+        if limit is not None:
+            stmt = stmt.limit(limit)
         rows: Sequence[RowMapping] = (await conn.execute(stmt)).mappings().all()
         records = await self._rows_to_records(conn, rows)
         return [(record, row["similarity"]) for row, record in zip(rows, records)]

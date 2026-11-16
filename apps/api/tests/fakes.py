@@ -166,7 +166,11 @@ class MemoryRecordStore(RecordStore):
 
     @override
     async def query_records(
-        self, query: str, cls: str | None = None, tx: Tx | None = None
+        self,
+        query: str,
+        cls: str | None = None,
+        limit: int | None = None,
+        tx: Tx | None = None,
     ) -> list[tuple[Record, float]]:
         records = await self.get_all_records()
         if cls is not None:
@@ -179,6 +183,8 @@ class MemoryRecordStore(RecordStore):
                 score = 1.0 / (1 + abs(graph_text.find(query_lower)))
                 matched.append((rec, score))
         matched.sort(key=lambda item: item[1], reverse=True)
+        if limit is not None:
+            matched = matched[:limit]
         return matched
 
 

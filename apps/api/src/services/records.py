@@ -213,14 +213,19 @@ class RecordStore(Protocol):
 
     @abstractmethod
     async def query_records(
-        self, query: str, cls: str | None = None, tx: Tx | None = None
+        self,
+        query: str,
+        cls: str | None = None,
+        limit: int | None = None,
+        tx: Tx | None = None,
     ) -> list[tuple[Record, float]]:
         """Returns records matched by lexical search.
 
         Args:
-            tx: transaction, or ``None``.
+            query: search text for pg_trgm lexical matching.
             cls: only records of this class, or ``None`` for all.
-            query: search text for pg_trgm lexical matching
+            limit: maximum number of records to return, or ``None`` for no limit.
+            tx: transaction, or ``None``.
 
         Returns:
             Matching records sorted by similarity with similarity score.
