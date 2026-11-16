@@ -8,7 +8,7 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
-from sqlalchemy import MetaData, insert, select, text
+from sqlalchemy import MetaData, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from db import CommonColumn, RecordColumn, TableName, Tables, define_tables
+from db.names import CadUploadColumn
 from services.postgres.upload_store import PgUploadStore
 from services.uploads import LockTimeoutError, Upload, UploadStatus
 
@@ -28,6 +29,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 FIRST_ID: str = "file-1"
+MODEL_KEY: str = "files/file-1/model.glb"
 SECOND_ID: str = "file-2"
 MISSING_ID: str = "file-9"
 SIZE: int = 300
@@ -143,11 +145,42 @@ def test_the_same_content_may_be_ready_twice():
         async with open_store(FIRST_ID, SECOND_ID) as (store, sessions):
             await finish(store, sessions, FIRST_ID, SECOND_ID)
             async with sessions() as session, session.begin():
-                await store.set_ready(FIRST_ID, SHA256, session)
-                await store.set_ready(SECOND_ID, SHA256, session)
+                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, session)
+                await store.set_ready(SECOND_ID, SHA256, None, session)
 
             for file_id in (FIRST_ID, SECOND_ID):
                 assert (await get_upload(store, sessions, file_id)).status == "ready"
+
+    run_async(run_check)
+
+
+def test_set_ready_stores_the_model_key_or_none():
+    async def run_check() -> None:
+        async with open_store(FIRST_ID, SECOND_ID) as (store, sessions):
+            await finish(store, sessions, FIRST_ID, SECOND_ID)
+            async with sessions() as session, session.begin():
+                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, session)
+                await store.set_ready(SECOND_ID, SHA256, None, session)
+
+            assert (await get_upload(store, sessions, FIRST_ID)).model_key == MODEL_KEY
+            assert (await get_upload(store, sessions, SECOND_ID)).model_key is None
+
+    run_async(run_check)
+
+
+def test_restarting_a_failed_upload_clears_the_model_key():
+    async def run_check() -> None:
+        async with open_store(FIRST_ID) as (store, sessions):
+            async with sessions() as session, session.begin():
+                await store.finish_upload(FIRST_ID, FILE_MISMATCH, session)
+                # a leftover key, e.g. written by an older worker
+                await session.execute(
+                    update(store.table).values({CadUploadColumn.MODEL_KEY: MODEL_KEY})
+                )
+                restarted: Upload | None = await store.start_upload(
+                    FIRST_ID, f"files/{FIRST_ID}/source.step", SIZE, session
+                )
+            assert restarted is not None and restarted.model_key is None
 
     run_async(run_check)
 

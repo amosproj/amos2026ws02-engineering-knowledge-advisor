@@ -259,7 +259,9 @@ class MemoryUploadStore(UploadStore):
         raise NotImplementedError
 
     @override
-    async def set_ready(self, file_id: str, sha256: str, tx: Tx) -> None:
+    async def set_ready(
+        self, file_id: str, sha256: str, model_key: str | None, tx: Tx
+    ) -> None:
         raise NotImplementedError
 
     @override
@@ -299,6 +301,20 @@ class MemoryStorage(ObjectStorage):
     @override
     def create_upload_form(self, key: str, size: int) -> tuple[str, dict[str, str]]:
         return "/storage/test", {"key": key}
+
+    @override
+    def upload_file(
+        self,
+        key: str,
+        path: Path,
+        content_type: str,
+        content_encoding: str | None = None,
+    ) -> None:
+        self.sizes[key] = path.stat().st_size
+
+    @override
+    def create_download_url(self, key: str) -> str:
+        return f"/storage/test/{key}?signed"
 
     @override
     def get_object_size(self, key: str) -> int | None:

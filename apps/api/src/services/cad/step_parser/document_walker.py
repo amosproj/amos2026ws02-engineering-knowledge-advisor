@@ -9,7 +9,7 @@ from OCP.TDF import TDF_Label
 from OCP.TDocStd import TDocStd_Document
 from OCP.TopAbs import TopAbs_FACE
 from OCP.TopLoc import TopLoc_Location
-from OCP.XCAFDoc import XCAFDoc_DocumentTool, XCAFDoc_LengthUnit, XCAFDoc_ShapeTool
+from OCP.XCAFDoc import XCAFDoc_DocumentTool, XCAFDoc_ShapeTool
 
 from logger import logger
 from services.cad.errors import StepImportError
@@ -21,7 +21,12 @@ from services.cad.model import (
     Vector3,
     round_length,
 )
-from services.cad.xde import count_subshapes, label_entry, label_name
+from services.cad.xde import (
+    count_subshapes,
+    document_length_unit,
+    label_entry,
+    label_name,
+)
 
 GENERIC_INSTANCE_NAME: re.Pattern[str] = re.compile(r"^(NAUO\d+|=>\[.*\])$")
 # XDE names unnamed representation items after their shape type
@@ -39,8 +44,6 @@ SHAPE_TYPE_NAMES: frozenset[str] = frozenset(
     }
 )
 UNNAMED: str = "Unnamed"
-# Open CASCADE reads STEP lengths in millimeters by default
-DEFAULT_LENGTH_UNIT: float = 0.001
 
 
 @dataclass(frozen=True)
@@ -59,7 +62,7 @@ class DocumentWalker:
         self.shape_tool: XCAFDoc_ShapeTool = XCAFDoc_DocumentTool.ShapeTool_s(
             document.Main()
         )
-        self.unit: float = self._length_unit()
+        self.unit: float = document_length_unit(document)
         self.infos: dict[str, _DefinitionInfo] = {}
         self.definitions: dict[str, CadDefinition] = {}
         self.occurrences: list[CadOccurrence] = []
@@ -87,15 +90,6 @@ class DocumentWalker:
             bounding_box=box,
             document=self.document,
         )
-
-    def _length_unit(self) -> float:
-        root: TDF_Label = self.document.Main().Root()
-        attribute = XCAFDoc_LengthUnit()
-        if root.IsAttribute(XCAFDoc_LengthUnit.GetID_s()) and root.FindAttribute(
-            XCAFDoc_LengthUnit.GetID_s(), attribute
-        ):
-            return attribute.GetUnitValue()
-        return DEFAULT_LENGTH_UNIT
 
     def _resolve(self, label: TDF_Label) -> TDF_Label | None:
         if not self.shape_tool.IsReference_s(label):

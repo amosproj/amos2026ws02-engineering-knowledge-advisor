@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Generator, Iterator
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 
 class ObjectStorageError(Exception):
@@ -30,6 +31,25 @@ class ObjectStorage(ABC):
     @abstractmethod
     def create_upload_form(self, key: str, size: int) -> tuple[str, dict[str, str]]:
         """Returns the URL and the fields of a form the browser posts the file of exactly ``size`` bytes with."""
+        ...
+
+    @abstractmethod
+    def upload_file(
+        self,
+        key: str,
+        path: Path,
+        content_type: str,
+        content_encoding: str | None = None,
+    ) -> None:
+        """Stores the local file at ``path`` under ``key``, replacing an object there.
+
+        ``content_encoding`` (e.g. ``gzip``) is sent with each download, so the browser unpacks it.
+        """
+        ...
+
+    @abstractmethod
+    def create_download_url(self, key: str) -> str:
+        """Returns a short-lived link the browser downloads the object with."""
         ...
 
     @abstractmethod

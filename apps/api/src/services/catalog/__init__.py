@@ -6,6 +6,7 @@ The records live in OG-RAG, the upload state of each file record (class marked `
 
 from services.catalog.errors import BusyError as BusyError
 from services.catalog.errors import CadFileConflictError as CadFileConflictError
+from services.catalog.errors import FileNotReadyError as FileNotReadyError
 from services.catalog.errors import ImportFailedError as ImportFailedError
 from services.catalog.errors import NotFoundError as NotFoundError
 from services.catalog.errors import UploadExistsError as UploadExistsError

@@ -1,11 +1,14 @@
 """The CAD file worker on a scratch Postgres, with an in-memory object storage."""
 
 import asyncio
+import gzip
+import logging
 import os
 import tempfile
 import threading
 from collections.abc import AsyncGenerator, Callable, Coroutine, Generator, Iterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -23,11 +26,13 @@ from step_documents import DocumentBuilder, box
 
 from cad_file_worker import cleanup, processing
 from cad_file_worker.cleanup import delete_orphan_objects, expire_abandoned_uploads
+from cad_file_worker.conversion import Conversion
 from cad_file_worker.processing import process_next_cad_upload
 from db import TableName, Tables, define_tables
+from logger import logger
 from services import Record
 from services.catalog import CatalogService, PresignedForm, TreeNode
-from services.object_storage import ObjectStorage, StoredObject
+from services.object_storage import ObjectStorage, ObjectStorageError, StoredObject
 from services.ograg.ontology import Ontology
 from services.ograg.service import OgRagService
 from services.postgres.record_store import PgRecordStore
@@ -69,6 +74,7 @@ class ContentStorage(ObjectStorage):
     def __init__(self) -> None:
         self.contents: dict[str, bytes] = {}
         self.modified: dict[str, datetime] = {}
+        self.encodings: dict[str, str | None] = {}
 
     def put(self, key: str, content: bytes, modified: datetime | None = None) -> None:
         self.contents[key] = content
@@ -79,6 +85,19 @@ class ContentStorage(ObjectStorage):
 
     def create_upload_form(self, key: str, size: int) -> tuple[str, dict[str, str]]:
         return "/storage/test", {"key": key}
+
+    def upload_file(
+        self,
+        key: str,
+        path: Path,
+        content_type: str,
+        content_encoding: str | None = None,
+    ) -> None:
+        self.put(key, path.read_bytes())
+        self.encodings[key] = content_encoding
+
+    def create_download_url(self, key: str) -> str:
+        return f"/storage/test/{key}?signed"
 
     def get_object_size(self, key: str) -> int | None:
         content: bytes | None = self.contents.get(key)
@@ -229,7 +248,11 @@ def test_a_valid_step_file_becomes_ready():
             upload: Upload | None = await worker.get_upload(file_id)
             assert upload is not None and upload.status == UploadStatus.READY
             assert await worker.get_status(worker.machine_id) == UploadStatus.READY
-            assert worker.storage.contents
+            model_key: str = f"files/{file_id}/model.glb"
+            assert upload.model_key == model_key
+            # gzipped, the browser unpacks it on download
+            assert worker.storage.encodings[model_key] == "gzip"
+            assert gzip.decompress(worker.storage.contents[model_key])[:4] == b"glTF"
             assert not await worker.process()
             group, instance = await worker.get_assemblies()
             assert (group.cls, group.input["name"]) == ("AssemblyGroup", "Plate")
@@ -281,7 +304,13 @@ def test_the_same_content_is_ready_on_two_machines():
             for file_id in (first_id, copy_id):
                 upload: Upload | None = await worker.get_upload(file_id)
                 assert upload is not None and upload.status == UploadStatus.READY
-            assert len(worker.storage.contents) == 2
+            # each file with its source and its 3D model
+            assert sorted(key.rsplit("/", 1)[1] for key in worker.storage.contents) == [
+                "model.glb",
+                "model.glb",
+                "source.step",
+                "source.step",
+            ]
             assert len(await worker.get_assemblies()) == 2
 
     run_async(run_check)
@@ -320,6 +349,72 @@ def test_a_machine_with_an_assembly_tree_refuses_the_import():
             assert await worker.get_assemblies() == kept
             assert "properties" not in (await worker.get_machine()).input
             assert worker.storage.contents == {}
+
+    run_async(run_check)
+
+
+def test_a_glb_failure_still_makes_the_file_ready(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+):
+    convert = processing.convert_step_file
+
+    def convert_without_glb(
+        step_path: Path,
+        glb_path: Path,
+        timeout: float,
+        stopping: threading.Event,
+        on_progress: Callable[[], None],
+    ) -> Conversion:
+        result: Conversion = convert(
+            step_path, glb_path, timeout, stopping, on_progress
+        )
+        glb_path.unlink()
+        return replace(result, glb_error="RuntimeError: boom")
+
+    async def run_check() -> None:
+        async with open_worker() as worker:
+            file_id: str = await worker.add_processing_file(STEP)
+            monkeypatch.setattr(processing, "convert_step_file", convert_without_glb)
+
+            with caplog.at_level(logging.WARNING, logger=logger.name):
+                assert await worker.process()
+
+            upload: Upload | None = await worker.get_upload(file_id)
+            assert upload is not None
+            assert (upload.status, upload.model_key) == ("ready", None)
+            assert len(await worker.get_assemblies()) == 2
+            assert any(
+                file_id in entry.getMessage() and "boom" in entry.getMessage()
+                for entry in caplog.records
+            )
+
+    run_async(run_check)
+
+
+def test_an_upload_failure_still_makes_the_file_ready(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+):
+    def fail(*_: object) -> None:
+        raise ObjectStorageError("storage down")
+
+    async def run_check() -> None:
+        async with open_worker() as worker:
+            file_id: str = await worker.add_processing_file(STEP)
+            monkeypatch.setattr(worker.storage, "upload_file", fail)
+
+            with caplog.at_level(logging.ERROR, logger=logger.name):
+                assert await worker.process()
+
+            upload: Upload | None = await worker.get_upload(file_id)
+            assert upload is not None
+            assert (upload.status, upload.model_key) == ("ready", None)
+            assert not await worker.process()
+            errors = [
+                entry
+                for entry in caplog.records
+                if entry.levelno == logging.ERROR and file_id in entry.getMessage()
+            ]
+            assert errors and errors[0].exc_info is not None
 
     run_async(run_check)
 

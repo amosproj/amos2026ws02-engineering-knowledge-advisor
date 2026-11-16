@@ -11,7 +11,7 @@ import pytest
 from step_documents import DocumentBuilder, box
 
 from cad_file_worker import conversion
-from cad_file_worker.conversion import convert_step_file
+from cad_file_worker.conversion import Conversion, convert_step_file
 from cad_file_worker.errors import ConversionTimeoutError, StopRequested
 from services.cad.errors import StepImportError
 from services.cad.model import CadModel
@@ -37,9 +37,20 @@ def _hang_after_closing_the_pipe(_step: Path, _glb: Path, sender: Connection) ->
     time.sleep(TIMEOUT)
 
 
+def _glb_fails(step_path: Path, glb_path: Path, sender: Connection) -> None:
+    """The real conversion, with a GLB generator that raises (patched in the child)."""
+    from services.cad.glb_generator import GlbGenerator
+
+    def fail(*_: object) -> list[str]:
+        raise RuntimeError("boom")
+
+    GlbGenerator.generate = fail  # pyright: ignore[reportAttributeAccessIssue]
+    conversion._convert(step_path, glb_path, sender)
+
+
 def convert(
     step_path: Path, timeout: float = TIMEOUT, stopping: threading.Event | None = None
-) -> CadModel:
+) -> Conversion:
     return convert_step_file(
         step_path,
         step_path.with_suffix(".glb"),
@@ -60,10 +71,36 @@ def test_the_model_comes_back_without_its_document(tmp_path: Path):
     builder.part("Plate", box())
     step_path: Path = builder.write_step(tmp_path / "plate.step")
 
-    model: CadModel = convert(step_path)
+    model: CadModel = convert(step_path).model
 
     assert [occ.name for occ in model.occurrences] == ["Plate"]
     assert model.document is None
+
+
+def test_a_glb_is_written(tmp_path: Path):
+    builder = DocumentBuilder()
+    builder.part("Plate", box())
+    step_path: Path = builder.write_step(tmp_path / "plate.step")
+
+    result: Conversion = convert(step_path)
+
+    assert result.glb_error is None
+    assert step_path.with_suffix(".glb").read_bytes()[:4] == b"glTF"
+
+
+def test_a_glb_failure_still_returns_the_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    builder = DocumentBuilder()
+    builder.part("Plate", box())
+    step_path: Path = builder.write_step(tmp_path / "plate.step")
+    monkeypatch.setattr(conversion, "_convert", _glb_fails)
+
+    result: Conversion = convert(step_path)
+
+    assert [occ.name for occ in result.model.occurrences] == ["Plate"]
+    assert result.glb_error == "RuntimeError: boom"
+    assert not step_path.with_suffix(".glb").exists()
 
 
 def test_an_invalid_file_raises_the_parser_error(tmp_path: Path):

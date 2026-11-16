@@ -16,6 +16,19 @@ POLL_SECONDS = 0.5
 
 
 @dataclass(frozen=True)
+class Conversion:
+    """The parsed model, and how its GLB went.
+
+    Attributes:
+        model: the model, ``document=None``.
+        glb_error: why no GLB was written, ``None`` when it was.
+    """
+
+    model: CadModel
+    glb_error: str | None = None
+
+
+@dataclass(frozen=True)
 class _Failure:
     message: str
 
@@ -26,7 +39,7 @@ class _Reader(threading.Thread):
     def __init__(self, receiver: Connection) -> None:
         super().__init__(daemon=True)
         self.receiver: Connection = receiver
-        self.result: CadModel | _Failure | None = None
+        self.result: Conversion | _Failure | None = None
 
     def run(self) -> None:
         try:
@@ -42,8 +55,10 @@ def convert_step_file(
     timeout: float,
     stopping: threading.Event,
     on_progress: Callable[[], None],
-) -> CadModel:
+) -> Conversion:
     """Parses the STEP file and writes its GLB scene to ``glb_path``.
+
+    A GLB failure does not fail the conversion: it comes back in ``Conversion.glb_error``.
 
     Raises:
         StepImportError: the file cannot be parsed, or the child process died.
@@ -95,13 +110,20 @@ def _convert(step_path: Path, glb_path: Path, sender: Connection) -> None:
     from services.cad.glb_generator import GlbGenerator
     from services.cad.step_parser import StepParser
 
-    result: CadModel | _Failure
+    result: Conversion | _Failure
     try:
         model: CadModel = StepParser().parse(step_path)
-        GlbGenerator().generate(model, glb_path)
-        # the document cannot be pickled, so document=None
-        result = replace(model, document=None)
     except StepImportError as error:
         result = _Failure(str(error))
+    else:
+        glb_error: str | None = None
+        try:
+            GlbGenerator().generate(model, glb_path)
+        except Exception as error:  # noqa: BLE001 - no GLB failure may fail the import
+            # the 3D model is optional: the parent logs why and imports the tree anyway
+            glb_error = f"{type(error).__name__}: {error}"
+            glb_path.unlink(missing_ok=True)
+        # the document cannot be pickled, so document=None
+        result = Conversion(replace(model, document=None), glb_error)
     sender.send(result)
     sender.close()

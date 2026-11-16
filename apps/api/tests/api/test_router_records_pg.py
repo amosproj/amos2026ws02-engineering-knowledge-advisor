@@ -4,6 +4,7 @@ import asyncio
 import os
 from collections.abc import AsyncGenerator, Callable, Generator, Iterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import psycopg
@@ -54,6 +55,18 @@ class FakeStorage(ObjectStorage):
 
     def create_upload_form(self, key: str, size: int) -> tuple[str, dict[str, str]]:
         return "/storage/test", {"key": key}
+
+    def upload_file(
+        self,
+        key: str,
+        path: Path,
+        content_type: str,
+        content_encoding: str | None = None,
+    ) -> None:
+        raise NotImplementedError
+
+    def create_download_url(self, key: str) -> str:
+        raise NotImplementedError
 
     def get_object_size(self, key: str) -> int | None:
         return self.sizes.get(key)

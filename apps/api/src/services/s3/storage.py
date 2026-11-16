@@ -1,9 +1,12 @@
 import time
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
+from urllib.parse import SplitResult, urlsplit
 
 import boto3
+from boto3.exceptions import Boto3Error
 from botocore.config import Config
 from botocore.exceptions import (
     BotoCoreError,
@@ -31,13 +34,15 @@ BUCKET_CHECK_DELAY_SECONDS = 2
 UPLOAD_FORM_EXPIRES_SECONDS = 3600
 UPLOAD_CONTENT_TYPE = "application/octet-stream"
 DELETE_BATCH_SIZE = 1000
+DOWNLOAD_URL_EXPIRES_SECONDS = 300
 
 
 @contextmanager
 def _storage_errors() -> Generator[None]:
     try:
         yield
-    except (BotoCoreError, ClientError) as error:
+    # the managed upload raises Boto3Error (S3UploadFailedError)
+    except (BotoCoreError, ClientError, Boto3Error) as error:
         raise ObjectStorageError(str(error)) from error
 
 
@@ -60,6 +65,8 @@ class S3ObjectStorage(ObjectStorage):
                 read_timeout=30,
                 retries={"max_attempts": 0},
                 s3={"addressing_style": "path"},
+                # presigned links default to the deprecated signature version 2
+                signature_version="s3v4",
             ),
         )
         self._bucket: str = settings.s3_bucket
@@ -101,6 +108,37 @@ class S3ObjectStorage(ObjectStorage):
                 ExpiresIn=UPLOAD_FORM_EXPIRES_SECONDS,
             )
         return self._public_url, form["fields"]
+
+    def upload_file(
+        self,
+        key: str,
+        path: Path,
+        content_type: str,
+        content_encoding: str | None = None,
+    ) -> None:
+        extra_args: dict[str, str] = {"ContentType": content_type}
+        if content_encoding is not None:
+            extra_args["ContentEncoding"] = content_encoding
+        with _storage_errors():
+            # multipart for large files
+            self._client.upload_file(
+                Filename=str(path),
+                Bucket=self._bucket,
+                Key=key,
+                ExtraArgs=extra_args,
+            )
+
+    def create_download_url(self, key: str) -> str:
+        with _storage_errors():
+            signed: str = self._client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": self._bucket, "Key": key},
+                ExpiresIn=DOWNLOAD_URL_EXPIRES_SECONDS,
+            )
+        # signed for the internal endpoint's host, which the proxy forwards to; the browser uses the public URL
+        parts: SplitResult = urlsplit(signed)
+        object_path: str = parts.path.removeprefix(f"/{self._bucket}")
+        return f"{self._public_url}{object_path}?{parts.query}"
 
     def get_object_size(self, key: str) -> int | None:
         with _storage_errors():
