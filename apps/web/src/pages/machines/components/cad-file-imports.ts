@@ -1,9 +1,7 @@
 import { toast } from '@components'
 import type { QueryClient } from '@tanstack/react-query'
 
-import { HttpError } from '@queries/query-errors'
-
-import { createCadFile, deleteRecord, machinesQueryKey, updateCadFile } from '../query/machine-api'
+import { createCadFile, machinesQueryKey, updateCadFile } from '../query/machine-api'
 import type { ImportItem, ImportTarget } from './cad-file-import-context'
 import { CANCELLED, importCadFile, type ImportResult } from './cad-file-import-flow'
 
@@ -92,19 +90,11 @@ export function createImports(queryClient: QueryClient, onChange: (items: Import
     return { start, cancel, setMounted }
 }
 
-async function register({ machineId, file, reuseId, replaceId }: ImportTarget) {
+async function register({ machineId, file, reuseId }: ImportTarget) {
     const details = { name: file.name, timestamp: new Date(file.lastModified).toISOString() }
     if (reuseId) {
         await updateCadFile({ params: { id: reuseId }, body: details })
         return reuseId
-    }
-    if (replaceId) {
-        try {
-            await deleteRecord({ params: { id: replaceId } })
-        } catch (error) {
-            // Deleted by an earlier attempt whose new record could not be created
-            if (!(error instanceof HttpError && error._tag === 'NotFound')) throw error
-        }
     }
     const created = await createCadFile({
         body: { '@type': 'CadFile', ...details, format: 'STEP', partOf: machineId },

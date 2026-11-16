@@ -15,6 +15,7 @@ import {
     ResizableHandle,
     ResizablePanel,
     ResizablePanelGroup,
+    ScrollArea,
     Skeleton,
     Spinner,
     useIsMobile,
@@ -101,17 +102,23 @@ function MachineView({ machineId }: { machineId: string }) {
     )
     const treePanel = (
         <Panel className={isMobile ? 'h-96' : 'h-full'} title="Assembly tree">
-            <TreeArea
-                machine={machine.data}
-                importItem={importItem}
-                selectedId={selected?.id}
-                onSelect={setSelected}
-            />
+            <ScrollArea className="min-h-0 flex-1">
+                <div className="p-2">
+                    <TreeArea
+                        machine={machine.data}
+                        importItem={importItem}
+                        selectedId={selected?.id}
+                        onSelect={setSelected}
+                    />
+                </div>
+            </ScrollArea>
         </Panel>
     )
     const detailsPanel = selected ? (
         <Panel className="max-h-full" title={selected.name} onClose={() => setSelected(undefined)}>
-            <AssemblyDetails node={selected} machineName={record.name} />
+            <div className="min-h-0 flex-1 overflow-auto p-2">
+                <AssemblyDetails node={selected} machineName={record.name} />
+            </div>
         </Panel>
     ) : null
 
@@ -196,7 +203,7 @@ function Panel({ title, className, onClose, children }: PanelProps) {
                     </Button>
                 ) : null}
             </header>
-            <div className="min-h-0 flex-1 overflow-auto p-2">{children}</div>
+            {children}
         </section>
     )
 }

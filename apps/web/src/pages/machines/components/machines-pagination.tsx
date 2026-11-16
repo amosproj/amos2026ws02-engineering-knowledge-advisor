@@ -17,8 +17,6 @@ type MachinesPaginationProps = {
 }
 
 export function MachinesPagination({ page, pageCount }: MachinesPaginationProps) {
-    if (pageCount <= 1) return null
-
     return (
         <Pagination>
             <PaginationContent>

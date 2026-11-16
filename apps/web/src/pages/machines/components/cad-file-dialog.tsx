@@ -38,9 +38,6 @@ export function CadFileDialog({ machineId, action, ...dialogProps }: CadFileDial
 }
 
 function describe(action: CadFileAction) {
-    if (action.kind === 'replace') {
-        return `${action.name} is deleted and replaced by the new file. ${BACKGROUND_NOTE}`
-    }
     if (action.kind === 'retry' && action.interrupted) {
         return `An upload of this file may still run in another tab, this one replaces it. ${BACKGROUND_NOTE}`
     }
@@ -49,7 +46,6 @@ function describe(action: CadFileAction) {
 
 function toTarget(machineId: string, action: CadFileAction): Omit<ImportTarget, 'file'> {
     if (action.kind === 'retry') return { machineId, reuseId: action.cadFileId }
-    if (action.kind === 'replace') return { machineId, replaceId: action.cadFileId }
     return { machineId }
 }
 

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { InformationCircleIcon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 
 import {
     ConfirmationPopup,
@@ -12,6 +14,9 @@ import {
     TableHeader,
     TableRow,
     toast,
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
 } from '@components'
 
 import { cadFileErrorMessage, errorMessage } from '../models/machine-errors'
@@ -114,11 +119,12 @@ function MachineRow({ machine }: { machine: MachineView }) {
             <TableCell>{record.identifier}</TableCell>
             <TableCell className="max-w-48 truncate">{record.customer}</TableCell>
             <TableCell className="max-w-48 truncate">{cadFile?.name}</TableCell>
-            <TableCell className="max-w-64 whitespace-normal">
-                <StatusBadge status={status} importItem={importItem} />
+            <TableCell>
                 {status === 'failed' && cadFile && !importItem ? (
-                    <CadFileError cadFileId={cadFile['@id']} />
-                ) : null}
+                    <FailedStatus cadFileId={cadFile['@id']} />
+                ) : (
+                    <StatusBadge status={status} importItem={importItem} />
+                )}
             </TableCell>
             <TableCell className="relative z-10 text-right">
                 <ActionsMenu label={`Actions of ${record.name}`} size="icon-sm" actions={actions} />
@@ -145,12 +151,29 @@ function MachineRow({ machine }: { machine: MachineView }) {
     )
 }
 
-function CadFileError({ cadFileId }: { cadFileId: string }) {
+function FailedStatus({ cadFileId }: { cadFileId: string }) {
     const { data } = useQuery(cadFileQuery(cadFileId))
-    if (!data?.upload) return null
+    const reason = cadFileErrorMessage(data?.upload?.errorCode)
     return (
-        <p className="text-destructive mt-1 text-sm">
-            {cadFileErrorMessage(data.upload.errorCode)}
-        </p>
+        <Tooltip>
+            <TooltipTrigger
+                render={
+                    <button
+                        type="button"
+                        aria-label={`Failed: ${reason}`}
+                        className="focus-visible:ring-ring relative z-10 rounded-2xl outline-none focus-visible:ring-2"
+                    />
+                }
+            >
+                <StatusBadge status="failed">
+                    <HugeiconsIcon
+                        icon={InformationCircleIcon}
+                        strokeWidth={2}
+                        data-icon="inline-end"
+                    />
+                </StatusBadge>
+            </TooltipTrigger>
+            <TooltipContent>{reason}</TooltipContent>
+        </Tooltip>
     )
 }
