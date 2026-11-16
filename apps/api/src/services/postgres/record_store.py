@@ -116,6 +116,46 @@ class PgRecordStore(RecordStore):
             return await self._fetch_records(conn)
 
     @override
+    async def query_records(
+        self, query: str, cls: str | None = None, tx: PgTx | None = None
+    ) -> list[tuple[Record, float]]:
+        graph_text = cast(self.table.c[RecordColumn.GRAPH], Text)
+        similarity = func.similarity(graph_text, query)
+        condition = similarity > 0
+
+        async with get_transaction(self.engine, tx) as conn:
+            if cls is not None:
+                return await self._fetch_records_by_similarity(
+                    conn,
+                    self.table.c[RecordColumn.CLS] == cls,
+                    condition,
+                    order=similarity,
+                )
+            return await self._fetch_records_by_similarity(
+                conn, condition, order=similarity
+            )
+
+    async def _fetch_records_by_similarity(
+        self, conn: PgTx, *conditions: ColumnElement[bool], order: ColumnElement[Any]
+    ) -> list[tuple[Record, float]]:
+        stmt: Select = (
+            select(
+                *(self.table.c[col] for col in self.COLUMNS),
+                self._get_version_column(),
+                order.label("similarity"),
+            )
+            .where(*conditions)
+            .order_by(order.desc())
+        )
+        rows: Sequence[RowMapping] = (await conn.execute(stmt)).mappings().all()
+        record_ids: list[str] = [row[CommonColumn.ID] for row in rows]
+        links: dict[str, list[Link]] = await self._fetch_links(conn, record_ids)
+        return [
+            (self._to_record(row, links.get(rec_id, [])), row["similarity"])
+            for row, rec_id in zip(rows, record_ids)
+        ]
+
+    @override
     async def get_records(
         self, record_ids: Sequence[str], tx: PgTx | None = None
     ) -> list[Record]:

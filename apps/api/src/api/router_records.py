@@ -29,6 +29,7 @@ from model import (
     RecordWritten,
 )
 from model.problem import Problem
+from model.response import RecordNodeWithScore
 from services import Record
 from services.catalog import (
     CatalogService,
@@ -62,6 +63,9 @@ RESPONSE_DETAIL_200_PATCH: str = (
     "Successfully changed record including validation drops."
 )
 RESPONSE_DETAIL_200_GET_ALL: str = "All records sorted by their id."
+RESPONSE_DETAIL_200_QUERY: str = (
+    "Records matching the query sorted by similarity score."
+)
 RESPONSE_DETAIL_200_GET_REVIEW: str = "Records marked for manual user review."
 RESPONSE_DETAIL_200_GET: str = "Requested record."
 RESPONSE_DETAIL_200_DELETE: str = (
@@ -257,6 +261,38 @@ async def get_records(
     if not include:
         return Records([to_node(rec) for rec in found])
     return await _to_views(catalog, session, found, include)
+
+
+@v1_records_router.get(
+    "/records/query",
+    response_model_exclude_unset=True,
+    responses={
+        200: {"description": RESPONSE_DETAIL_200_QUERY},
+        422: {"model": Problem, "description": RESPONSE_DETAIL_422_INVALID_REQUEST},
+    },
+)
+async def query_records(
+    catalog: Catalog,
+    session: Session,
+    include: Includes,
+    query: Annotated[
+        str, Query(description="Only records matching this query lexically.")
+    ],
+    cls: Annotated[str | None, Query(description="Only records of this class.")] = None,
+) -> list[RecordNodeWithScore] | list[RecordView]:
+    """Query records by a search term."""
+    found: list[tuple[Record, float]] = await catalog.query_records(session, query, cls)
+    if not include:
+        return [
+            RecordNodeWithScore(record=to_node(record), similarity_score=score)
+            for record, score in found
+        ]
+
+    records_only = [record for record, score in found]
+    views = await _to_views(catalog, session, records_only, include)
+    for view, score in zip(views, [score for record, score in found]):
+        view.similarity_score = score
+    return views
 
 
 @v1_records_router.get(

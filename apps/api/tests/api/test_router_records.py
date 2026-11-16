@@ -360,6 +360,48 @@ def test_a_write_with_an_old_version_is_refused(
     assert view["version"] == tree["version"] == renamed.json()["version"]
 
 
+def test_query_records_returns_matches_sorted_by_score(
+    client: TestClient, service: OgRagService
+):
+    seed_machine_and_group(service)
+    put_record(client, ITEM_ID, LINKED_ITEM)
+    put_record(client, "CF-1", CAD_FILE)
+
+    # Query matches "Chamfer" in the KnowledgeItem's statement
+    result: list[dict[str, Any]] = client.get(
+        f"{RECORDS_URL}/query?query=Chamfer"
+    ).json()
+    assert len(result) == 1
+    assert result[0]["record"]["@id"] == ITEM_ID
+    assert "similarityScore" in result[0]
+    assert 0 < result[0]["similarityScore"] <= 1.0
+
+    # Query matches "Robot" in the Machine's name
+    result = client.get(f"{RECORDS_URL}/query?query=Robot").json()
+    assert len(result) == 1
+    assert result[0]["record"]["@id"] == MACHINE_ID
+
+    # Query matches multiple records, sorted by score
+    result = client.get(f"{RECORDS_URL}/query?query=cell").json()
+    # "cell" appears in Machine name "Robot cell" and CadFile name "cell.step"
+    assert len(result) == 2
+    # Earlier position in text gets higher score
+    assert result[0]["similarityScore"] >= result[1]["similarityScore"]
+
+    # Query with no matches returns empty list
+    result = client.get(f"{RECORDS_URL}/query?query=nonexistentterm").json()
+    assert result == []
+
+    # Query filtered by class
+    result = client.get(f"{RECORDS_URL}/query?query=cell&cls=Machine").json()
+    assert len(result) == 1
+    assert result[0]["record"]["@id"] == MACHINE_ID
+
+    # Query with non-matching class returns empty
+    result = client.get(f"{RECORDS_URL}/query?query=Chamfer&cls=Machine").json()
+    assert result == []
+
+
 def test_records_are_filtered_by_class_and_parent(
     client: TestClient, service: OgRagService
 ):

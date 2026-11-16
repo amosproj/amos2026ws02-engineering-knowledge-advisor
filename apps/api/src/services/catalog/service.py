@@ -170,6 +170,19 @@ class CatalogService:
             return await self.ograg.store.get_all_records(session)
         return await self.ograg.store.get_records_by_class(cls, session)
 
+    async def query_records(
+        self, session: Tx, query: str, cls: str | None = None
+    ) -> list[tuple[Record, float]]:
+        """
+        Records matching ``query`` lexically, sorted by similarity score (0.0–1.0, higher is more similar).
+
+        Args:
+            session: transaction.
+            query: the query string to match lexically.
+            cls: only records of this class.
+        """
+        return await self.ograg.store.query_records(query, cls, session)
+
     def is_file_record(self, record: Record) -> bool:
         """Whether ``record``'s class carries a file (``og:file``)."""
         return record.cls in self.ograg.ontology.file_classes
