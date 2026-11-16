@@ -75,6 +75,9 @@ class FileUpload(CamelModel):
     size_bytes: int = Field(description="Announced size, checked on complete.")
     created_at: datetime = Field(description="When the upload form was requested.")
     updated_at: datetime = Field(description="Last status change.")
+    has_model: bool = Field(
+        description="Whether the 3D model (GLB) can be downloaded: GET /records/{id}/model."
+    )
 
 
 class RecordView(CamelModel):

@@ -10,6 +10,8 @@ const envDir = fileURLToPath(new URL('../..', import.meta.url))
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, envDir, '')
     const storageUploadPath = `/storage/${env.S3_BUCKET}`
+    // presigned downloads of the 3D models, mirrors the Nginx rule
+    const modelDownloadPath = new RegExp(`^/storage/${env.S3_BUCKET}/files/[^/?]+/model\\.glb\\?`)
 
     return {
         envDir,
@@ -45,9 +47,21 @@ export default defineConfig(({ mode }) => {
                 '/storage': {
                     target: env.WEB_STORAGE_PROXY_TARGET || 'http://localhost:9000',
                     rewrite: (path) => path.replace(/^\/storage/, ''),
-                    // Only presigned POST uploads may reach object storage
+                    // a presigned link is signed for the storage's host, which the target is
+                    changeOrigin: true,
+                    // the link carries the credentials; S3 refuses a second one, e.g. the app's Authorization header
+                    configure: (proxy) => {
+                        proxy.on('proxyReq', (proxyReq) => {
+                            proxyReq.removeHeader('authorization')
+                            proxyReq.removeHeader('cookie')
+                        })
+                    },
+                    // Only presigned POST uploads and presigned model downloads may reach object storage
                     bypass: (req) =>
-                        req.method === 'POST' && req.url === storageUploadPath ? undefined : false,
+                        (req.method === 'POST' && req.url === storageUploadPath) ||
+                        (req.method === 'GET' && modelDownloadPath.test(req.url ?? ''))
+                            ? undefined
+                            : false,
                 },
             },
         },

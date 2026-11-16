@@ -891,6 +891,75 @@
         }
       }
     },
+    "/api/v1/records/{recordId}/model": {
+      "get": {
+        "tags": [
+          "v1",
+          "files"
+        ],
+        "summary": "Get Model",
+        "description": "Redirects to the 3D model (GLB) of the file record, for the 3D view.\n\nEach node of the model carries ``occurrenceId`` in ``extras``, matching\n``properties.occurrenceId`` of the assembly instances.",
+        "operationId": "get_model_api_v1_records__recordId__model_get",
+        "parameters": [
+          {
+            "name": "recordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Recordid"
+            }
+          }
+        ],
+        "responses": {
+          "307": {
+            "description": "Redirect to a short-lived link of the 3D model (GLB, binary glTF)."
+          },
+          "404": {
+            "description": "No such record, or the file is ready without a 3D model.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "File is not uploaded, still processing, or its import failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed, or the record's class carries no file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "File storage cannot be reached. Please try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/ontology": {
       "get": {
         "tags": [
@@ -1412,6 +1481,11 @@
             "format": "date-time",
             "title": "Updatedat",
             "description": "Last status change."
+          },
+          "hasModel": {
+            "type": "boolean",
+            "title": "Hasmodel",
+            "description": "Whether the 3D model (GLB) can be downloaded: GET /records/{id}/model."
           }
         },
         "type": "object",
@@ -1421,7 +1495,8 @@
           "errorCode",
           "sizeBytes",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "hasModel"
         ],
         "title": "FileUpload",
         "description": "Upload state of a file record."

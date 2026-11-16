@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Query, Request, Response, status
+from fastapi.responses import RedirectResponse
 
 from api.router_builder import ApiRouterBuilder
 from api.router_records import (
@@ -43,6 +44,17 @@ RESPONSE_DETAIL_422_NO_FILE: str = (
 )
 RESPONSE_DETAIL_503: str = "File storage cannot be reached. Please try again."
 ERROR_FILE_MISMATCH: str = "Uploaded file does not match the announced size."
+RESPONSE_DETAIL_307_MODEL: str = (
+    "Redirect to a short-lived link of the 3D model (GLB, binary glTF)."
+)
+RESPONSE_DETAIL_404_MODEL: str = (
+    "No such record, or the file is ready without a 3D model."
+)
+RESPONSE_DETAIL_409_MODEL: str = (
+    "File is not uploaded, still processing, or its import failed."
+)
+ERROR_MODEL_UNAVAILABLE: str = "The 3D model of the CAD file could not be generated."
+MODEL_UNAVAILABLE: str = "model_unavailable"
 
 v1_files_router: APIRouter = (
     ApiRouterBuilder().version("v1").add_tags(["files"]).build()
@@ -147,6 +159,37 @@ async def complete_upload(
             instance=request.url.path,
         )
     return to_file_upload(result)
+
+
+@v1_files_router.get(
+    "/records/{recordId}/model",
+    status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+    response_class=RedirectResponse,
+    responses={
+        307: {"description": RESPONSE_DETAIL_307_MODEL},
+        404: {"model": Problem, "description": RESPONSE_DETAIL_404_MODEL},
+        409: {"model": Problem, "description": RESPONSE_DETAIL_409_MODEL},
+        422: {"model": Problem, "description": RESPONSE_DETAIL_422_NO_FILE},
+        503: {"model": Problem, "description": RESPONSE_DETAIL_503},
+    },
+)
+async def get_model(
+    record_id: RecordId, request: Request, catalog: Catalog, session: Session
+) -> Response:
+    """Redirects to the 3D model (GLB) of the file record, for the 3D view.
+
+    Each node of the model carries ``occurrenceId`` in ``extras``, matching
+    ``properties.occurrenceId`` of the assembly instances.
+    """
+    url: str | None = await catalog.get_model_url(session, record_id)
+    if url is None:
+        return ProblemResponse.from_status(
+            404,
+            ERROR_MODEL_UNAVAILABLE,
+            error_code=MODEL_UNAVAILABLE,
+            instance=request.url.path,
+        )
+    return RedirectResponse(url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
 
 def _to_tree(node: TreeNode) -> RecordTree:

@@ -24,6 +24,7 @@ from services.cad.to_records import CadRecords, to_records
 from services.catalog import records
 from services.catalog.errors import (
     BusyError,
+    FileNotReadyError,
     ImportFailedError,
     UploadExistsError,
     UploadNotFoundError,
@@ -426,6 +427,27 @@ class CatalogService:
         if mismatch:
             return UploadMismatch(upload.source_key)
         return changed
+
+    async def get_model_url(self, session: Tx, file_id: str) -> str | None:
+        """A short-lived download link of the file's 3D model (GLB), ``None`` if it is ready without one.
+
+        Raises:
+            NotFoundError: no record ``file_id``.
+            RecordError: the record's class carries no file.
+            FileNotReadyError: not uploaded, or still uploading or processing.
+            ImportFailedError: the import failed.
+        """
+        await self._get_file_record(session, file_id)
+        upload: Upload | None = await self.get_upload(session, file_id)
+        if upload is None or upload.status in (
+            UploadStatus.UPLOADING,
+            UploadStatus.PROCESSING,
+        ):
+            raise FileNotReadyError()
+        model_key: str | None = _to_completed(upload).model_key
+        if model_key is None:
+            return None
+        return await asyncio.to_thread(self.storage.create_download_url, model_key)
 
     async def import_cad_file_tree(
         self, session: Tx, cad_file_id: str, model: CadModel

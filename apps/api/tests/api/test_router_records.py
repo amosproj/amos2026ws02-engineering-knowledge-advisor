@@ -1,9 +1,10 @@
 import asyncio
 from collections.abc import AsyncGenerator, Iterator, Sequence
+from dataclasses import replace
 from typing import Any
 
 import pytest
-from fakes import MemoryStorage, make_catalog, make_service
+from fakes import MemoryStorage, MemoryUploadStore, make_catalog, make_service
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from helpers import assert_mentions
@@ -18,7 +19,7 @@ from services import ConflictError, Record, Tx
 from services.catalog import CatalogService
 from services.object_storage import ObjectStorageError
 from services.ograg.service import DeleteResult, OgRagService
-from services.uploads import Upload
+from services.uploads import Upload, UploadStatus
 
 PROBLEM_JSON: str = "application/problem+json"
 FASTAPI_DEFAULT_200: str = (
@@ -211,10 +212,11 @@ def test_every_records_route_documents_its_success_response(app: FastAPI):
     paths: dict[str, Any] = app.openapi()["paths"]
     for path, operations in paths.items():
         for method, operation in operations.items():
+            # a redirect is the success of a download route
             [success] = [
                 response
                 for code, response in operation["responses"].items()
-                if code.startswith("2")
+                if code.startswith(("2", "3"))
             ]
             assert success["description"] != FASTAPI_DEFAULT_200, f"{method} {path}"
 
@@ -646,3 +648,125 @@ def test_writes_run_in_the_requests_session(client: TestClient, service: OgRagSe
     service.store.save_records = recording_save  # type: ignore[method-assign]
     put_record(client, ITEM_ID, ITEM)
     assert seen == [SESSION]
+
+
+MODEL_URL: str = f"{RECORDS_URL}/CF-1/model"
+MODEL_KEY: str = "files/CF-1/model.glb"
+
+
+def add_cad_file(
+    client: TestClient,
+    service: OgRagService,
+    catalog: CatalogService,
+    status: UploadStatus | None,
+    model_key: str | None = None,
+    error_code: str | None = None,
+) -> None:
+    """A machine with CAD file CF-1 whose upload has ``status`` (no upload if ``None``)."""
+    seed_machine_and_group(service)
+    put_record(client, "CF-1", CAD_FILE)
+    if status is None:
+        return
+    client.post(f"{RECORDS_URL}/CF-1/upload-form", json={"size": 300})
+    uploads = catalog.uploads
+    assert isinstance(uploads, MemoryUploadStore)
+    uploads.uploads["CF-1"] = replace(
+        uploads.uploads["CF-1"],
+        status=status,
+        model_key=model_key,
+        error_code=error_code,
+    )
+
+
+def test_the_model_redirects_to_a_signed_link(
+    client: TestClient, service: OgRagService, catalog: CatalogService
+):
+    add_cad_file(client, service, catalog, UploadStatus.READY, model_key=MODEL_KEY)
+
+    response: Response = client.get(MODEL_URL, follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == f"/storage/test/{MODEL_KEY}?signed"
+
+
+def test_a_ready_file_without_model_has_no_model(
+    client: TestClient, service: OgRagService, catalog: CatalogService
+):
+    add_cad_file(client, service, catalog, UploadStatus.READY)
+
+    response: Response = client.get(MODEL_URL, follow_redirects=False)
+
+    assert response.status_code == 404
+    assert response.json()["errorCode"] == "model_unavailable"
+
+
+@pytest.mark.parametrize(
+    "status", [None, UploadStatus.UPLOADING, UploadStatus.PROCESSING]
+)
+def test_the_model_of_a_file_not_ready_is_a_conflict(
+    client: TestClient,
+    service: OgRagService,
+    catalog: CatalogService,
+    status: UploadStatus | None,
+):
+    add_cad_file(client, service, catalog, status)
+
+    response: Response = client.get(MODEL_URL, follow_redirects=False)
+
+    assert response.status_code == 409
+    assert response.json()["errorCode"] == "file_not_ready"
+
+
+def test_the_model_of_a_failed_file_carries_its_error_code(
+    client: TestClient, service: OgRagService, catalog: CatalogService
+):
+    add_cad_file(
+        client, service, catalog, UploadStatus.FAILED, error_code="parse_error"
+    )
+
+    response: Response = client.get(MODEL_URL, follow_redirects=False)
+
+    assert response.status_code == 409
+    assert response.json()["errorCode"] == "parse_error"
+
+
+def test_the_model_of_a_missing_record_or_a_machine(
+    client: TestClient, service: OgRagService
+):
+    seed_machine_and_group(service)
+
+    assert client.get(f"{RECORDS_URL}/CF-9/model").status_code == 404
+    assert client.get(f"{RECORDS_URL}/{MACHINE_ID}/model").status_code == 422
+
+
+def test_the_model_link_needs_the_storage(
+    client: TestClient,
+    service: OgRagService,
+    catalog: CatalogService,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    add_cad_file(client, service, catalog, UploadStatus.READY, model_key=MODEL_KEY)
+
+    def fail(_: str) -> str:
+        raise ObjectStorageError("down")
+
+    monkeypatch.setattr(catalog.storage, "create_download_url", fail)
+
+    assert client.get(MODEL_URL, follow_redirects=False).status_code == 503
+
+
+@pytest.mark.parametrize(("model_key", "has_model"), [(MODEL_KEY, True), (None, False)])
+def test_the_upload_tells_whether_a_model_exists(
+    client: TestClient,
+    service: OgRagService,
+    catalog: CatalogService,
+    model_key: str | None,
+    has_model: bool,
+):
+    add_cad_file(client, service, catalog, UploadStatus.READY, model_key=model_key)
+
+    upload: dict[str, Any] = client.get(f"{RECORDS_URL}/CF-1?include=upload").json()[
+        "upload"
+    ]
+
+    assert upload["hasModel"] is has_model

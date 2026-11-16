@@ -69,6 +69,7 @@ class PgUploadStore(UploadStore):
             CadUploadColumn.STATUS: CadUploadStatus.UPLOADING,
             CadUploadColumn.ERROR_CODE: None,
             CadUploadColumn.SHA256: None,
+            CadUploadColumn.MODEL_KEY: None,
             CadUploadColumn.SOURCE_KEY: source_key,
             CadUploadColumn.SIZE_BYTES: size_bytes,
             CadUploadColumn.CREATED_AT: func.now(),
@@ -175,12 +176,15 @@ class PgUploadStore(UploadStore):
         return None if row is None else _to_upload(row)
 
     @override
-    async def set_ready(self, file_id: str, sha256: str, tx: AsyncSession) -> None:
+    async def set_ready(
+        self, file_id: str, sha256: str, model_key: str | None, tx: AsyncSession
+    ) -> None:
         await self._set_values(
             file_id,
             {
                 CadUploadColumn.STATUS: CadUploadStatus.READY,
                 CadUploadColumn.SHA256: sha256,
+                CadUploadColumn.MODEL_KEY: model_key,
                 CadUploadColumn.ERROR_CODE: None,
             },
             tx,
@@ -286,4 +290,5 @@ def _to_upload(row: RowMapping) -> Upload:
         size_bytes=row[CadUploadColumn.SIZE_BYTES],
         created_at=row[CadUploadColumn.CREATED_AT],
         updated_at=row[CadUploadColumn.UPDATED_AT],
+        model_key=row[CadUploadColumn.MODEL_KEY],
     )
