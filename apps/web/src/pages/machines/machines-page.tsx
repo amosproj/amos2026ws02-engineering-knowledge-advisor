@@ -63,7 +63,7 @@ export function MachinesPage() {
     )
 
     return (
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-2 py-6 md:py-10">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 md:px-6 md:py-10">
             <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
                     <h1 className="font-heading text-2xl font-semibold tracking-tight">Machines</h1>

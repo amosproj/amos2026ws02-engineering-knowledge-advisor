@@ -1,7 +1,9 @@
 import { queryOptions } from '@tanstack/react-query'
 import { z } from 'zod'
 
+import { NetworkError, toResponseError } from '@queries/query-errors'
 import { queryMaker } from '@queries/query-maker'
+import { env } from '@utils/env'
 
 const idParams = z.object({ id: z.string() })
 const includeSearch = z.object({ include: z.string() })
@@ -30,13 +32,12 @@ const machineViewSchema = z.object({
     children: z.array(childSchema),
 })
 
-const machineDetailSchema = machineViewSchema.omit({ children: true })
-
 const instanceSchema = z.looseObject({
     '@id': z.string(),
     '@type': z.string(),
     name: z.string().optional(),
     instanceOf: z.string().optional(),
+    properties: z.looseObject({ occurrenceId: z.string().optional() }).optional(),
 })
 
 type RecordTree = { record: z.output<typeof instanceSchema>; children: RecordTree[] }
@@ -114,7 +115,6 @@ export type Machine = z.output<typeof machineSchema>
 export type MachineView = z.output<typeof machineViewSchema>
 export type FileStatus = z.output<typeof fileStatus>
 export type CadFileView = z.output<typeof cadFileViewSchema>
-export type MachineDetail = z.output<typeof machineDetailSchema>
 export type AssemblyGroup = z.output<typeof groupSchema>
 export type { RecordTree }
 
@@ -175,7 +175,7 @@ export const getMachine = queryMaker({
     path: '/v1/records/:id',
     params: idParams,
     search: includeSearch,
-    response: machineDetailSchema,
+    response: machineViewSchema,
 })
 
 export const listChildInstances = queryMaker({
@@ -234,7 +234,7 @@ export const machineQuery = (id: string) =>
     queryOptions({
         queryKey: [...machinesQueryKey, id],
         queryFn: ({ signal }) =>
-            getMachine({ params: { id }, search: { include: 'status' }, signal }),
+            getMachine({ params: { id }, search: { include: 'status,children' }, signal }),
     })
 
 // null when the machine has no assembly tree
@@ -255,3 +255,23 @@ export const assemblyGroupQuery = (id: string) =>
         queryKey: [...machinesQueryKey, 'groups', id],
         queryFn: ({ signal }) => getAssemblyGroup({ params: { id }, signal }),
     })
+
+// Bytes of the CAD file's 3D model (GLB), following the redirect to the storage
+export async function fetchModel(fileId: string, signal?: AbortSignal) {
+    const url = `${env.VITE_API_URL.replace(/\/$/, '')}/v1/records/${encodeURIComponent(fileId)}/model`
+    try {
+        const response = await fetch(url, { signal })
+        if (response.ok) return await response.arrayBuffer()
+        const text = await response.text()
+        let data: unknown = text
+        try {
+            data = JSON.parse(text)
+        } catch {
+            // the storage answers errors in XML
+        }
+        throw toResponseError(response.status, data, [])
+    } catch (error) {
+        if (signal?.aborted || !(error instanceof TypeError)) throw error
+        throw new NetworkError(error)
+    }
+}

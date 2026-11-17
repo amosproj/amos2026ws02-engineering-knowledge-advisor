@@ -7,6 +7,7 @@ import { MachineBreadcrumb } from './machines/components/machine-breadcrumb'
 import { MachineDetailPage } from './machines/machine-detail-page'
 import { MachinesPage } from './machines/machines-page'
 import { machinesSearchSchema } from './machines/models/machines-search-model'
+import { settingsSearchSchema } from './settings/models/settings-model'
 import { SettingsPage } from './settings/settings-page'
 
 interface RouterContext {
@@ -39,13 +40,14 @@ const machinesIndexRoute = createRoute({
 const machineDetailRoute = createRoute({
     getParentRoute: () => machinesRoute,
     path: '/$machineId',
-    staticData: { breadcrumb: MachineBreadcrumb },
+    staticData: { breadcrumb: MachineBreadcrumb, sidebarHeader: true },
     component: MachineDetailPage,
 })
 
 const settingsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/settings',
+    validateSearch: settingsSearchSchema,
     staticData: { breadcrumb: 'Settings' },
     component: SettingsPage,
 })
@@ -69,5 +71,7 @@ declare module '@tanstack/react-router' {
     }
     interface StaticDataRouteOption {
         breadcrumb?: RouteBreadcrumb
+        /** Header uses the sidebar background in dark mode. */
+        sidebarHeader?: boolean
     }
 }
