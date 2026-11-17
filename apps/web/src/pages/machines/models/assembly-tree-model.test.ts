@@ -152,7 +152,7 @@ describe('formatDimensions', () => {
             properties: { sizeX: 1.25, sizeY: 0.0805, sizeZ: 2 },
         }
 
-        expect(formatDimensions(group)).toMatch(/^1.?250 × 80\.5 × 2.?000 mm$/)
+        expect(formatDimensions(group)).toMatch(/^1.?250 × 80[.,]5 × 2.?000 mm$/)
     })
 
     it('returns undefined when a size is missing', () => {
