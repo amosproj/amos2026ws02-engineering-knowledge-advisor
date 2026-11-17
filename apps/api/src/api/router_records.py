@@ -293,11 +293,9 @@ async def query_records(
             for record, score in found
         ]
 
-    records_only = [record for record, score in found]
-    views = await _to_views(catalog, session, records_only, include)
-    for view, score in zip(views, [score for record, score in found]):
-        view.similarity_score = score
-    return views
+    records = [record for record, score in found]
+    scores = [score for record, score in found]
+    return await _to_views(catalog, session, records, include, scores)
 
 
 @v1_records_router.get(
@@ -387,6 +385,7 @@ async def _to_views(
     session: Session,
     found: list[Record],
     include: set[Include],
+    similarity_scores: list[float] | None = None,
 ) -> list[RecordView]:
     states: UploadStates = (
         await catalog.get_upload_states(session, found)
@@ -398,7 +397,17 @@ async def _to_views(
         if Include.CHILDREN in include
         else {}
     )
-    return [_to_view(catalog, rec, include, states, children) for rec in found]
+    return [
+        _to_view(
+            catalog,
+            rec,
+            include,
+            states,
+            children,
+            similarity_scores[i] if similarity_scores else None,
+        )
+        for i, rec in enumerate(found)
+    ]
 
 
 def _to_view(
@@ -407,6 +416,7 @@ def _to_view(
     include: set[Include],
     states: UploadStates,
     children: dict[str, list[Record]],
+    similarity_score: float | None = None,
 ) -> RecordView:
     view = RecordView(record=to_node(record), version=record.version)
     if Include.STATUS in include and catalog.has_status(record):
@@ -417,6 +427,8 @@ def _to_view(
     if Include.UPLOAD in include and catalog.is_file_record(record):
         upload: Upload | None = states.uploads.get(record.id)
         view.upload = None if upload is None else to_file_upload(upload)
+    if similarity_score is not None:
+        view.similarity_score = similarity_score
     return view
 
 
