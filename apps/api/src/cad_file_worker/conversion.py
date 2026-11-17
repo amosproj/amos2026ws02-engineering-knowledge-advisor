@@ -1,26 +1,19 @@
 """Converts a STEP file in a child process, so a crash or a hang of Open CASCADE cannot take the worker down."""
 
-from __future__ import annotations
-
 import multiprocessing
-import sys
+import pickle
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from multiprocessing.connection import Connection
 from pathlib import Path
 
 from cad_file_worker.errors import ConversionTimeoutError, StopRequested
 from services.cad.errors import StepImportError
 from services.cad.model import CadModel
 
-if sys.platform == "win32":
-    from multiprocessing.connection import PipeConnection as Receiver
-else:
-    from multiprocessing.connection import Connection as Receiver
-
 POLL_SECONDS: float = 0.5
+TEMP_RESULT_FILE_NAME: str = "conversion.pickle"
 
 
 @dataclass(frozen=True)
@@ -41,22 +34,6 @@ class _Failure:
     message: str
 
 
-class _Reader(threading.Thread):
-    """Receives the child's result, so the child never blocks on a full pipe and the parent never on a partial one."""
-
-    def __init__(self, receiver: Receiver[object, Conversion | _Failure]) -> None:
-        super().__init__(daemon=True)
-        self.receiver: Receiver[object, Conversion | _Failure] = receiver
-        self.result: Conversion | _Failure | None = None
-
-    def run(self) -> None:
-        try:
-            self.result = self.receiver.recv()
-        except (EOFError, OSError):
-            # the child died before sending all of its result
-            pass
-
-
 def convert_step_file(
     step_path: Path,
     glb_path: Path,
@@ -73,47 +50,48 @@ def convert_step_file(
         ConversionTimeoutError: the child did not finish within ``timeout`` seconds.
         StopRequested: ``stopping`` was set before the child finished.
     """
+    result_path: Path = glb_path.with_name(TEMP_RESULT_FILE_NAME)
+    result_path.unlink(missing_ok=True)
     context = multiprocessing.get_context("spawn")
-    receiver, sender = context.Pipe(duplex=False)
-    process = context.Process(target=_convert, args=(step_path, glb_path, sender))
+    process = context.Process(target=_convert, args=(step_path, glb_path, result_path))
     process.start()
-
-    sender.close()
-    reader = _Reader(receiver)
-    reader.start()
     deadline: float = time.monotonic() + timeout
     try:
-        while True:
-            if stopping.is_set():
-                raise StopRequested
-            if time.monotonic() > deadline:
-                raise ConversionTimeoutError(
-                    f"Converting the STEP file took longer than {timeout} s"
-                )
-            on_progress()
-            # done once the result is read and the child has flushed its output and exited
-            if reader.is_alive():
-                reader.join(POLL_SECONDS)
-            elif process.exitcode is None:
+        try:
+            while True:
+                if stopping.is_set():
+                    raise StopRequested
+                if time.monotonic() > deadline:
+                    raise ConversionTimeoutError(
+                        f"Converting the STEP file took longer than {timeout} s"
+                    )
+                on_progress()
+                if process.exitcode is not None:
+                    break
                 process.join(POLL_SECONDS)
-            else:
-                break
+        finally:
+            process.kill()
+            process.join()
+            exitcode: int | None = process.exitcode
+            process.close()
+        return _read_result(result_path, exitcode)
     finally:
-        process.kill()
-        process.join()
-        # the child is gone, so the reader ends
-        reader.join()
-        receiver.close()
-        exitcode: int | None = process.exitcode
-        process.close()
-    if reader.result is None:
+        result_path.unlink(missing_ok=True)
+
+
+def _read_result(result_path: Path, exitcode: int | None) -> Conversion:
+    if exitcode != 0 or not result_path.exists():
         raise StepImportError(f"The STEP conversion stopped with exit code {exitcode}")
-    if isinstance(reader.result, _Failure):
-        raise StepImportError(reader.result.message)
-    return reader.result
+    with result_path.open("rb") as file:
+        result: object = pickle.load(file)
+    if isinstance(result, _Failure):
+        raise StepImportError(result.message)
+    if not isinstance(result, Conversion):
+        raise StepImportError("The STEP conversion returned no result")
+    return result
 
 
-def _convert(step_path: Path, glb_path: Path, sender: Connection) -> None:
+def _convert(step_path: Path, glb_path: Path, result_path: Path) -> None:
     # Open CASCADE is loaded in the child only
     from services.cad.glb_generator import GlbGenerator
     from services.cad.step_parser import StepParser
@@ -133,5 +111,5 @@ def _convert(step_path: Path, glb_path: Path, sender: Connection) -> None:
             glb_path.unlink(missing_ok=True)
         # the document cannot be pickled, so document=None
         result = Conversion(replace(model, document=None), glb_error)
-    sender.send(result)
-    sender.close()
+    with result_path.open("wb") as file:
+        pickle.dump(result, file)
