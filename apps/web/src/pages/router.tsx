@@ -7,6 +7,7 @@ import { MachineBreadcrumb } from './machines/components/machine-breadcrumb'
 import { MachineDetailPage } from './machines/machine-detail-page'
 import { MachinesPage } from './machines/machines-page'
 import { machinesSearchSchema } from './machines/models/machines-search-model'
+import { settingsSearchSchema } from './settings/models/settings-model'
 import { SettingsPage } from './settings/settings-page'
 
 interface RouterContext {
@@ -46,6 +47,7 @@ const machineDetailRoute = createRoute({
 const settingsRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/settings',
+    validateSearch: settingsSearchSchema,
     staticData: { breadcrumb: 'Settings' },
     component: SettingsPage,
 })

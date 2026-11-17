@@ -15,13 +15,29 @@ import {
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 
-import { Home09Icon } from '@hugeicons/core-free-icons'
+import { Home09Icon, Settings05Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 
-import { Button, Spinner } from '@components'
+import {
+    Button,
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    Spinner,
+    useSettings,
+} from '@components'
+import { ViewerSettings } from '@pages/settings/components/viewer-settings'
 
 import { errorCode } from '../models/machine-errors'
-import { DEFAULT_MOUSE_PROFILE, type MouseAction } from '../models/mouse-profile-model'
+import {
+    MOUSE_PROFILES,
+    activeModifier,
+    buttonActions,
+    type Modifier,
+    type MouseAction,
+    type MouseProfile,
+} from '../models/mouse-profile-model'
 import { fitDistance, visibleCenterShift, type ViewInset } from '../models/viewer-camera-model'
 import { fetchModel } from '../query/machine-api'
 
@@ -31,12 +47,6 @@ const ACTIONS: Record<MouseAction, 0 | 1 | 2 | 16> = {
     pan: ACTION.TRUCK,
     zoom: ACTION.DOLLY,
     none: ACTION.NONE,
-}
-const MOUSE_BUTTONS = {
-    left: ACTIONS[DEFAULT_MOUSE_PROFILE.left],
-    middle: ACTIONS[DEFAULT_MOUSE_PROFILE.middle],
-    right: ACTIONS[DEFAULT_MOUSE_PROFILE.right],
-    wheel: ACTIONS[DEFAULT_MOUSE_PROFILE.wheel],
 }
 const ISOMETRIC = new Vector3(1, 0.8, 1).normalize()
 const FOV = 45
@@ -81,6 +91,8 @@ export default function MachineViewer({ fileId, inset }: MachineViewerProps) {
         gcTime: 0,
     })
     const [resetCount, setResetCount] = useState(0)
+    const [settingsOpen, setSettingsOpen] = useState(false)
+    const profile = MOUSE_PROFILES[useSettings().settings.mouseProfile]
     const scene = model.data?.scene
 
     useEffect(() => {
@@ -120,8 +132,28 @@ export default function MachineViewer({ fileId, inset }: MachineViewerProps) {
                     sphere={model.data.sphere}
                     inset={inset}
                     resetCount={resetCount}
+                    profile={profile}
                 />
             </Canvas>
+            <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Viewer settings"
+                title="Viewer settings"
+                className="text-muted-foreground absolute"
+                style={{ right: 15, bottom: 150 }}
+                onClick={() => setSettingsOpen(true)}
+            >
+                <HugeiconsIcon icon={Settings05Icon} strokeWidth={1.5} className="size-5" />
+            </Button>
+            <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>3D viewer settings</DialogTitle>
+                    </DialogHeader>
+                    <ViewerSettings />
+                </DialogContent>
+            </Dialog>
             <Button
                 variant="ghost"
                 size="icon"
@@ -174,9 +206,10 @@ type SceneProps = {
     sphere: Sphere
     inset: ViewInset
     resetCount: number
+    profile: MouseProfile
 }
 
-function Scene({ scene, sphere, inset, resetCount }: SceneProps) {
+function Scene({ scene, sphere, inset, resetCount, profile }: SceneProps) {
     const controls = useRef<CameraControlsImpl>(null)
     const get = useThree((state) => state.get)
     const size = useThree((state) => state.size)
@@ -200,6 +233,37 @@ function Scene({ scene, sphere, inset, resetCount }: SceneProps) {
             controls.current.maxDistance = sphere.radius * 50
         }
     }, [get, sphere])
+
+    useEffect(() => {
+        const element = get().gl.domElement
+        const applyModifier = (modifier: Modifier) => {
+            const buttons = controls.current?.mouseButtons
+            if (!buttons) return
+            const actions = buttonActions(profile, modifier)
+            buttons.left = ACTIONS[actions.left]
+            buttons.middle = ACTIONS[actions.middle]
+            buttons.right = ACTIONS[actions.right]
+            buttons.wheel = ACTIONS[actions.wheel]
+        }
+        const handleModifierEvent = (event: KeyboardEvent | PointerEvent) =>
+            applyModifier(activeModifier(event))
+        const releaseModifiers = () => applyModifier('plain')
+
+        applyModifier('plain')
+        window.addEventListener('keydown', handleModifierEvent)
+        window.addEventListener('keyup', handleModifierEvent)
+        window.addEventListener('blur', releaseModifiers)
+        document.addEventListener('visibilitychange', releaseModifiers)
+        // Capture phase runs before camera-controls reads the buttons on pointerdown
+        element.addEventListener('pointerdown', handleModifierEvent, { capture: true })
+        return () => {
+            window.removeEventListener('keydown', handleModifierEvent)
+            window.removeEventListener('keyup', handleModifierEvent)
+            window.removeEventListener('blur', releaseModifiers)
+            document.removeEventListener('visibilitychange', releaseModifiers)
+            element.removeEventListener('pointerdown', handleModifierEvent, { capture: true })
+        }
+    }, [get, profile])
 
     const resetView = useEffectEvent((transition: boolean) => {
         const visibleWidth = Math.max(size.width - inset.left - inset.right, 1)
@@ -238,7 +302,7 @@ function Scene({ scene, sphere, inset, resetCount }: SceneProps) {
     return (
         <>
             <primitive object={scene} />
-            <CameraControls ref={controls} makeDefault dollyToCursor mouseButtons={MOUSE_BUTTONS} />
+            <CameraControls ref={controls} makeDefault dollyToCursor />
             <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
                 <GizmoViewcube onClick={lookFrom} />
             </GizmoHelper>

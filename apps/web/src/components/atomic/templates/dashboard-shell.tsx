@@ -28,6 +28,7 @@ import {
     SidebarTrigger,
     useSidebar,
 } from '../organisms'
+import { useSettings } from '../../providers/settings-provider'
 
 type SidebarLinkTo = NonNullable<React.ComponentProps<typeof Link>['to']>
 
@@ -162,9 +163,13 @@ export function DashboardShell({ navConfig, headerActions, children }: Dashboard
     const sidebarHeader = useMatches({
         select: (matches) => matches.some((match) => match.staticData.sidebarHeader),
     })
+    const { settings, update } = useSettings()
 
     return (
-        <SidebarProvider>
+        <SidebarProvider
+            open={settings.sidebarOpen}
+            onOpenChange={(open) => update({ sidebarOpen: open })}
+        >
             <CloseMobileSidebarOnNavigate pathname={pathname} />
             <Sidebar collapsible="icon">
                 <SidebarHeader>

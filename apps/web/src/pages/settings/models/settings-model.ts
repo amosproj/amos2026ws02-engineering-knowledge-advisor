@@ -1,17 +1,36 @@
-import { formOptions } from '@tanstack/react-form'
+import { z } from 'zod'
 
-export type Theme = 'system' | 'light' | 'dark'
+import { MOUSE_PROFILE_IDS } from '@pages/machines/models/mouse-profile-model'
 
-/** Values of every settings section; add a field here and in `DEFAULT_SETTINGS`. */
-export type SettingsValues = {
-    theme: Theme
+export const THEMES = ['system', 'light', 'dark'] as const
+export type Theme = (typeof THEMES)[number]
+
+const settingsSchema = z.object({
+    theme: z.enum(THEMES).catch('system'),
+    sidebarOpen: z.boolean().catch(true),
+    mouseProfile: z.enum(MOUSE_PROFILE_IDS).catch('default'),
+})
+
+export type Settings = z.output<typeof settingsSchema>
+
+export const DEFAULT_SETTINGS: Settings = settingsSchema.parse({})
+
+/** Invalid fields fall back to their default, the valid ones are kept. */
+export function parseStoredSettings(raw: string | null): Settings {
+    if (raw === null) return DEFAULT_SETTINGS
+    try {
+        const result = settingsSchema.safeParse(JSON.parse(raw))
+        return result.success ? result.data : DEFAULT_SETTINGS
+    } catch {
+        return DEFAULT_SETTINGS
+    }
 }
 
-/** Single source of truth for "Restore defaults". */
-export const DEFAULT_SETTINGS: SettingsValues = {
-    theme: 'system',
-}
+export const SETTINGS_SECTIONS = [
+    { id: 'general', label: 'General' },
+    { id: 'viewer', label: '3D Viewer' },
+] as const
 
-export const settingsFormOptions = formOptions({
-    defaultValues: DEFAULT_SETTINGS,
+export const settingsSearchSchema = z.object({
+    section: z.enum(['general', 'viewer']).optional().catch(undefined),
 })
