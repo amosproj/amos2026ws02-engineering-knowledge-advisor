@@ -39,7 +39,7 @@ const machinesIndexRoute = createRoute({
 const machineDetailRoute = createRoute({
     getParentRoute: () => machinesRoute,
     path: '/$machineId',
-    staticData: { breadcrumb: MachineBreadcrumb },
+    staticData: { breadcrumb: MachineBreadcrumb, sidebarHeader: true },
     component: MachineDetailPage,
 })
 
@@ -69,5 +69,7 @@ declare module '@tanstack/react-router' {
     }
     interface StaticDataRouteOption {
         breadcrumb?: RouteBreadcrumb
+        /** Header uses the sidebar background in dark mode. */
+        sidebarHeader?: boolean
     }
 }

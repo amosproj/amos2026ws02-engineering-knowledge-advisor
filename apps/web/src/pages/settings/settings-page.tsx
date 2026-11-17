@@ -27,7 +27,7 @@ export const SettingsPage = () => {
     }
 
     return (
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-2 py-6 md:flex-row md:gap-16 md:py-10">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-6 md:flex-row md:gap-16 md:px-6 md:py-10">
             <nav aria-label="Settings" className="flex flex-col gap-1 md:w-44 md:shrink-0">
                 {sections.map((section) => (
                     <button

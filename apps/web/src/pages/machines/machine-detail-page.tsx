@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { lazy, Suspense, useCallback, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import { Cancel01Icon } from '@hugeicons/core-free-icons'
@@ -25,13 +25,20 @@ import { HttpError } from '@queries/query-errors'
 import { AssemblyDetails } from './components/assembly-details'
 import { AssemblyTree } from './components/assembly-tree'
 import { useCadFileImport, type ImportItem } from './components/cad-file-import-context'
+import { ViewerErrorBoundary } from './components/viewer-error-boundary'
 import { toAssemblyNode, type AssemblyNode } from './models/assembly-tree-model'
+import { findCadFile } from './models/machine-model'
+import type { ViewInset } from './models/viewer-camera-model'
 import {
     assemblyTreeQuery,
     machineQuery,
-    type MachineDetail,
+    type MachineView as MachineData,
     type RecordTree,
 } from './query/machine-api'
+
+const MachineViewer = lazy(() => import('./components/machine-viewer'))
+
+const NO_INSET: ViewInset = { left: 0, right: 0 }
 
 const toTree = (data: RecordTree | null) => (data ? toAssemblyNode(data) : null)
 
@@ -52,14 +59,30 @@ function MachineView({ machineId }: { machineId: string }) {
     const isMobile = useIsMobile()
     const { items } = useCadFileImport()
     const importItem = items.find((item) => item.machineId === machineId)
+    const containerRef = useRef<HTMLDivElement>(null)
+    const [inset, setInset] = useState(NO_INSET)
+
+    // The 3D view spans the whole area; the free space between the floating panels is measured here
+    const visibleRef = useCallback((element: HTMLDivElement | null) => {
+        if (!element) return
+        const observer = new ResizeObserver(() => {
+            const container = containerRef.current
+            if (!container) return
+            const visible = element.getBoundingClientRect()
+            const bounds = container.getBoundingClientRect()
+            setInset({ left: visible.left - bounds.left, right: bounds.right - visible.right })
+        })
+        observer.observe(element)
+        return () => observer.disconnect()
+    }, [])
 
     if (machine.isPending) {
-        return <Skeleton className="min-h-96 flex-1 rounded-xl" />
+        return <Skeleton className="m-4 mt-0 min-h-96 flex-1 rounded-xl" />
     }
     if (machine.isError) {
         const notFound = machine.error instanceof HttpError && machine.error.status === 404
         return (
-            <Empty className="border">
+            <Empty className="m-4 mt-0 border">
                 <EmptyHeader>
                     <EmptyTitle>
                         {notFound ? 'Machine not found' : 'The machine could not be loaded'}
@@ -93,15 +116,20 @@ function MachineView({ machineId }: { machineId: string }) {
     const viewer = (
         <div
             className={cn(
-                'bg-muted/50 dark:bg-background text-muted-foreground flex items-center justify-center text-sm',
-                isMobile ? 'min-h-48 rounded-xl border' : 'absolute inset-0 border-t',
+                'bg-linear-to-b from-neutral-100 to-neutral-300 dark:from-neutral-700 dark:to-neutral-900',
+                isMobile
+                    ? 'relative h-72 overflow-hidden rounded-xl border'
+                    : 'absolute inset-0 border-t',
             )}
         >
-            3D view coming soon
+            <ViewerArea machine={machine.data} inset={isMobile ? NO_INSET : inset} />
         </div>
     )
     const treePanel = (
-        <Panel className={isMobile ? 'h-96' : 'h-full'} title="Assembly tree">
+        <Panel
+            className={isMobile ? 'h-96 rounded-xl border' : 'h-full border-r shadow-lg'}
+            title="Assembly tree"
+        >
             <ScrollArea className="min-h-0 flex-1">
                 <div className="p-2">
                     <TreeArea
@@ -115,7 +143,11 @@ function MachineView({ machineId }: { machineId: string }) {
         </Panel>
     )
     const detailsPanel = selected ? (
-        <Panel className="max-h-full" title={selected.name} onClose={() => setSelected(undefined)}>
+        <Panel
+            className="max-h-full rounded-xl border"
+            title={selected.name}
+            onClose={() => setSelected(undefined)}
+        >
             <div className="min-h-0 flex-1 overflow-auto p-2">
                 <AssemblyDetails node={selected} machineName={record.name} />
             </div>
@@ -124,7 +156,7 @@ function MachineView({ machineId }: { machineId: string }) {
 
     if (isMobile) {
         return (
-            <div className="flex flex-1 flex-col gap-3">
+            <div className="flex flex-1 flex-col gap-3 p-4 pt-0">
                 {viewer}
                 {treePanel}
                 {detailsPanel}
@@ -133,9 +165,9 @@ function MachineView({ machineId }: { machineId: string }) {
     }
 
     return (
-        <div className="relative -mx-4 -mb-4 flex-1">
+        <div ref={containerRef} className="relative flex-1">
             {viewer}
-            <div className="pointer-events-none absolute inset-2">
+            <div className="pointer-events-none absolute inset-0 top-px">
                 <ResizablePanelGroup>
                     <ResizablePanel
                         id="tree"
@@ -147,7 +179,9 @@ function MachineView({ machineId }: { machineId: string }) {
                         {treePanel}
                     </ResizablePanel>
                     <PanelHandle label="Resize assembly tree" />
-                    <ResizablePanel id="viewer" />
+                    <ResizablePanel id="viewer">
+                        <div ref={visibleRef} className="h-full" />
+                    </ResizablePanel>
                     {detailsPanel ? (
                         <>
                             <PanelHandle label="Resize details" />
@@ -158,12 +192,51 @@ function MachineView({ machineId }: { machineId: string }) {
                                 maxSize="45%"
                                 groupResizeBehavior="preserve-pixel-size"
                             >
-                                {detailsPanel}
+                                <div className="h-full py-2 pr-2">{detailsPanel}</div>
                             </ResizablePanel>
                         </>
                     ) : null}
                 </ResizablePanelGroup>
             </div>
+        </div>
+    )
+}
+
+function ViewerArea({ machine, inset }: { machine: MachineData; inset: ViewInset }) {
+    const cadFile = findCadFile(machine)
+    if (machine.status !== 'ready' || !cadFile) {
+        return (
+            <ViewerMessage inset={inset}>
+                The 3D view appears once a CAD file is imported.
+            </ViewerMessage>
+        )
+    }
+    return (
+        <ViewerErrorBoundary
+            fallback={
+                <ViewerMessage inset={inset}>The 3D view could not be displayed.</ViewerMessage>
+            }
+        >
+            <Suspense
+                fallback={
+                    <ViewerMessage inset={inset}>
+                        <Spinner />
+                    </ViewerMessage>
+                }
+            >
+                <MachineViewer fileId={cadFile['@id']} inset={inset} />
+            </Suspense>
+        </ViewerErrorBoundary>
+    )
+}
+
+function ViewerMessage({ inset, children }: { inset: ViewInset; children: React.ReactNode }) {
+    return (
+        <div
+            className="text-muted-foreground absolute inset-y-0 flex items-center justify-center text-sm"
+            style={{ left: inset.left, right: inset.right }}
+        >
+            {children}
         </div>
     )
 }
@@ -188,10 +261,7 @@ function Panel({ title, className, onClose, children }: PanelProps) {
     return (
         <section
             aria-label={title}
-            className={cn(
-                'bg-card dark:bg-sidebar pointer-events-auto flex flex-col rounded-xl border shadow-lg',
-                className,
-            )}
+            className={cn('bg-card dark:bg-sidebar pointer-events-auto flex flex-col', className)}
         >
             <header className="flex h-11 shrink-0 items-center justify-between gap-2 border-b px-3">
                 <h2 className="truncate text-sm font-medium" title={title}>
@@ -209,7 +279,7 @@ function Panel({ title, className, onClose, children }: PanelProps) {
 }
 
 type TreeAreaProps = {
-    machine: MachineDetail
+    machine: MachineData
     importItem: ImportItem | undefined
     selectedId: string | undefined
     onSelect: (node: AssemblyNode) => void
