@@ -37,6 +37,7 @@ const instanceSchema = z.looseObject({
     '@type': z.string(),
     name: z.string().optional(),
     instanceOf: z.string().optional(),
+    properties: z.looseObject({ occurrenceId: z.string().optional() }).optional(),
 })
 
 type RecordTree = { record: z.output<typeof instanceSchema>; children: RecordTree[] }

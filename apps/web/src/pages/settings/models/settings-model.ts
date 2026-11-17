@@ -8,14 +8,19 @@ export type Theme = (typeof THEMES)[number]
 export const NAVIGATION_SPEEDS = ['slow', 'normal', 'fast'] as const
 export type NavigationSpeed = (typeof NAVIGATION_SPEEDS)[number]
 
+export const SELECTION_STYLES = ['opaque', 'sketch'] as const
+export type SelectionStyle = (typeof SELECTION_STYLES)[number]
+
 const settingsSchema = z.object({
     theme: z.enum(THEMES).catch('system'),
-    sidebarOpen: z.boolean().catch(true),
+    sidebarOpen: z.boolean().catch(false),
     mouseProfile: z.enum(MOUSE_PROFILE_IDS).catch('default'),
     navigationSpeed: z.enum(NAVIGATION_SPEEDS).catch('normal'),
     invertZoom: z.boolean().catch(false),
     zoomToCursor: z.boolean().catch(true),
     showViewCube: z.boolean().catch(true),
+    focusOnSelect: z.boolean().catch(true),
+    selectionStyle: z.enum(SELECTION_STYLES).catch('sketch'),
 })
 
 export type Settings = z.output<typeof settingsSchema>

@@ -1,20 +1,55 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { cn } from 'cn'
 
-import { visibleRows, type AssemblyNode, type TreeRow } from '../models/assembly-tree-model'
+import {
+    ancestorIds,
+    visibleRows,
+    type AssemblyIndex,
+    type AssemblyNode,
+    type TreeRow,
+} from '../models/assembly-tree-model'
 
 type AssemblyTreeProps = {
-    root: AssemblyNode
+    tree: AssemblyIndex
     selectedId: string | undefined
+    /** Incremented when a part picked in the 3D view must be shown in the tree. */
+    revealRequest: number
+    /** False while the tree is collapsed or behind the details. */
+    visible: boolean
     onSelect: (node: AssemblyNode) => void
 }
 
-export function AssemblyTree({ root, selectedId, onSelect }: AssemblyTreeProps) {
+export function AssemblyTree({
+    tree,
+    selectedId,
+    revealRequest,
+    visible,
+    onSelect,
+}: AssemblyTreeProps) {
+    const { root, parentIds } = tree
     const treeRef = useRef<HTMLDivElement>(null)
     const [expandedIds, setExpandedIds] = useState(() => new Set([root.id]))
     const [focusedId, setFocusedId] = useState(root.id)
+    const [revealed, setRevealed] = useState(revealRequest)
+
+    // A part picked in the 3D view may sit below collapsed nodes
+    if (revealRequest !== revealed) {
+        setRevealed(revealRequest)
+        if (selectedId) {
+            const hidden = ancestorIds(parentIds, selectedId).filter((id) => !expandedIds.has(id))
+            if (hidden.length > 0) setExpandedIds(new Set([...expandedIds, ...hidden]))
+            setFocusedId(selectedId)
+        }
+    }
+
+    useEffect(() => {
+        if (!visible || !selectedId) return
+        treeRef.current
+            ?.querySelector(`[data-id="${CSS.escape(selectedId)}"]`)
+            ?.scrollIntoView({ block: 'nearest' })
+    }, [selectedId, revealRequest, visible])
     const rows = useMemo(() => visibleRows(root, expandedIds), [root, expandedIds])
     const tabStopId = rows.some((row) => row.node.id === focusedId) ? focusedId : root.id
 

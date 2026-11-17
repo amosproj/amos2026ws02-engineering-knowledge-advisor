@@ -4,6 +4,8 @@ export type AssemblyNode = {
     id: string
     name: string
     groupId: string | undefined
+    /** Matches ``userData.occurrenceId`` of the node in the 3D model. */
+    occurrenceId: string | undefined
     children: AssemblyNode[]
 }
 
@@ -15,11 +17,39 @@ export function toAssemblyNode({ record, children }: RecordTree): AssemblyNode {
         id: record['@id'],
         name: record.name ?? record['@id'],
         groupId: record.instanceOf,
+        occurrenceId: record.properties?.occurrenceId,
         children: children
             .filter((child) => child.record['@type'] === 'AssemblyInstance')
             .map(toAssemblyNode)
             .sort((a, b) => byName(a.name, b.name)),
     }
+}
+
+export type AssemblyIndex = {
+    root: AssemblyNode
+    byOccurrence: ReadonlyMap<string, AssemblyNode>
+    parentIds: ReadonlyMap<string, string>
+}
+
+export function indexAssembly(root: AssemblyNode): AssemblyIndex {
+    const byOccurrence = new Map<string, AssemblyNode>()
+    const parentIds = new Map<string, string>()
+    const visit = (node: AssemblyNode) => {
+        if (node.occurrenceId) byOccurrence.set(node.occurrenceId, node)
+        for (const child of node.children) {
+            parentIds.set(child.id, node.id)
+            visit(child)
+        }
+    }
+    visit(root)
+    return { root, byOccurrence, parentIds }
+}
+
+/** Ids of the nodes above ``id``, nearest first. */
+export function ancestorIds(parentIds: ReadonlyMap<string, string>, id: string) {
+    const ids: string[] = []
+    for (let parent = parentIds.get(id); parent; parent = parentIds.get(parent)) ids.push(parent)
+    return ids
 }
 
 const millimeters = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 })

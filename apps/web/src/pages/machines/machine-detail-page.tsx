@@ -1,5 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import {
     ArrowLeft01Icon,
@@ -28,6 +28,7 @@ import {
     Skeleton,
     Spinner,
     useIsMobile,
+    useSettings,
 } from '@components'
 import { HttpError } from '@queries/query-errors'
 
@@ -35,7 +36,12 @@ import { AssemblyDetails } from './components/assembly-details'
 import { AssemblyTree } from './components/assembly-tree'
 import { useCadFileImport, type ImportItem } from './components/cad-file-import-context'
 import { ViewerErrorBoundary } from './components/viewer-error-boundary'
-import { toAssemblyNode, type AssemblyNode } from './models/assembly-tree-model'
+import {
+    indexAssembly,
+    toAssemblyNode,
+    type AssemblyIndex,
+    type AssemblyNode,
+} from './models/assembly-tree-model'
 import { findCadFile } from './models/machine-model'
 import type { ViewInset } from './models/viewer-camera-model'
 import {
@@ -49,7 +55,7 @@ const MachineViewer = lazy(() => import('./components/machine-viewer'))
 
 const NO_INSET: ViewInset = { left: 0, right: 0 }
 
-const toTree = (data: RecordTree | null) => (data ? toAssemblyNode(data) : null)
+const toTree = (data: RecordTree | null) => (data ? indexAssembly(toAssemblyNode(data)) : null)
 
 export function MachineDetailPage() {
     const { machineId } = useParams({ from: '/machines/$machineId' })
@@ -64,7 +70,17 @@ function MachineView({ machineId }: { machineId: string }) {
             return status === 'uploading' || status === 'processing' ? 3_000 : false
         },
     })
+    const tree = useQuery({
+        ...assemblyTreeQuery(machineId),
+        enabled: machine.data?.status === 'ready',
+        select: toTree,
+    })
     const [selected, setSelected] = useState<AssemblyNode>()
+    // Incremented by a selection in the tree, for the 3D view to frame the part
+    const [focusRequest, setFocusRequest] = useState(0)
+    // Incremented by a pick in the 3D view, for the tree to show the part
+    const [revealRequest, setRevealRequest] = useState(0)
+    const { settings } = useSettings()
     const isMobile = useIsMobile()
     const { items } = useCadFileImport()
     const importItem = items.find((item) => item.machineId === machineId)
@@ -115,6 +131,25 @@ function MachineView({ machineId }: { machineId: string }) {
         return () => observer.disconnect()
     }, [])
 
+    const deselect = () => {
+        setSelected(undefined)
+        detailsPanelRef.current?.collapse()
+        if (drawer === 'details') setDrawer(null)
+    }
+
+    const onEscape = useEffectEvent((event: KeyboardEvent) => {
+        if (event.key !== 'Escape' || event.defaultPrevented || isMobile || !selected) return
+        // Open dialogs and menus close on Escape themselves
+        if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]')) return
+        deselect()
+    })
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => onEscape(event)
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [])
+
     if (machine.isPending) {
         return <Skeleton className="m-4 mt-0 min-h-96 flex-1 rounded-xl" />
     }
@@ -152,21 +187,37 @@ function MachineView({ machineId }: { machineId: string }) {
     }
 
     const { record } = machine.data
-    const selectNode = (node: AssemblyNode) => {
+    const showDetails = (node: AssemblyNode) => {
         setSelected(node)
         if (isMobile) setDrawer('details')
         else if (detailsPanelRef.current?.isCollapsed()) detailsPanelRef.current.resize(288)
+    }
+    const selectInTree = (node: AssemblyNode) => {
+        showDetails(node)
+        if (settings.focusOnSelect) setFocusRequest((count) => count + 1)
+    }
+    const pickInView = (occurrenceIds: string[]) => {
+        const node = occurrenceIds
+            .map((id) => tree.data?.byOccurrence.get(id))
+            .find((found) => found !== undefined)
+        if (!node) return
+        showDetails(node)
+        setRevealRequest((count) => count + 1)
+        if (!isMobile && treePanelRef.current?.isCollapsed()) treePanelRef.current.expand()
     }
     const closeDetails = () => {
         setSelected(undefined)
         detailsPanelRef.current?.collapse()
     }
-    const tree = (
+    const treeArea = (
         <TreeArea
             machine={machine.data}
+            tree={tree}
             importItem={importItem}
             selectedId={selected?.id}
-            onSelect={selectNode}
+            revealRequest={revealRequest}
+            visible={isMobile ? drawer === 'tree' : !treeCollapsed}
+            onSelect={selectInTree}
         />
     )
     const details = selected ? <AssemblyDetails node={selected} machineName={record.name} /> : null
@@ -187,7 +238,14 @@ function MachineView({ machineId }: { machineId: string }) {
     return (
         <div ref={containerRef} className="relative flex-1 overflow-hidden">
             <div className="absolute inset-0 border-t bg-linear-to-b from-neutral-100 to-neutral-300 dark:from-neutral-700 dark:to-neutral-900">
-                <ViewerArea machine={machine.data} inset={isMobile ? NO_INSET : inset} />
+                <ViewerArea
+                    machine={machine.data}
+                    inset={isMobile ? NO_INSET : inset}
+                    selected={selected?.occurrenceId}
+                    focusRequest={focusRequest}
+                    onPick={pickInView}
+                    onMiss={deselect}
+                />
             </div>
             {isMobile ? (
                 <>
@@ -235,7 +293,7 @@ function MachineView({ machineId }: { machineId: string }) {
                                 </Button>
                             </header>
                             <div className="min-h-0 flex-1 overflow-y-auto p-2 pb-[calc(var(--drawer-snap-point-offset,0px)+0.5rem)]">
-                                <div hidden={drawer === 'details'}>{tree}</div>
+                                <div hidden={drawer === 'details'}>{treeArea}</div>
                                 {drawer === 'details' ? details : null}
                             </div>
                         </DrawerContent>
@@ -274,7 +332,7 @@ function MachineView({ machineId }: { machineId: string }) {
                                 }
                             >
                                 <ScrollArea className="min-h-0 flex-1">
-                                    <div className="p-2">{tree}</div>
+                                    <div className="p-2">{treeArea}</div>
                                 </ScrollArea>
                             </Panel>
                         </ResizablePanel>
@@ -345,7 +403,16 @@ function TreeButton({ ref, onClick }: { ref: React.Ref<HTMLButtonElement>; onCli
     )
 }
 
-function ViewerArea({ machine, inset }: { machine: MachineData; inset: ViewInset }) {
+type ViewerAreaProps = {
+    machine: MachineData
+    inset: ViewInset
+    selected: string | undefined
+    focusRequest: number
+    onPick: (occurrenceIds: string[]) => void
+    onMiss: () => void
+}
+
+function ViewerArea({ machine, inset, ...selection }: ViewerAreaProps) {
     const cadFile = findCadFile(machine)
     if (machine.status !== 'ready' || !cadFile) {
         return (
@@ -367,7 +434,7 @@ function ViewerArea({ machine, inset }: { machine: MachineData; inset: ViewInset
                     </ViewerMessage>
                 }
             >
-                <MachineViewer fileId={cadFile['@id']} inset={inset} />
+                <MachineViewer fileId={cadFile['@id']} inset={inset} {...selection} />
             </Suspense>
         </ViewerErrorBoundary>
     )
@@ -420,18 +487,15 @@ function Panel({ title, className, action, children }: PanelProps) {
 
 type TreeAreaProps = {
     machine: MachineData
+    tree: UseQueryResult<AssemblyIndex | null>
     importItem: ImportItem | undefined
     selectedId: string | undefined
+    revealRequest: number
+    visible: boolean
     onSelect: (node: AssemblyNode) => void
 }
 
-function TreeArea({ machine, importItem, selectedId, onSelect }: TreeAreaProps) {
-    const tree = useQuery({
-        ...assemblyTreeQuery(machine.record['@id']),
-        enabled: machine.status === 'ready',
-        select: toTree,
-    })
-
+function TreeArea({ machine, tree, importItem, ...treeProps }: TreeAreaProps) {
     switch (machine.status) {
         case 'empty':
             return <Message title="No CAD file">Import a STEP file from the machine list.</Message>
@@ -479,7 +543,7 @@ function TreeArea({ machine, importItem, selectedId, onSelect }: TreeAreaProps) 
     if (!tree.data) {
         return <Message title="No assembly tree">The CAD file contains no assembly.</Message>
     }
-    return <AssemblyTree root={tree.data} selectedId={selectedId} onSelect={onSelect} />
+    return <AssemblyTree tree={tree.data} {...treeProps} />
 }
 
 function Message({
