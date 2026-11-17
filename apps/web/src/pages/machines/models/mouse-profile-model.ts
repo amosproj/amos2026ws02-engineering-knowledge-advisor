@@ -79,14 +79,12 @@ export const MOUSE_PROFILES: Record<MouseProfileId, MouseProfile> = {
     },
 }
 
-/** Ctrl wins over Shift when both are held. */
 export function activeModifier(event: { shiftKey: boolean; ctrlKey: boolean }): Modifier {
     if (event.ctrlKey) return 'ctrl'
     if (event.shiftKey) return 'shift'
     return 'plain'
 }
 
-/** Action of each button for the held modifier, falling back to the plain action. */
 export function buttonActions(profile: MouseProfile, modifier: Modifier) {
     const pick = (actions: ButtonActions) =>
         (modifier !== 'plain' && actions[modifier]) || actions.plain
@@ -108,7 +106,6 @@ const INPUT_LABELS = {
     wheel: { plain: 'Drag', shift: 'Shift + drag', ctrl: 'Ctrl + drag' },
 }
 
-/** Bindings shown for each button, the wheel also lists its scroll action. */
 export function profileBindings(profile: MouseProfile): Record<MouseButton, Binding[]> {
     const bindings = (button: MouseButton) => {
         const labels = INPUT_LABELS[button === 'middle' ? 'wheel' : 'button']

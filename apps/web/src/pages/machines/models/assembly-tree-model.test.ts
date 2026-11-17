@@ -5,6 +5,9 @@ import {
     ancestorIds,
     formatDimensions,
     indexAssembly,
+    isHidden,
+    occurrencesOf,
+    showNode,
     toAssemblyNode,
     visibleRows,
 } from './assembly-tree-model'
@@ -63,6 +66,54 @@ describe('indexAssembly', () => {
         expect(index.byOccurrence.get('O-s2')?.id).toBe('s2')
         expect(index.byOccurrence.size).toBe(4)
         expect(ancestorIds(index.parentIds, 's2')).toEqual(['a', 'root'])
+    })
+})
+
+describe('showNode', () => {
+    // root > a > b > (c, d), a > e, root > f
+    const index = indexAssembly(
+        toAssemblyNode(
+            instance('root', 'Cell', [
+                instance('a', 'A', [
+                    instance('b', 'B', [instance('c', 'C'), instance('d', 'D')]),
+                    instance('e', 'E'),
+                ]),
+                instance('f', 'F'),
+            ]),
+        ),
+    )
+
+    it('brings back only the shown branch from below a hidden ancestor', () => {
+        const hidden = showNode(index, new Set(['a']), 'c')
+
+        expect([...hidden].sort()).toEqual(['d', 'e'])
+        expect(isHidden(hidden, index.parentIds, 'c')).toBe(false)
+    })
+
+    it('keeps the hidden parts below the shown one hidden', () => {
+        const hidden = showNode(index, new Set(['a', 'c']), 'b')
+
+        expect([...hidden].sort()).toEqual(['c', 'e'])
+    })
+})
+
+describe('occurrencesOf', () => {
+    it('stands for an unmapped node with its nearest mapped descendants', () => {
+        const node = toAssemblyNode(
+            instance(
+                'a',
+                'A',
+                [
+                    instance('b', 'B'),
+                    instance('c', 'C', [instance('d', 'D')], { occurrenceId: null }),
+                ],
+                {
+                    occurrenceId: null,
+                },
+            ),
+        )
+
+        expect(occurrencesOf(node).sort()).toEqual(['O-b', 'O-d'])
     })
 })
 

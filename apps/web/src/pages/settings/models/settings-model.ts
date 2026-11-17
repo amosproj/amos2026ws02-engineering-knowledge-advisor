@@ -27,7 +27,6 @@ export type Settings = z.output<typeof settingsSchema>
 
 export const DEFAULT_SETTINGS: Settings = settingsSchema.parse({})
 
-/** Invalid fields fall back to their default, the valid ones are kept. */
 export function parseStoredSettings(raw: string | null): Settings {
     if (raw === null) return DEFAULT_SETTINGS
     try {

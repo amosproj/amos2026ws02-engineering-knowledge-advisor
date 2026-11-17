@@ -27,14 +27,17 @@ export function toAssemblyNode({ record, children }: RecordTree): AssemblyNode {
 
 export type AssemblyIndex = {
     root: AssemblyNode
+    byId: ReadonlyMap<string, AssemblyNode>
     byOccurrence: ReadonlyMap<string, AssemblyNode>
     parentIds: ReadonlyMap<string, string>
 }
 
 export function indexAssembly(root: AssemblyNode): AssemblyIndex {
+    const byId = new Map<string, AssemblyNode>()
     const byOccurrence = new Map<string, AssemblyNode>()
     const parentIds = new Map<string, string>()
     const visit = (node: AssemblyNode) => {
+        byId.set(node.id, node)
         if (node.occurrenceId) byOccurrence.set(node.occurrenceId, node)
         for (const child of node.children) {
             parentIds.set(child.id, node.id)
@@ -42,7 +45,7 @@ export function indexAssembly(root: AssemblyNode): AssemblyIndex {
         }
     }
     visit(root)
-    return { root, byOccurrence, parentIds }
+    return { root, byId, byOccurrence, parentIds }
 }
 
 /** Ids of the nodes above ``id``, nearest first. */
@@ -50,6 +53,46 @@ export function ancestorIds(parentIds: ReadonlyMap<string, string>, id: string) 
     const ids: string[] = []
     for (let parent = parentIds.get(id); parent; parent = parentIds.get(parent)) ids.push(parent)
     return ids
+}
+
+export function isWithin(parentIds: ReadonlyMap<string, string>, id: string, ancestorId: string) {
+    return id === ancestorId || ancestorIds(parentIds, id).includes(ancestorId)
+}
+
+export function isHidden(
+    hidden: ReadonlySet<string>,
+    parentIds: ReadonlyMap<string, string>,
+    id: string,
+) {
+    return hidden.has(id) || ancestorIds(parentIds, id).some((ancestor) => hidden.has(ancestor))
+}
+
+/**
+ * Hidden ids once ``id`` is shown again. Its hidden ancestors are shown too, so their
+ * other children along the way get hidden on their own instead: only ``id`` comes back.
+ */
+export function showNode(
+    { byId, parentIds }: AssemblyIndex,
+    hidden: ReadonlySet<string>,
+    id: string,
+) {
+    const next = new Set(hidden)
+    next.delete(id)
+    const ancestors = ancestorIds(parentIds, id)
+    const top = ancestors.findLastIndex((ancestor) => hidden.has(ancestor))
+    let child = id
+    for (const ancestor of ancestors.slice(0, top + 1)) {
+        next.delete(ancestor)
+        for (const sibling of byId.get(ancestor)?.children ?? []) {
+            if (sibling.id !== child) next.add(sibling.id)
+        }
+        child = ancestor
+    }
+    return next
+}
+
+export function occurrencesOf(node: AssemblyNode): string[] {
+    return node.occurrenceId ? [node.occurrenceId] : node.children.flatMap(occurrencesOf)
 }
 
 const millimeters = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 })

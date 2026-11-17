@@ -6,7 +6,6 @@ import { BufferAttribute, BufferGeometry, EdgesGeometry, Matrix4, Vector3 } from
  */
 export const EDGE_THRESHOLD = 40
 
-/** Edges of a part's triangles where its faces meet at an angle, as line segment pairs. */
 export function featureEdges(positions: Float32Array, index: Uint32Array | null) {
     // EdgesGeometry welds vertices on a 1e-4 grid, in meters it would erase sub-millimeter details
     const min = [Infinity, Infinity, Infinity]
@@ -32,7 +31,6 @@ export function featureEdges(positions: Float32Array, index: Uint32Array | null)
 }
 
 /**
- * Places the edges of each mesh in the scene and joins them in one buffer.
  * ``offsets[i]`` is the first vertex of mesh ``i``, ``offsets[n]`` the vertex count.
  */
 export function mergeEdges(

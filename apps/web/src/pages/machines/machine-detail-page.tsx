@@ -1,4 +1,13 @@
-import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import {
+    lazy,
+    Suspense,
+    useCallback,
+    useEffect,
+    useEffectEvent,
+    useMemo,
+    useRef,
+    useState,
+} from 'react'
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
 import {
@@ -33,11 +42,15 @@ import {
 import { HttpError } from '@queries/query-errors'
 
 import { AssemblyDetails } from './components/assembly-details'
-import { AssemblyTree } from './components/assembly-tree'
+import { AssemblyTree, type TreeAction } from './components/assembly-tree'
 import { useCadFileImport, type ImportItem } from './components/cad-file-import-context'
+import type { FrameRequest, ViewState } from './components/machine-viewer'
 import { ViewerErrorBoundary } from './components/viewer-error-boundary'
 import {
     indexAssembly,
+    isWithin,
+    occurrencesOf,
+    showNode,
     toAssemblyNode,
     type AssemblyIndex,
     type AssemblyNode,
@@ -76,9 +89,10 @@ function MachineView({ machineId }: { machineId: string }) {
         select: toTree,
     })
     const [selected, setSelected] = useState<AssemblyNode>()
-    // Incremented by a selection in the tree, for the 3D view to frame the part
-    const [focusRequest, setFocusRequest] = useState(0)
-    // Incremented by a pick in the 3D view, for the tree to show the part
+    const [frameRequest, setFrameRequest] = useState<FrameRequest>()
+    // Instances hidden on their own; their descendants are hidden with them
+    const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set())
+    const [isolatedId, setIsolatedId] = useState<string>()
     const [revealRequest, setRevealRequest] = useState(0)
     const { settings } = useSettings()
     const isMobile = useIsMobile()
@@ -130,6 +144,23 @@ function MachineView({ machineId }: { machineId: string }) {
         observer.observe(element)
         return () => observer.disconnect()
     }, [])
+
+    const index = tree.data ?? undefined
+    // A refetched tree may no longer hold the selected or isolated instance
+    if (index && selected && !index.byId.has(selected.id)) setSelected(undefined)
+    if (index && isolatedId && !index.byId.has(isolatedId)) setIsolatedId(undefined)
+
+    const view = useMemo<ViewState>(() => {
+        const occurrences = (id: string) => {
+            const node = index?.byId.get(id)
+            return node ? occurrencesOf(node) : []
+        }
+        return {
+            selected: selected ? occurrences(selected.id) : [],
+            hidden: [...hidden].flatMap(occurrences),
+            isolated: isolatedId ? occurrences(isolatedId) : undefined,
+        }
+    }, [index, selected, hidden, isolatedId])
 
     const deselect = () => {
         setSelected(undefined)
@@ -192,16 +223,52 @@ function MachineView({ machineId }: { machineId: string }) {
         if (isMobile) setDrawer('details')
         else if (detailsPanelRef.current?.isCollapsed()) detailsPanelRef.current.resize(288)
     }
-    const selectInTree = (node: AssemblyNode) => {
+    const frame = (node: AssemblyNode) =>
+        setFrameRequest((request) => ({
+            targets: occurrencesOf(node),
+            sequence: (request?.sequence ?? 0) + 1,
+        }))
+    const select = (node: AssemblyNode) => {
+        if (isolatedId && index && !isWithin(index.parentIds, node.id, isolatedId)) {
+            setIsolatedId(undefined)
+        }
         showDetails(node)
-        if (settings.focusOnSelect) setFocusRequest((count) => count + 1)
+    }
+    const selectInTree = (node: AssemblyNode) => {
+        select(node)
+        if (settings.focusOnSelect) frame(node)
+    }
+    const runAction = (node: AssemblyNode, action: TreeAction) => {
+        switch (action) {
+            case 'hide':
+                setHidden((previous) => new Set(previous).add(node.id))
+                break
+            case 'show':
+                if (index) setHidden((previous) => showNode(index, previous, node.id))
+                break
+            case 'showAll':
+                setHidden(new Set())
+                break
+            case 'isolate':
+                setIsolatedId(node.id)
+                frame(node)
+                break
+            case 'zoom':
+                frame(node)
+                break
+            case 'selectParent': {
+                const parent = index?.byId.get(index.parentIds.get(node.id) ?? '')
+                if (parent) selectInTree(parent)
+                break
+            }
+        }
     }
     const pickInView = (occurrenceIds: string[]) => {
         const node = occurrenceIds
             .map((id) => tree.data?.byOccurrence.get(id))
             .find((found) => found !== undefined)
         if (!node) return
-        showDetails(node)
+        select(node)
         setRevealRequest((count) => count + 1)
         if (!isMobile && treePanelRef.current?.isCollapsed()) treePanelRef.current.expand()
     }
@@ -216,8 +283,11 @@ function MachineView({ machineId }: { machineId: string }) {
             importItem={importItem}
             selectedId={selected?.id}
             revealRequest={revealRequest}
+            hidden={hidden}
+            isolatedId={isolatedId}
             visible={isMobile ? drawer === 'tree' : !treeCollapsed}
             onSelect={selectInTree}
+            onAction={runAction}
         />
     )
     const details = selected ? <AssemblyDetails node={selected} machineName={record.name} /> : null
@@ -241,11 +311,18 @@ function MachineView({ machineId }: { machineId: string }) {
                 <ViewerArea
                     machine={machine.data}
                     inset={isMobile ? NO_INSET : inset}
-                    selected={selected?.occurrenceId}
-                    focusRequest={focusRequest}
+                    view={view}
+                    frameRequest={frameRequest}
                     onPick={pickInView}
                     onMiss={deselect}
                 />
+                {isolatedId && index?.byId.has(isolatedId) ? (
+                    <IsolationBanner
+                        name={index.byId.get(isolatedId)?.name ?? ''}
+                        inset={isMobile ? NO_INSET : inset}
+                        onExit={() => setIsolatedId(undefined)}
+                    />
+                ) : null}
             </div>
             {isMobile ? (
                 <>
@@ -406,8 +483,8 @@ function TreeButton({ ref, onClick }: { ref: React.Ref<HTMLButtonElement>; onCli
 type ViewerAreaProps = {
     machine: MachineData
     inset: ViewInset
-    selected: string | undefined
-    focusRequest: number
+    view: ViewState
+    frameRequest: FrameRequest | undefined
     onPick: (occurrenceIds: string[]) => void
     onMiss: () => void
 }
@@ -437,6 +514,33 @@ function ViewerArea({ machine, inset, ...selection }: ViewerAreaProps) {
                 <MachineViewer fileId={cadFile['@id']} inset={inset} {...selection} />
             </Suspense>
         </ViewerErrorBoundary>
+    )
+}
+
+type IsolationBannerProps = { name: string; inset: ViewInset; onExit: () => void }
+
+function IsolationBanner({ name, inset, onExit }: IsolationBannerProps) {
+    return (
+        <div
+            className="pointer-events-none absolute top-3 flex justify-center px-14"
+            style={{ left: inset.left, right: inset.right }}
+        >
+            <div className="bg-card pointer-events-auto flex min-w-0 items-center gap-1 rounded-full border py-1 pr-1 pl-3 text-sm shadow-md">
+                <span className="text-muted-foreground shrink-0">Isolated:</span>
+                <span className="truncate" title={name}>
+                    {name}
+                </span>
+                <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="rounded-full"
+                    aria-label="Exit isolation"
+                    onClick={onExit}
+                >
+                    <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
+                </Button>
+            </div>
+        </div>
     )
 }
 
@@ -491,8 +595,11 @@ type TreeAreaProps = {
     importItem: ImportItem | undefined
     selectedId: string | undefined
     revealRequest: number
+    hidden: ReadonlySet<string>
+    isolatedId: string | undefined
     visible: boolean
     onSelect: (node: AssemblyNode) => void
+    onAction: (node: AssemblyNode, action: TreeAction) => void
 }
 
 function TreeArea({ machine, tree, importItem, ...treeProps }: TreeAreaProps) {

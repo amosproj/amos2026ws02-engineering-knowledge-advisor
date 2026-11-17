@@ -15,7 +15,6 @@ const BATCH_FLOATS = 6_000_000
 export type Sketch = {
     lines: LineSegments<BufferGeometry, LineBasicMaterial[]>
     offsets: Uint32Array
-    meshIndex: Map<Mesh, number>
 }
 
 type SketchReply =
@@ -77,7 +76,7 @@ export async function buildSketch(scene: Object3D, meshes: Mesh[], signal: Abort
             matrices.buffer,
         ])
         if (reply.type !== 'merged') throw new Error('Unexpected reply from the sketch worker')
-        return createSketch(reply.positions, reply.offsets, meshes)
+        return createSketch(reply.positions, reply.offsets)
     } finally {
         worker.terminate()
     }
@@ -99,7 +98,7 @@ function copyIndex(geometry: BufferGeometry) {
     return geometry.index ? Uint32Array.from(geometry.index.array) : null
 }
 
-function createSketch(positions: Float32Array, offsets: Uint32Array, meshes: Mesh[]): Sketch {
+function createSketch(positions: Float32Array, offsets: Uint32Array): Sketch {
     const geometry = new BufferGeometry()
     geometry.setAttribute('position', new BufferAttribute(positions, 3))
     // Drawn over the solid selection without hiding its surface, which still hides the lines behind
@@ -108,7 +107,7 @@ function createSketch(positions: Float32Array, offsets: Uint32Array, meshes: Mes
     lines.raycast = () => {}
     lines.renderOrder = 1
     lines.visible = false
-    return { lines, offsets, meshIndex: new Map(meshes.map((mesh, i) => [mesh, i])) }
+    return { lines, offsets }
 }
 
 export function setSketchColor({ lines }: Sketch, color: string) {
@@ -120,26 +119,20 @@ export function disposeSketch({ lines }: Sketch) {
     for (const material of lines.material) material.dispose()
 }
 
-// Shows the edges of every mesh except ``selected``. hides the sketch without a selection.
-export function showSketch({ lines, offsets, meshIndex }: Sketch, selected: Set<Object3D>) {
+export function showSketch({ lines, offsets }: Sketch, drawn: Uint8Array) {
     const { geometry } = lines
     geometry.clearGroups()
-    lines.visible = selected.size > 0
-    if (!lines.visible) return
-    // The meshes of a part follow each other in traversal order
-    let first = Infinity
-    let last = -Infinity
-    for (const mesh of selected) {
-        const index = meshIndex.get(mesh as Mesh)
-        if (index === undefined) continue
-        first = Math.min(first, index)
-        last = Math.max(last, index)
+    let start: number | undefined
+    const addRange = (end: number) => {
+        if (start !== undefined) geometry.addGroup(start, end - start, 0)
+        start = undefined
     }
-    const total = offsets[offsets.length - 1]
-    if (first > last) {
-        geometry.addGroup(0, total, 0)
-        return
-    }
-    geometry.addGroup(0, offsets[first], 0)
-    geometry.addGroup(offsets[last + 1], total - offsets[last + 1], 0)
+    drawn.forEach((flag, mesh) => {
+        // Meshes without edges neither split nor extend a range
+        if (offsets[mesh] === offsets[mesh + 1]) return
+        if (flag) start ??= offsets[mesh]
+        else addRange(offsets[mesh])
+    })
+    addRange(offsets[drawn.length])
+    lines.visible = geometry.groups.length > 0
 }

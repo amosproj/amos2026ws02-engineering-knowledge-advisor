@@ -2,6 +2,7 @@ import {
     useEffect,
     useEffectEvent,
     useLayoutEffect,
+    useMemo,
     useRef,
     useState,
     useSyncExternalStore,
@@ -75,28 +76,52 @@ const CLICK_TOLERANCE = 4
 
 const loader = new GLTFLoader()
 
+/** Parts the page asks to show, as occurrence ids. */
+export type ViewState = {
+    selected: string[]
+    hidden: string[]
+    isolated: string[] | undefined
+}
+
+/** ``sequence`` repeats a request for the same parts. */
+export type FrameRequest = { targets: string[]; sequence: number }
+
 type Model = {
     scene: Object3D
     sphere: Sphere | null
     parts: Map<string, Object3D>
-    originals: Map<Mesh, Material | Material[]>
+    /** In scene traversal order: the meshes of a part follow each other. */
+    meshes: Mesh[]
+    meshIndex: Map<Mesh, number>
+    originals: (Material | Material[])[]
+    ranges: Map<string, [number, number]>
     highlights: Map<Material, Material>
 }
 
 async function loadModel(fileId: string, signal: AbortSignal): Promise<Model> {
     const gltf = await loader.parseAsync(await fetchModel(fileId, signal), '')
     const parts = new Map<string, Object3D>()
-    const originals = new Map<Mesh, Material | Material[]>()
-    gltf.scene.traverse((object) => {
+    const meshes: Mesh[] = []
+    const ranges = new Map<string, [number, number]>()
+    const walk = (object: Object3D) => {
+        const start = meshes.length
+        if (object instanceof Mesh) meshes.push(object)
+        for (const child of object.children) walk(child)
         const id: unknown = object.userData.occurrenceId
-        if (typeof id === 'string') parts.set(id, object)
-        if (object instanceof Mesh) originals.set(object, object.material)
-    })
+        if (typeof id === 'string') {
+            parts.set(id, object)
+            ranges.set(id, [start, meshes.length])
+        }
+    }
+    walk(gltf.scene)
     const model: Model = {
         scene: gltf.scene,
         sphere: null,
         parts,
-        originals,
+        meshes,
+        meshIndex: new Map(meshes.map((mesh, i) => [mesh, i])),
+        originals: meshes.map((mesh) => mesh.material),
+        ranges,
         highlights: new Map(),
     }
     if (signal.aborted) {
@@ -110,16 +135,16 @@ async function loadModel(fileId: string, signal: AbortSignal): Promise<Model> {
     return { ...model, sphere }
 }
 
-function disposeModel({ originals, highlights }: Model) {
-    for (const [mesh, material] of originals) {
+function disposeModel({ meshes, originals, highlights }: Model) {
+    meshes.forEach((mesh, i) => {
         mesh.geometry.dispose()
-        for (const original of [material].flat()) {
+        for (const original of [originals[i]].flat()) {
             for (const value of Object.values(original)) {
                 if (value instanceof Texture) value.dispose()
             }
             original.dispose()
         }
-    }
+    })
     // Highlights share the textures of their original
     for (const material of highlights.values()) material.dispose()
 }
@@ -139,27 +164,40 @@ function highlightOf({ highlights }: Model, material: Material) {
     return highlight
 }
 
-/**
- * Highlights the meshes of ``part``. With a sketch, ``part`` keeps its colors instead and
- * the other meshes give way to their edges.
- */
-function showSelection(model: Model, part: Object3D | undefined, sketch: Sketch | undefined) {
-    const selected = new Set<Object3D>()
-    part?.traverse((object) => {
-        if (object instanceof Mesh) selected.add(object)
-    })
-    const sketching = sketch !== undefined && selected.size > 0
-    for (const [mesh, original] of model.originals) {
-        // Hidden meshes still catch clicks: the raycaster ignores visibility
-        mesh.visible = !sketching || selected.has(mesh)
+function fillRanges(model: Model, mask: Uint8Array, ids: string[], value: number) {
+    for (const id of ids) {
+        const range = model.ranges.get(id)
+        if (range) mask.fill(value, ...range)
+    }
+}
+
+function shownMeshes(model: Model, hidden: string[], isolated: string[] | undefined) {
+    const shown = new Uint8Array(model.meshes.length).fill(isolated ? 0 : 1)
+    if (isolated) fillRanges(model, shown, isolated, 1)
+    fillRanges(model, shown, hidden, 0)
+    return shown
+}
+
+function showView(model: Model, shown: Uint8Array, selectedIds: string[], sketch?: Sketch) {
+    const selected = new Uint8Array(model.meshes.length)
+    fillRanges(model, selected, selectedIds, 1)
+    // A hidden selection leaves the shown meshes solid instead of turning them all to edges
+    const sketching = sketch !== undefined && selected.some((flag, i) => flag && shown[i])
+    const drawn = new Uint8Array(model.meshes.length)
+    model.meshes.forEach((mesh, i) => {
+        const original = model.originals[i]
+        const highlighted = shown[i] && selected[i]
+        // Meshes hidden for the sketch still catch clicks: the raycaster ignores visibility
+        mesh.visible = Boolean(shown[i] && (!sketching || selected[i]))
         mesh.material =
-            sketching || !selected.has(mesh)
+            sketching || !highlighted
                 ? original
                 : Array.isArray(original)
                   ? original.map((material) => highlightOf(model, material))
                   : highlightOf(model, original)
-    }
-    if (sketch) showSketch(sketch, sketching ? selected : new Set())
+        drawn[i] = sketching && shown[i] && !selected[i] ? 1 : 0
+    })
+    if (sketch) showSketch(sketch, drawn)
 }
 
 function subscribeToTheme(onChange: () => void) {
@@ -182,8 +220,8 @@ function occurrencePath(object: Object3D | null) {
 type MachineViewerProps = {
     fileId: string
     inset: ViewInset
-    selected: string | undefined
-    focusRequest: number
+    view: ViewState
+    frameRequest: FrameRequest | undefined
     onPick: (occurrenceIds: string[]) => void
     onMiss: () => void
 }
@@ -191,8 +229,8 @@ type MachineViewerProps = {
 export default function MachineViewer({
     fileId,
     inset,
-    selected,
-    focusRequest,
+    view,
+    frameRequest,
     onPick,
     onMiss,
 }: MachineViewerProps) {
@@ -208,7 +246,6 @@ export default function MachineViewer({
     const data = model.data
     const { settings } = useSettings()
     const sketching = settings.selectionStyle === 'sketch'
-    // Computed once per model, the first time the sketch style is wanted
     const [built, setBuilt] = useState<{ model: Model; sketch: Sketch }>()
     // Releases the edges of a replaced model, the dispose effect below runs on the change
     if (built && built.model !== data) setBuilt(undefined)
@@ -222,7 +259,7 @@ export default function MachineViewer({
     useEffect(() => {
         if (!data?.sphere || !sketching || built?.model === data) return
         const controller = new AbortController()
-        buildSketch(data.scene, [...data.originals.keys()], controller.signal)
+        buildSketch(data.scene, data.meshes, controller.signal)
             .then((result) => setBuilt({ model: data, sketch: result }))
             // Without edges the selection stays opaque
             .catch(() => undefined)
@@ -275,11 +312,12 @@ export default function MachineViewer({
                     sphere={sphere}
                     inset={inset}
                     resetCount={resetCount}
-                    selected={selected}
-                    focusRequest={focusRequest}
+                    view={view}
+                    frameRequest={frameRequest}
                     sketch={sketch}
                     dragged={dragged}
                     onPick={onPick}
+                    onMiss={onMiss}
                 />
             </Canvas>
             <Button
@@ -353,11 +391,12 @@ type SceneProps = {
     sphere: Sphere
     inset: ViewInset
     resetCount: number
-    selected: string | undefined
-    focusRequest: number
+    view: ViewState
+    frameRequest: FrameRequest | undefined
     sketch: Sketch | undefined
     dragged: React.RefObject<boolean>
     onPick: (occurrenceIds: string[]) => void
+    onMiss: () => void
 }
 
 function Scene({
@@ -365,11 +404,12 @@ function Scene({
     sphere,
     inset,
     resetCount,
-    selected,
-    focusRequest,
+    view,
+    frameRequest,
     sketch,
     dragged,
     onPick,
+    onMiss,
 }: SceneProps) {
     const { settings } = useSettings()
     const profile = MOUSE_PROFILES[settings.mouseProfile]
@@ -441,12 +481,15 @@ function Scene({
         }
     }, [get, dragged])
 
-    const part = selected ? model.parts.get(selected) : undefined
+    const shown = useMemo(
+        () => shownMeshes(model, view.hidden, view.isolated),
+        [model, view.hidden, view.isolated],
+    )
 
     useLayoutEffect(() => {
-        showSelection(model, part, sketch)
+        showView(model, shown, view.selected, sketch)
         invalidate()
-    }, [model, part, sketch, invalidate])
+    }, [model, shown, view.selected, sketch, invalidate])
 
     const dark = useSyncExternalStore(subscribeToTheme, isDarkTheme)
 
@@ -500,10 +543,13 @@ function Scene({
         resetView(resetCount > 0)
     }, [sphere, resetCount])
 
-    // Keeps the viewing direction, only the target and the distance change
-    const framePart = useEffectEvent(() => {
-        if (!part || !controls.current) return
-        const box = new Box3().setFromObject(part)
+    const frameParts = useEffectEvent((targets: string[]) => {
+        if (!controls.current) return
+        const box = new Box3()
+        for (const id of targets) {
+            const part = model.parts.get(id)
+            if (part) box.expandByObject(part)
+        }
         if (box.isEmpty()) return
         const bounds = box.getBoundingSphere(new Sphere())
         const camera = get().camera as PerspectiveCamera
@@ -514,28 +560,35 @@ function Scene({
             visibleWidth,
             size.height,
         )
-        const direction = camera.position.clone().sub(controls.current.getTarget(new Vector3()))
-        const position = direction.normalize().multiplyScalar(distance).add(bounds.center)
+        const target = controls.current.getTarget(new Vector3(), false)
+        const position = camera.position
+            .clone()
+            .sub(target)
+            .normalize()
+            .multiplyScalar(distance)
+            .add(bounds.center)
         const { x, y, z } = bounds.center
         void controls.current.setLookAt(position.x, position.y, position.z, x, y, z, true)
     })
 
     useEffect(() => {
-        if (focusRequest === 0) return
+        if (!frameRequest) return
         // The details panel may open with the selection: wait for the new visible area
         let frame = requestAnimationFrame(() => {
-            frame = requestAnimationFrame(() => framePart())
+            frame = requestAnimationFrame(() => frameParts(frameRequest.targets))
         })
         return () => cancelAnimationFrame(frame)
-    }, [focusRequest])
+    }, [frameRequest])
 
     const pickPart = (event: ThreeEvent<MouseEvent>) => {
         event.stopPropagation()
         if (dragged.current) return
-        const hit = event.intersections.find(
-            ({ object }) => object instanceof Mesh && model.originals.has(object),
-        )
+        const hit = event.intersections.find(({ object }) => {
+            const index = model.meshIndex.get(object as Mesh)
+            return index !== undefined && shown[index] === 1
+        })
         if (hit) onPick(occurrencePath(hit.object))
+        else onMiss()
     }
 
     const lookFrom = (event: ThreeEvent<MouseEvent>) => {

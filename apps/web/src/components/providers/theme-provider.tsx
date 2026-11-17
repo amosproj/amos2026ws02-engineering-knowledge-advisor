@@ -45,7 +45,6 @@ function applyTheme(theme: Theme) {
     restoreTransitions()
 }
 
-/** Applies the theme setting to the document and toggles it with the "d" key. */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const { settings, update } = useSettings()
     const theme = settings.theme
