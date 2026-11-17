@@ -29,6 +29,7 @@ from model import (
     RecordWritten,
 )
 from model.problem import Problem
+from model.response import RecordNodeWithScore
 from services import Record
 from services.catalog import (
     CatalogService,
@@ -62,6 +63,9 @@ RESPONSE_DETAIL_200_PATCH: str = (
     "Successfully changed record including validation drops."
 )
 RESPONSE_DETAIL_200_GET_ALL: str = "All records sorted by their id."
+RESPONSE_DETAIL_200_QUERY: str = (
+    "Records matching the query sorted by similarity score."
+)
 RESPONSE_DETAIL_200_GET_REVIEW: str = "Records marked for manual user review."
 RESPONSE_DETAIL_200_GET: str = "Requested record."
 RESPONSE_DETAIL_200_DELETE: str = (
@@ -260,6 +264,41 @@ async def get_records(
 
 
 @v1_records_router.get(
+    "/records/query",
+    response_model_exclude_unset=True,
+    responses={
+        200: {"description": RESPONSE_DETAIL_200_QUERY},
+        422: {"model": Problem, "description": RESPONSE_DETAIL_422_INVALID_REQUEST},
+    },
+)
+async def query_records(
+    catalog: Catalog,
+    session: Session,
+    include: Includes,
+    query: Annotated[
+        str, Query(description="Only records matching this query lexically.")
+    ],
+    cls: Annotated[str | None, Query(description="Only records of this class.")] = None,
+    limit: Annotated[
+        int | None, Query(description="Maximum number of records to return.")
+    ] = None,
+) -> list[RecordNodeWithScore] | list[RecordView]:
+    """Query records by a search term."""
+    found: list[tuple[Record, float]] = await catalog.query_records(
+        session, query, cls, limit
+    )
+    if not include:
+        return [
+            RecordNodeWithScore(record=to_node(record), similarity_score=score)
+            for record, score in found
+        ]
+
+    records = [record for record, score in found]
+    scores = [score for record, score in found]
+    return await _to_views(catalog, session, records, include, scores)
+
+
+@v1_records_router.get(
     "/records/review",
     responses={
         200: {
@@ -346,6 +385,7 @@ async def _to_views(
     session: Session,
     found: list[Record],
     include: set[Include],
+    similarity_scores: list[float] | None = None,
 ) -> list[RecordView]:
     states: UploadStates = (
         await catalog.get_upload_states(session, found)
@@ -357,7 +397,17 @@ async def _to_views(
         if Include.CHILDREN in include
         else {}
     )
-    return [_to_view(catalog, rec, include, states, children) for rec in found]
+    return [
+        _to_view(
+            catalog,
+            rec,
+            include,
+            states,
+            children,
+            similarity_scores[i] if similarity_scores else None,
+        )
+        for i, rec in enumerate(found)
+    ]
 
 
 def _to_view(
@@ -366,6 +416,7 @@ def _to_view(
     include: set[Include],
     states: UploadStates,
     children: dict[str, list[Record]],
+    similarity_score: float | None = None,
 ) -> RecordView:
     view = RecordView(record=to_node(record), version=record.version)
     if Include.STATUS in include and catalog.has_status(record):
@@ -376,6 +427,8 @@ def _to_view(
     if Include.UPLOAD in include and catalog.is_file_record(record):
         upload: Upload | None = states.uploads.get(record.id)
         view.upload = None if upload is None else to_file_upload(upload)
+    if similarity_score is not None:
+        view.similarity_score = similarity_score
     return view
 
 

@@ -116,6 +116,53 @@ class PgRecordStore(RecordStore):
             return await self._fetch_records(conn)
 
     @override
+    async def query_records(
+        self,
+        query: str,
+        cls: str | None = None,
+        limit: int | None = None,
+        tx: PgTx | None = None,
+    ) -> list[tuple[Record, float]]:
+        graph_text = cast(self.table.c[RecordColumn.GRAPH], Text)
+        similarity = func.similarity(graph_text, query)
+        condition = similarity > 0
+
+        async with get_transaction(self.engine, tx) as conn:
+            if cls is not None:
+                return await self._fetch_records_by_similarity(
+                    conn,
+                    self.table.c[RecordColumn.CLS] == cls,
+                    condition,
+                    order=similarity,
+                    limit=limit,
+                )
+            return await self._fetch_records_by_similarity(
+                conn, condition, order=similarity, limit=limit
+            )
+
+    async def _fetch_records_by_similarity(
+        self,
+        conn: PgTx,
+        *conditions: ColumnElement[bool],
+        order: ColumnElement[Any],
+        limit: int | None = None,
+    ) -> list[tuple[Record, float]]:
+        stmt: Select = (
+            select(
+                *(self.table.c[col] for col in self.COLUMNS),
+                self._get_version_column(),
+                order.label("similarity"),
+            )
+            .where(*conditions)
+            .order_by(order.desc())
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        rows: Sequence[RowMapping] = (await conn.execute(stmt)).mappings().all()
+        records = await self._rows_to_records(conn, rows)
+        return [(record, row["similarity"]) for row, record in zip(rows, records)]
+
+    @override
     async def get_records(
         self, record_ids: Sequence[str], tx: PgTx | None = None
     ) -> list[Record]:
@@ -283,6 +330,12 @@ class PgRecordStore(RecordStore):
         """Returns records matching all ``conditions`` sorted by id. Returns all records if ``conditions`` is empty."""
         stmt: Select = self._select_records().where(*conditions)
         rows: Sequence[RowMapping] = (await conn.execute(stmt)).mappings().all()
+        return await self._rows_to_records(conn, rows)
+
+    async def _rows_to_records(
+        self, conn: PgTx, rows: Sequence[RowMapping]
+    ) -> list[Record]:
+        """Converts rows to records with their links."""
         record_ids: list[str] = [row[CommonColumn.ID] for row in rows]
         links: dict[str, list[Link]] = await self._fetch_links(conn, record_ids)
         return [
