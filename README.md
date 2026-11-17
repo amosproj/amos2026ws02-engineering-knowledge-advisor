@@ -6,6 +6,7 @@ The project uses a containerized web application architecture with a React front
 
 ## Table of Contents
 
+- [Project Mission](#project-mission)
 - [Repository Structure](#repository-structure)
 - [Quickstart](#quickstart)
 - [Build & Run](#build--run)
@@ -17,6 +18,10 @@ The project uses a containerized web application architecture with a React front
 - [Troubleshooting](#troubleshooting)
 - [Security Notes](#security-notes)
 - [Technology Stack](#technology-stack)
+
+## Project Mission
+
+Deliver an open-source prototype that lets Bosch engineers capture knowledge about existing products, linked to their CAD assembly groups, and retrieve it with AI during new designs.
 
 ## Repository Structure
 
