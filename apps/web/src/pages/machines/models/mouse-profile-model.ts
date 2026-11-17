@@ -98,3 +98,30 @@ export function buttonActions(profile: MouseProfile, modifier: Modifier) {
         wheel: profile.wheel,
     }
 }
+
+export type Binding = { input: string; action: MouseAction }
+
+const MODIFIERS = ['plain', 'shift', 'ctrl'] as const
+
+const INPUT_LABELS = {
+    button: { plain: '', shift: 'Shift +', ctrl: 'Ctrl +' },
+    wheel: { plain: 'Drag', shift: 'Shift + drag', ctrl: 'Ctrl + drag' },
+}
+
+/** Bindings shown for each button, the wheel also lists its scroll action. */
+export function profileBindings(profile: MouseProfile): Record<MouseButton, Binding[]> {
+    const bindings = (button: MouseButton) => {
+        const labels = INPUT_LABELS[button === 'middle' ? 'wheel' : 'button']
+        return MODIFIERS.flatMap((modifier) => {
+            const action = profile.buttons[button][modifier]
+            return action && action !== 'none' ? [{ input: labels[modifier], action }] : []
+        })
+    }
+    const scroll = profile.wheel === 'none' ? [] : [{ input: 'Scroll', action: profile.wheel }]
+
+    return {
+        left: bindings('left'),
+        middle: [...bindings('middle'), ...scroll],
+        right: bindings('right'),
+    }
+}

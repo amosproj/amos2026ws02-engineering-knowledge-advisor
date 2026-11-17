@@ -5,10 +5,17 @@ import { MOUSE_PROFILE_IDS } from '@pages/machines/models/mouse-profile-model'
 export const THEMES = ['system', 'light', 'dark'] as const
 export type Theme = (typeof THEMES)[number]
 
+export const NAVIGATION_SPEEDS = ['slow', 'normal', 'fast'] as const
+export type NavigationSpeed = (typeof NAVIGATION_SPEEDS)[number]
+
 const settingsSchema = z.object({
     theme: z.enum(THEMES).catch('system'),
     sidebarOpen: z.boolean().catch(true),
     mouseProfile: z.enum(MOUSE_PROFILE_IDS).catch('default'),
+    navigationSpeed: z.enum(NAVIGATION_SPEEDS).catch('normal'),
+    invertZoom: z.boolean().catch(false),
+    zoomToCursor: z.boolean().catch(true),
+    showViewCube: z.boolean().catch(true),
 })
 
 export type Settings = z.output<typeof settingsSchema>

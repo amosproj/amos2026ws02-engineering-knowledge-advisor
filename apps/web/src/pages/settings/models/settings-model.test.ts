@@ -10,12 +10,20 @@ describe('parseStoredSettings', () => {
     })
 
     it('replaces only the invalid fields with their default', () => {
-        const raw = JSON.stringify({ theme: 'dark', sidebarOpen: 'yes', mouseProfile: 'maya' })
+        const raw = JSON.stringify({
+            theme: 'dark',
+            sidebarOpen: 'yes',
+            mouseProfile: 'maya',
+            navigationSpeed: 'fast',
+            invertZoom: 1,
+            zoomToCursor: false,
+        })
 
         expect(parseStoredSettings(raw)).toEqual({
+            ...DEFAULT_SETTINGS,
             theme: 'dark',
-            sidebarOpen: DEFAULT_SETTINGS.sidebarOpen,
-            mouseProfile: DEFAULT_SETTINGS.mouseProfile,
+            navigationSpeed: 'fast',
+            zoomToCursor: false,
         })
     })
 })

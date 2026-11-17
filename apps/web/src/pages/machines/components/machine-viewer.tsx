@@ -36,10 +36,10 @@ import {
     buttonActions,
     type Modifier,
     type MouseAction,
-    type MouseProfile,
 } from '../models/mouse-profile-model'
 import { fitDistance, visibleCenterShift, type ViewInset } from '../models/viewer-camera-model'
 import { fetchModel } from '../query/machine-api'
+import type { NavigationSpeed } from '@pages/settings/models/settings-model'
 
 const { ACTION } = CameraControlsImpl
 const ACTIONS: Record<MouseAction, 0 | 1 | 2 | 16> = {
@@ -50,6 +50,7 @@ const ACTIONS: Record<MouseAction, 0 | 1 | 2 | 16> = {
 }
 const ISOMETRIC = new Vector3(1, 0.8, 1).normalize()
 const FOV = 45
+const SPEED_FACTORS: Record<NavigationSpeed, number> = { slow: 0.5, normal: 1, fast: 2 }
 
 const loader = new GLTFLoader()
 
@@ -92,7 +93,6 @@ export default function MachineViewer({ fileId, inset }: MachineViewerProps) {
     })
     const [resetCount, setResetCount] = useState(0)
     const [settingsOpen, setSettingsOpen] = useState(false)
-    const profile = MOUSE_PROFILES[useSettings().settings.mouseProfile]
     const scene = model.data?.scene
 
     useEffect(() => {
@@ -132,7 +132,6 @@ export default function MachineViewer({ fileId, inset }: MachineViewerProps) {
                     sphere={model.data.sphere}
                     inset={inset}
                     resetCount={resetCount}
-                    profile={profile}
                 />
             </Canvas>
             <Button
@@ -147,7 +146,7 @@ export default function MachineViewer({ fileId, inset }: MachineViewerProps) {
                 <HugeiconsIcon icon={Settings05Icon} strokeWidth={1.5} className="size-5" />
             </Button>
             <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
                     <DialogHeader>
                         <DialogTitle>3D viewer settings</DialogTitle>
                     </DialogHeader>
@@ -206,10 +205,12 @@ type SceneProps = {
     sphere: Sphere
     inset: ViewInset
     resetCount: number
-    profile: MouseProfile
 }
 
-function Scene({ scene, sphere, inset, resetCount, profile }: SceneProps) {
+function Scene({ scene, sphere, inset, resetCount }: SceneProps) {
+    const { settings } = useSettings()
+    const profile = MOUSE_PROFILES[settings.mouseProfile]
+    const speed = SPEED_FACTORS[settings.navigationSpeed]
     const controls = useRef<CameraControlsImpl>(null)
     const get = useThree((state) => state.get)
     const size = useThree((state) => state.size)
@@ -302,10 +303,20 @@ function Scene({ scene, sphere, inset, resetCount, profile }: SceneProps) {
     return (
         <>
             <primitive object={scene} />
-            <CameraControls ref={controls} makeDefault dollyToCursor />
-            <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
-                <GizmoViewcube onClick={lookFrom} />
-            </GizmoHelper>
+            <CameraControls
+                ref={controls}
+                makeDefault
+                dollyToCursor={settings.zoomToCursor}
+                azimuthRotateSpeed={speed}
+                polarRotateSpeed={speed}
+                truckSpeed={2 * speed}
+                dollySpeed={settings.invertZoom ? -speed : speed}
+            />
+            {settings.showViewCube ? (
+                <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
+                    <GizmoViewcube onClick={lookFrom} />
+                </GizmoHelper>
+            ) : null}
         </>
     )
 }
