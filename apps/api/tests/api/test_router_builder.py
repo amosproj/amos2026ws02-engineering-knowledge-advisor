@@ -68,10 +68,11 @@ def test_tags():
         .version("v1")
         .build()
     )
-    assert all(tag in router.tags for tag in ["knowledge", "search", "v1"])
+    assert router.tags == ["knowledge", "search"]
 
     router = ApiRouterBuilder().version("v1").version("v2").build()
-    assert router.tags == ["v2"]
+    assert router.tags == []
+    assert router.prefix == "/api/v2"
 
 
 def test_tags_do_not_modify_by_ref():

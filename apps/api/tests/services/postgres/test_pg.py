@@ -1,6 +1,6 @@
 import asyncio
 import os
-from collections.abc import AsyncGenerator, Callable, Coroutine, Sequence
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import asynccontextmanager
 from enum import StrEnum
 from typing import Any
@@ -75,31 +75,22 @@ ITEM: dict[str, Any] = {
 }
 # Async psycopg refuses Windows' default ProactorEventLoop.
 SELECTOR_LOOP: dict[str, Any] = {"loop_factory": asyncio.SelectorEventLoop}
-SELECT_OGRAG_TABLES: str = (
-    "SELECT tablename FROM pg_tables"
-    " WHERE schemaname = current_schema() AND tablename LIKE 'ograg\\_%'"
-)
 
 
 def run_async(check: Callable[[], Coroutine[Any, Any, None]]) -> None:
     asyncio.run(check(), loop_factory=asyncio.SelectorEventLoop)
 
 
-async def drop_ograg_tables(conn: AsyncConnection) -> None:
-    """Drops every ``ograg_*`` table, also ones the code no longer defines (left from an older schema)."""
-    names: Sequence[str] = (
-        (await conn.execute(text(SELECT_OGRAG_TABLES))).scalars().all()
-    )
-    for name in names:
+async def drop_tables(conn: AsyncConnection) -> None:
+    """Drops the tables of ``TableName``."""
+    for name in TableName:
         await conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
 
 
 async def create_fresh_tables(engine: AsyncEngine) -> Tables:
     tables: Tables = define_tables(MetaData())
     async with engine.begin() as conn:
-        # cad_uploads first: dropping ograg_records with CASCADE would only drop its foreign key
-        await conn.execute(text(f'DROP TABLE IF EXISTS "{TableName.CAD_UPLOADS}"'))
-        await drop_ograg_tables(conn)
+        await drop_tables(conn)
         await conn.run_sync(tables.metadata.create_all)
     return tables
 

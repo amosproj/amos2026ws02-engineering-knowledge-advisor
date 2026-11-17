@@ -28,12 +28,7 @@ class ApiRouterBuilder:
         return self
 
     def version(self, version: str) -> Self:
-        if self._version != version and self._version in self._tags:
-            self._tags.remove(self._version)
-
         self._version = version
-        if version not in self._tags:
-            self._tags.append(version)
         return self
 
     def tags(self, tags: list[str]) -> Self:

@@ -38,7 +38,7 @@ COPY --chown=appuser:appuser src ./src
 RUN --mount=type=cache,target=/home/appuser/.cache/uv,uid=1000,gid=1000 \
     uv sync --frozen --no-dev
 
-# OG-RAG ontology (API_OGRAG_ONTOLOGY_PATH) and the database migrations
+# Ontology (API_ONTOLOGY_PATH) and the database migrations
 # (run migrations before starting a new version: uv run --no-sync alembic upgrade head)
 COPY --chown=appuser:appuser ontology_v0.jsonld alembic.ini ./
 COPY --chown=appuser:appuser migrations ./migrations

@@ -10,6 +10,6 @@ class ModelBase(DeclarativeBase):
 
 
 @lru_cache
-def get_ograg_tables() -> Tables:
-    """Register OG-RAG tables on ``ModelBase.metadata``. Call this before using the metadata."""
+def get_tables() -> Tables:
+    """Register tables on ``ModelBase.metadata``. Call this before using the metadata."""
     return define_tables(ModelBase.metadata)

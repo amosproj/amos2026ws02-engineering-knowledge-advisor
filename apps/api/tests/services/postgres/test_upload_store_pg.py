@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from db import CommonColumn, RecordColumn, TableName, Tables, define_tables
-from db.names import CadUploadColumn
+from db.names import UploadColumn
 from services.postgres.upload_store import PgUploadStore
 from services.uploads import LockTimeoutError, Upload, UploadStatus
 
@@ -35,10 +35,6 @@ MISSING_ID: str = "file-9"
 SIZE: int = 300
 SHA256: str = "a" * 64
 FILE_MISMATCH: str = "file_mismatch"
-SELECT_OGRAG_TABLES: str = (
-    "SELECT tablename FROM pg_tables"
-    " WHERE schemaname = current_schema() AND tablename LIKE 'ograg\\_%'"
-)
 SELECT_LOCK_WAITS = text(
     "SELECT count(*) FROM pg_stat_activity"
     " WHERE datname = current_database() AND wait_event_type = 'Lock'"
@@ -60,8 +56,7 @@ async def open_store(*file_ids: str) -> AsyncGenerator[tuple[PgUploadStore, Sess
     sessions: Sessions = async_sessionmaker(engine, expire_on_commit=False)
     try:
         async with engine.begin() as conn:
-            await conn.execute(text(f'DROP TABLE IF EXISTS "{TableName.CAD_UPLOADS}"'))
-            for name in (await conn.execute(text(SELECT_OGRAG_TABLES))).scalars():
+            for name in TableName:
                 await conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
             await conn.run_sync(tables.metadata.create_all)
         for file_id in file_ids:
@@ -175,7 +170,7 @@ def test_restarting_a_failed_upload_clears_the_model_key():
                 await store.finish_upload(FIRST_ID, FILE_MISMATCH, session)
                 # a leftover key, e.g. written by an older worker
                 await session.execute(
-                    update(store.table).values({CadUploadColumn.MODEL_KEY: MODEL_KEY})
+                    update(store.table).values({UploadColumn.MODEL_KEY: MODEL_KEY})
                 )
                 restarted: Upload | None = await store.start_upload(
                     FIRST_ID, f"files/{FIRST_ID}/source.step", SIZE, session

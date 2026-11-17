@@ -34,7 +34,6 @@
     "/api/v1/records": {
       "post": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Post Record",
@@ -85,7 +84,6 @@
       },
       "get": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Get Records",
@@ -186,7 +184,6 @@
     "/api/v1/records/{recordId}": {
       "put": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Put Record",
@@ -278,7 +275,6 @@
       },
       "patch": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Patch Record",
@@ -380,7 +376,6 @@
       },
       "get": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Get Record",
@@ -461,7 +456,6 @@
       },
       "delete": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Delete Record",
@@ -562,10 +556,123 @@
         }
       }
     },
+    "/api/v1/records/query": {
+      "get": {
+        "tags": [
+          "records"
+        ],
+        "summary": "Query Records",
+        "description": "Query records by a search term.",
+        "operationId": "query_records_api_v1_records_query_get",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Only records matching this query lexically.",
+              "title": "Query"
+            },
+            "description": "Only records matching this query lexically."
+          },
+          {
+            "name": "cls",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only records of this class.",
+              "title": "Cls"
+            },
+            "description": "Only records of this class."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Maximum number of records to return.",
+              "title": "Limit"
+            },
+            "description": "Maximum number of records to return."
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(status|children|upload)(,(status|children|upload))*$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated extras per record.",
+              "title": "Include"
+            },
+            "description": "Comma-separated extras per record."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Records matching the query sorted by similarity score.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RecordNodeWithScore"
+                      }
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RecordView"
+                      }
+                    }
+                  ],
+                  "title": "Response Query Records Api V1 Records Query Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/records/review": {
       "get": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Get Records To Review",
@@ -592,7 +699,6 @@
     "/api/v1/records/{recordId}/tree": {
       "get": {
         "tags": [
-          "v1",
           "files"
         ],
         "summary": "Get Record Tree",
@@ -667,7 +773,6 @@
     "/api/v1/records/{recordId}/ancestors": {
       "get": {
         "tags": [
-          "v1",
           "files"
         ],
         "summary": "Get Record Ancestors",
@@ -742,7 +847,6 @@
     "/api/v1/records/{recordId}/upload-form": {
       "post": {
         "tags": [
-          "v1",
           "files"
         ],
         "summary": "Post Upload Form",
@@ -818,7 +922,6 @@
     "/api/v1/records/{recordId}/complete": {
       "post": {
         "tags": [
-          "v1",
           "files"
         ],
         "summary": "Complete Upload",
@@ -894,7 +997,6 @@
     "/api/v1/records/{recordId}/model": {
       "get": {
         "tags": [
-          "v1",
           "files"
         ],
         "summary": "Get Model",
@@ -963,7 +1065,6 @@
     "/api/v1/ontology": {
       "get": {
         "tags": [
-          "v1",
           "ontology"
         ],
         "summary": "Get Ontology",
@@ -986,7 +1087,6 @@
     "/api/v1/llm/chat": {
       "post": {
         "tags": [
-          "v1",
           "llm"
         ],
         "summary": "Chat",
@@ -1079,7 +1179,6 @@
     "/api/v1/llm/chat/stream": {
       "post": {
         "tags": [
-          "v1",
           "llm"
         ],
         "summary": "Chat Stream",
@@ -1172,7 +1271,6 @@
     "/api/v1/llm/providers": {
       "get": {
         "tags": [
-          "v1",
           "llm"
         ],
         "summary": "Providers",
@@ -1199,7 +1297,6 @@
     "/api/v1/llm/models": {
       "get": {
         "tags": [
-          "v1",
           "llm"
         ],
         "summary": "Models",
@@ -1918,6 +2015,26 @@
         "title": "RecordNode",
         "description": "JSON-LD node of a record class. Properties as defined by the ontology. Links hold target ids.\nEvery property besides ``@type`` and ``@id`` is kept as sent."
       },
+      "RecordNodeWithScore": {
+        "properties": {
+          "record": {
+            "$ref": "#/components/schemas/RecordNode",
+            "description": "Validated record. Links hold target ids."
+          },
+          "similarityScore": {
+            "type": "number",
+            "title": "Similarityscore",
+            "description": "Lexical similarity score (0.0–1.0, higher is more similar)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "record",
+          "similarityScore"
+        ],
+        "title": "RecordNodeWithScore",
+        "description": "A record node with a lexical search similarity score."
+      },
       "RecordToReview": {
         "properties": {
           "id": {
@@ -2058,6 +2175,18 @@
             ],
             "title": "Children",
             "description": "Records whose parent links point to the record."
+          },
+          "similarityScore": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Similarityscore",
+            "description": "How similar the record is to the query."
           }
         },
         "type": "object",

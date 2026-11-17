@@ -8,7 +8,7 @@ FastAPI backend. Requires Python 3.13 and [uv](https://docs.astral.sh/uv/).
 | ------------------------- | ------------------------------------------------------ | --------------- |
 | `API_PROFILE`             | `dev`, `prod`                                          | `dev`           |
 | `API_DATABASE_URL`        | `postgresql+psycopg://user:pw@host/db`                 | none (required) |
-| `API_OGRAG_ONTOLOGY_PATH` | JSON-LD ontology file                                  | none (required) |
+| `API_ONTOLOGY_PATH`       | JSON-LD ontology file                                  | none (required) |
 | `API_S3_ENDPOINT_URL`     | S3 endpoint, e.g. `http://minio:9000`                  | none (required) |
 | `API_S3_BUCKET`           | bucket of the uploaded files                           | none (required) |
 | `API_S3_ACCESS_KEY`       | S3 access key                                          | none (required) |
@@ -106,7 +106,7 @@ Send it back as `If-Match: "<version>"` with `PUT`, `PATCH` or `DELETE`. If some
 
 ## Files
 
-A record of a class marked `og:file` (CadFile) carries one file, upload state in `cad_uploads`, the file in S3 under
+A record of a class marked `og:file` (CadFile) carries one file, upload state in `uploads`, the file in S3 under
 `files/{id}/`. A machine has one CAD file (`og:maxPerParent`), a second one answers `409` with `max_per_parent`. The file bytes never pass the API:
 
 1. `POST /records` creates the record without file (status `empty`).
