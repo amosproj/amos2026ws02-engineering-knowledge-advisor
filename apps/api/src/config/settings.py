@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     profile: Literal["dev", "prod"] = "dev"
     database_url: SecretStr | None = None
 
-    ograg_ontology_path: Path
+    ontology_path: Path
 
     s3_endpoint_url: str
     s3_bucket: str

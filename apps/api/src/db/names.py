@@ -2,9 +2,9 @@ from enum import StrEnum
 
 
 class TableName(StrEnum):
-    RECORDS = "ograg_records"
-    LINKS = "ograg_links"
-    CAD_UPLOADS = "cad_uploads"
+    RECORDS = "records"
+    LINKS = "record_links"
+    UPLOADS = "uploads"
 
 
 class CommonColumn(StrEnum):
@@ -34,8 +34,8 @@ class LinkColumn(StrEnum):
     TARGET_ID = "target_id"
 
 
-class CadUploadColumn(StrEnum):
-    CAD_FILE_ID = "cad_file_id"
+class UploadColumn(StrEnum):
+    FILE_ID = "file_id"
     STATUS = "status"
     ERROR_CODE = "error_code"
     SOURCE_KEY = "source_key"
@@ -47,12 +47,12 @@ class CadUploadColumn(StrEnum):
     UPDATED_AT = "updated_at"
 
 
-class CadUploadStatus(StrEnum):
+class UploadStatus(StrEnum):
     UPLOADING = "uploading"
     PROCESSING = "processing"
     READY = "ready"
     FAILED = "failed"
 
 
-PROCESSING_INDEX: str = f"ix_{TableName.CAD_UPLOADS}_{CadUploadStatus.PROCESSING}"
-STATUS_CHECK: str = f"ck_{TableName.CAD_UPLOADS}_{CadUploadColumn.STATUS}"
+PROCESSING_INDEX: str = f"ix_{TableName.UPLOADS}_{UploadStatus.PROCESSING}"
+STATUS_CHECK: str = f"ck_{TableName.UPLOADS}_{UploadColumn.STATUS}"

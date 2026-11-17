@@ -4,10 +4,11 @@ Build, user, and technical documentation
 
 - [`architecture/software-architecture.md`](architecture/software-architecture.md)
 - [`architecture/llm-integration.md`](architecture/llm-integration.md) - LLM provider configuration and API
+- [`architecture/knowledge-retrieval.md`](architecture/knowledge-retrieval.md) - knowledge storage and retrieval (OG-RAG, embeddings)
 
 ## Contracts
 
-- `openapi.json` — REST API contract exported from FastAPI
+- `openapi.json` - API contract, exported by FastAPI and imported by REST clients (Postman, Insomnia, Bruno, ...)
 
 ## Misc
 

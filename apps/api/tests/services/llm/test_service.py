@@ -21,7 +21,7 @@ def build_settings(
     hetzner: LLMProviderSettings | None = None,
 ) -> Settings:
     return Settings(
-        ograg_ontology_path=Path("unused.jsonld"),
+        ontology_path=Path("unused.jsonld"),
         s3_endpoint_url="http://localhost:9000",
         s3_bucket="test",
         s3_access_key="test",

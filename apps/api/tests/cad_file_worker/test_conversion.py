@@ -1,10 +1,8 @@
 import multiprocessing
 import os
-import struct
 import threading
 import time
 from collections.abc import Callable
-from multiprocessing.connection import Connection
 from pathlib import Path
 
 import pytest
@@ -27,17 +25,23 @@ def _hang(*_: object) -> None:
     time.sleep(TIMEOUT)
 
 
-def _die_while_sending(_step: Path, _glb: Path, sender: Connection) -> None:
-    os.write(sender.fileno(), struct.pack("!i", 100) + b"partial")
-    os._exit(3)
+def _die_while_writing(_step: Path, _glb: Path, result_path: Path) -> None:
+    with result_path.open("wb") as file:
+        file.write(b"partial")
+        file.flush()
+        os._exit(3)
 
 
-def _hang_after_closing_the_pipe(_step: Path, _glb: Path, sender: Connection) -> None:
-    sender.close()
+def _hang_after_writing_the_result(_step: Path, _glb: Path, result_path: Path) -> None:
+    result_path.write_bytes(b"any")
     time.sleep(TIMEOUT)
 
 
-def _glb_fails(step_path: Path, glb_path: Path, sender: Connection) -> None:
+def _exit_without_result(*_: object) -> None:
+    pass
+
+
+def _glb_fails(step_path: Path, glb_path: Path, result_path: Path) -> None:
     """The real conversion, with a GLB generator that raises (patched in the child)."""
     from services.cad.glb_generator import GlbGenerator
 
@@ -45,7 +49,7 @@ def _glb_fails(step_path: Path, glb_path: Path, sender: Connection) -> None:
         raise RuntimeError("boom")
 
     GlbGenerator.generate = fail  # pyright: ignore[reportAttributeAccessIssue]
-    conversion._convert(step_path, glb_path, sender)
+    conversion._convert(step_path, glb_path, result_path)
 
 
 def convert(
@@ -110,16 +114,25 @@ def test_an_invalid_file_raises_the_parser_error(tmp_path: Path):
         convert(step_path)
 
 
-@pytest.mark.parametrize("target", [_crash, _die_while_sending])
+@pytest.mark.parametrize("target", [_crash, _die_while_writing])
 def test_a_child_dying_without_its_result_raises(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target: Callable[..., None]
 ):
     monkeypatch.setattr(conversion, "_convert", target)
     with pytest.raises(StepImportError, match="exit code 3"):
         convert(tmp_path / "any.step")
+    assert list(tmp_path.iterdir()) == []
 
 
-@pytest.mark.parametrize("target", [_hang, _hang_after_closing_the_pipe])
+def test_a_child_exiting_without_its_result_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(conversion, "_convert", _exit_without_result)
+    with pytest.raises(StepImportError, match="exit code 0"):
+        convert(tmp_path / "any.step")
+
+
+@pytest.mark.parametrize("target", [_hang, _hang_after_writing_the_result])
 def test_a_hanging_child_is_killed_after_the_timeout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target: Callable[..., None]
 ):

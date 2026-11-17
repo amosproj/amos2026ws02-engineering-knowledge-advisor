@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from config.settings import Settings
-from db.model_base import get_ograg_tables
+from db.model_base import get_tables
 from logger import logger
 from services import LLMService
 from services.catalog import CatalogService
@@ -64,14 +64,14 @@ def create_ograg_service(settings: Settings, engine: AsyncEngine) -> OgRagServic
     Raises:
         OSError, json.JSONDecodeError, OntologyError: the ontology cannot be read or is malformed.
     """
-    ontology = Ontology.load(settings.ograg_ontology_path)
+    ontology = Ontology.load(settings.ontology_path)
     store = PgRecordStore(
         engine,
-        tables=get_ograg_tables(),
+        tables=get_tables(),
         identity_property_names=ontology.get_identity_property_names(),
     )
     logger.info(
-        LOG_ONTOLOGY.format(path=settings.ograg_ontology_path, version=ontology.version)
+        LOG_ONTOLOGY.format(path=settings.ontology_path, version=ontology.version)
     )
     return OgRagService(ontology, store)
 
@@ -80,7 +80,7 @@ def create_catalog_service(settings: Settings, ograg: OgRagService) -> CatalogSe
     """The catalog on ``ograg``, with the upload state in Postgres and the files in S3. One per process."""
     return CatalogService(
         ograg,
-        PgUploadStore(get_ograg_tables()),
+        PgUploadStore(get_tables()),
         S3ObjectStorage(settings),
     )
 

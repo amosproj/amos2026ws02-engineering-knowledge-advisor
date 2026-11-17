@@ -24,12 +24,12 @@ from sqlalchemy.types import TypeEngine
 from db.names import (
     PROCESSING_INDEX,
     STATUS_CHECK,
-    CadUploadColumn,
-    CadUploadStatus,
     CommonColumn,
     LinkColumn,
     RecordColumn,
     TableName,
+    UploadColumn,
+    UploadStatus,
 )
 
 ON_DELETE_CASCADE: str = "CASCADE"
@@ -38,17 +38,17 @@ ON_DELETE_RESTRICT: str = "RESTRICT"
 
 @dataclass(frozen=True)
 class Tables:
-    """All knowledge tables used for OG-RAG."""
+    """All relational database tables."""
 
     metadata: MetaData
 
     records: Table
-    links: Table
-    cad_uploads: Table
+    record_links: Table
+    uploads: Table
 
 
 def define_tables(metadata: MetaData | None = None) -> Tables:
-    """Creates and returns all OG-RAG tables.
+    """Creates and returns all tables.
 
     Args:
         metadata: if ``None``, will create a new one.
@@ -58,8 +58,8 @@ def define_tables(metadata: MetaData | None = None) -> Tables:
     return Tables(
         metadata,
         records=records,
-        links=_define_links(metadata, records),
-        cad_uploads=_define_cad_uploads(metadata, records),
+        record_links=_define_links(metadata, records),
+        uploads=_define_uploads(metadata, records),
     )
 
 
@@ -153,47 +153,47 @@ def _define_links(metadata: MetaData, records: Table) -> Table:
     )
 
 
-def _define_cad_uploads(metadata: MetaData, records: Table) -> Table:
+def _define_uploads(metadata: MetaData, records: Table) -> Table:
     # Upload state of each CadFile record. The file name lives in the record, the files in S3.
-    allowed_statuses: str = ", ".join(f"'{status}'" for status in CadUploadStatus)
-    cad_uploads = Table(
-        TableName.CAD_UPLOADS,
+    allowed_statuses: str = ", ".join(f"'{status}'" for status in UploadStatus)
+    uploads = Table(
+        TableName.UPLOADS,
         metadata,
         _create_owner_reference(
-            CadUploadColumn.CAD_FILE_ID,
+            UploadColumn.FILE_ID,
             String,
             records.c[CommonColumn.ID],
             primary_key=True,
         ),
         Column(
-            CadUploadColumn.STATUS,
+            UploadColumn.STATUS,
             String,
             nullable=False,
-            server_default=CadUploadStatus.UPLOADING.value,
+            server_default=UploadStatus.UPLOADING.value,
         ),
-        Column(CadUploadColumn.ERROR_CODE, String),
-        Column(CadUploadColumn.SOURCE_KEY, String, nullable=False, unique=True),
-        Column(CadUploadColumn.PREVIEW_KEY, String),
-        Column(CadUploadColumn.MODEL_KEY, String),
-        Column(CadUploadColumn.SIZE_BYTES, BigInteger, nullable=False),
-        Column(CadUploadColumn.SHA256, CHAR(64)),
-        _create_timestamp(CadUploadColumn.CREATED_AT),
+        Column(UploadColumn.ERROR_CODE, String),
+        Column(UploadColumn.SOURCE_KEY, String, nullable=False, unique=True),
+        Column(UploadColumn.PREVIEW_KEY, String),
+        Column(UploadColumn.MODEL_KEY, String),
+        Column(UploadColumn.SIZE_BYTES, BigInteger, nullable=False),
+        Column(UploadColumn.SHA256, CHAR(64)),
+        _create_timestamp(UploadColumn.CREATED_AT),
         Column(
-            CadUploadColumn.UPDATED_AT,
+            UploadColumn.UPDATED_AT,
             DateTime(timezone=True),
             nullable=False,
             server_default=func.now(),
             onupdate=func.now(),
         ),
         CheckConstraint(
-            f"{CadUploadColumn.STATUS} IN ({allowed_statuses})", name=STATUS_CHECK
+            f"{UploadColumn.STATUS} IN ({allowed_statuses})", name=STATUS_CHECK
         ),
     )
-    status: Column = cad_uploads.c[CadUploadColumn.STATUS]
+    status: Column = uploads.c[UploadColumn.STATUS]
     # the worker takes the oldest file waiting in processing
     Index(
         PROCESSING_INDEX,
-        cad_uploads.c[CadUploadColumn.UPDATED_AT],
-        postgresql_where=status == CadUploadStatus.PROCESSING,
+        uploads.c[UploadColumn.UPDATED_AT],
+        postgresql_where=status == UploadStatus.PROCESSING,
     )
-    return cad_uploads
+    return uploads

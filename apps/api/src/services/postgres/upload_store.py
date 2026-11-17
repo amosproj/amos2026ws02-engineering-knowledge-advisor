@@ -20,7 +20,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.names import CadUploadColumn, CadUploadStatus
+from db.names import UploadColumn
 from db.tables import Tables
 from services.postgres.shared import Conditions
 from services.uploads import (
@@ -40,10 +40,10 @@ ERROR_LOCK_TIMEOUT: str = "a row stayed locked longer than {timeout}"
 
 
 class PgUploadStore(UploadStore):
-    """Upload state in the ``cad_uploads`` table. Every method runs in the caller's ``AsyncSession``."""
+    """Upload state in the ``uploads`` table. Every method runs in the caller's ``AsyncSession``."""
 
     def __init__(self, tables: Tables) -> None:
-        self.table: Table = tables.cad_uploads
+        self.table: Table = tables.uploads
 
     @override
     @asynccontextmanager
@@ -65,15 +65,15 @@ class PgUploadStore(UploadStore):
     async def start_upload(
         self, file_id: str, source_key: str, size_bytes: int, tx: AsyncSession
     ) -> Upload | None:
-        restarted: dict[CadUploadColumn, Any] = {
-            CadUploadColumn.STATUS: CadUploadStatus.UPLOADING,
-            CadUploadColumn.ERROR_CODE: None,
-            CadUploadColumn.SHA256: None,
-            CadUploadColumn.MODEL_KEY: None,
-            CadUploadColumn.SOURCE_KEY: source_key,
-            CadUploadColumn.SIZE_BYTES: size_bytes,
-            CadUploadColumn.CREATED_AT: func.now(),
-            CadUploadColumn.UPDATED_AT: func.now(),
+        restarted: dict[UploadColumn, Any] = {
+            UploadColumn.STATUS: UploadStatus.UPLOADING,
+            UploadColumn.ERROR_CODE: None,
+            UploadColumn.SHA256: None,
+            UploadColumn.MODEL_KEY: None,
+            UploadColumn.SOURCE_KEY: source_key,
+            UploadColumn.SIZE_BYTES: size_bytes,
+            UploadColumn.CREATED_AT: func.now(),
+            UploadColumn.UPDATED_AT: func.now(),
         }
         row: RowMapping | None = (
             (
@@ -81,9 +81,9 @@ class PgUploadStore(UploadStore):
                     insert(self.table)
                     .values(
                         {
-                            CadUploadColumn.CAD_FILE_ID: file_id,
-                            CadUploadColumn.SOURCE_KEY: source_key,
-                            CadUploadColumn.SIZE_BYTES: size_bytes,
+                            UploadColumn.FILE_ID: file_id,
+                            UploadColumn.SOURCE_KEY: source_key,
+                            UploadColumn.SIZE_BYTES: size_bytes,
                         }
                     )
                     # a file in processing or ready is kept
@@ -91,8 +91,8 @@ class PgUploadStore(UploadStore):
                         index_elements=[self._get_file_id_column()],
                         set_=restarted,
                         where=Conditions.match_any(
-                            self.table.c[CadUploadColumn.STATUS],
-                            [CadUploadStatus.UPLOADING, CadUploadStatus.FAILED],
+                            self.table.c[UploadColumn.STATUS],
+                            [UploadStatus.UPLOADING, UploadStatus.FAILED],
                         ),
                     )
                     .returning(*self.table.c)
@@ -133,8 +133,8 @@ class PgUploadStore(UploadStore):
     async def finish_upload(
         self, file_id: str, error_code: str | None, tx: AsyncSession
     ) -> Upload | None:
-        status: CadUploadStatus = (
-            CadUploadStatus.PROCESSING if error_code is None else CadUploadStatus.FAILED
+        status: UploadStatus = (
+            UploadStatus.PROCESSING if error_code is None else UploadStatus.FAILED
         )
         row: RowMapping | None = (
             (
@@ -142,12 +142,12 @@ class PgUploadStore(UploadStore):
                     update(self.table)
                     .where(
                         self._get_file_id_column() == file_id,
-                        self._has_status(CadUploadStatus.UPLOADING),
+                        self._has_status(UploadStatus.UPLOADING),
                     )
                     .values(
                         {
-                            CadUploadColumn.STATUS: status,
-                            CadUploadColumn.ERROR_CODE: error_code,
+                            UploadColumn.STATUS: status,
+                            UploadColumn.ERROR_CODE: error_code,
                         }
                     )
                     .returning(*self.table.c)
@@ -164,8 +164,8 @@ class PgUploadStore(UploadStore):
             (
                 await tx.execute(
                     select(self.table)
-                    .where(self._has_status(CadUploadStatus.PROCESSING))
-                    .order_by(self.table.c[CadUploadColumn.UPDATED_AT])
+                    .where(self._has_status(UploadStatus.PROCESSING))
+                    .order_by(self.table.c[UploadColumn.UPDATED_AT])
                     .limit(1)
                     .with_for_update(skip_locked=True)
                 )
@@ -182,10 +182,10 @@ class PgUploadStore(UploadStore):
         await self._set_values(
             file_id,
             {
-                CadUploadColumn.STATUS: CadUploadStatus.READY,
-                CadUploadColumn.SHA256: sha256,
-                CadUploadColumn.MODEL_KEY: model_key,
-                CadUploadColumn.ERROR_CODE: None,
+                UploadColumn.STATUS: UploadStatus.READY,
+                UploadColumn.SHA256: sha256,
+                UploadColumn.MODEL_KEY: model_key,
+                UploadColumn.ERROR_CODE: None,
             },
             tx,
         )
@@ -195,8 +195,8 @@ class PgUploadStore(UploadStore):
         await self._set_values(
             file_id,
             {
-                CadUploadColumn.STATUS: CadUploadStatus.FAILED,
-                CadUploadColumn.ERROR_CODE: error_code,
+                UploadColumn.STATUS: UploadStatus.FAILED,
+                UploadColumn.ERROR_CODE: error_code,
             },
             tx,
         )
@@ -207,14 +207,12 @@ class PgUploadStore(UploadStore):
             select(self._get_file_id_column())
             .where(
                 self._get_file_id_column() == file_id,
-                self._has_status(CadUploadStatus.PROCESSING),
+                self._has_status(UploadStatus.PROCESSING),
             )
             .with_for_update(skip_locked=True)
         )
         if locked_id is not None:
-            await self._set_values(
-                file_id, {CadUploadColumn.UPDATED_AT: func.now()}, tx
-            )
+            await self._set_values(file_id, {UploadColumn.UPDATED_AT: func.now()}, tx)
 
     @override
     async def get_abandoned_ids(
@@ -254,25 +252,25 @@ class PgUploadStore(UploadStore):
             await tx.scalars(
                 select(self._get_file_id_column()).where(
                     Conditions.match_any(self._get_file_id_column(), file_ids),
-                    self.table.c[CadUploadColumn.STATUS] != CadUploadStatus.FAILED,
+                    self.table.c[UploadColumn.STATUS] != UploadStatus.FAILED,
                 )
             )
         )
 
     def _get_file_id_column(self) -> Column[str]:
-        return self.table.c[CadUploadColumn.CAD_FILE_ID]
+        return self.table.c[UploadColumn.FILE_ID]
 
-    def _has_status(self, status: CadUploadStatus) -> ColumnElement[bool]:
-        return self.table.c[CadUploadColumn.STATUS] == status
+    def _has_status(self, status: UploadStatus) -> ColumnElement[bool]:
+        return self.table.c[UploadColumn.STATUS] == status
 
     def _is_abandoned(self, max_age: timedelta) -> tuple[ColumnElement[bool], ...]:
         return (
-            self._has_status(CadUploadStatus.UPLOADING),
-            self.table.c[CadUploadColumn.CREATED_AT] < func.now() - max_age,
+            self._has_status(UploadStatus.UPLOADING),
+            self.table.c[UploadColumn.CREATED_AT] < func.now() - max_age,
         )
 
     async def _set_values(
-        self, file_id: str, values: dict[CadUploadColumn, Any], tx: AsyncSession
+        self, file_id: str, values: dict[UploadColumn, Any], tx: AsyncSession
     ) -> None:
         await tx.execute(
             update(self.table)
@@ -283,12 +281,12 @@ class PgUploadStore(UploadStore):
 
 def _to_upload(row: RowMapping) -> Upload:
     return Upload(
-        file_id=row[CadUploadColumn.CAD_FILE_ID],
-        status=UploadStatus(row[CadUploadColumn.STATUS]),
-        error_code=row[CadUploadColumn.ERROR_CODE],
-        source_key=row[CadUploadColumn.SOURCE_KEY],
-        size_bytes=row[CadUploadColumn.SIZE_BYTES],
-        created_at=row[CadUploadColumn.CREATED_AT],
-        updated_at=row[CadUploadColumn.UPDATED_AT],
-        model_key=row[CadUploadColumn.MODEL_KEY],
+        file_id=row[UploadColumn.FILE_ID],
+        status=UploadStatus(row[UploadColumn.STATUS]),
+        error_code=row[UploadColumn.ERROR_CODE],
+        source_key=row[UploadColumn.SOURCE_KEY],
+        size_bytes=row[UploadColumn.SIZE_BYTES],
+        created_at=row[UploadColumn.CREATED_AT],
+        updated_at=row[UploadColumn.UPDATED_AT],
+        model_key=row[UploadColumn.MODEL_KEY],
     )

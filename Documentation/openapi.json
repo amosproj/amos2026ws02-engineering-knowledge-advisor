@@ -34,7 +34,6 @@
     "/api/v1/records": {
       "post": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Post Record",
@@ -85,7 +84,6 @@
       },
       "get": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Get Records",
@@ -186,7 +184,6 @@
     "/api/v1/records/{recordId}": {
       "put": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Put Record",
@@ -278,7 +275,6 @@
       },
       "patch": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Patch Record",
@@ -380,7 +376,6 @@
       },
       "get": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Get Record",
@@ -461,7 +456,6 @@
       },
       "delete": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Delete Record",
@@ -565,7 +559,6 @@
     "/api/v1/records/query": {
       "get": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Query Records",
@@ -680,7 +673,6 @@
     "/api/v1/records/review": {
       "get": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Get Records To Review",
@@ -707,7 +699,6 @@
     "/api/v1/records/{recordId}/tree": {
       "get": {
         "tags": [
-          "v1",
           "files"
         ],
         "summary": "Get Record Tree",
@@ -782,7 +773,6 @@
     "/api/v1/records/{recordId}/ancestors": {
       "get": {
         "tags": [
-          "v1",
           "files"
         ],
         "summary": "Get Record Ancestors",
@@ -857,7 +847,6 @@
     "/api/v1/records/{recordId}/upload-form": {
       "post": {
         "tags": [
-          "v1",
           "files"
         ],
         "summary": "Post Upload Form",
@@ -933,7 +922,6 @@
     "/api/v1/records/{recordId}/complete": {
       "post": {
         "tags": [
-          "v1",
           "files"
         ],
         "summary": "Complete Upload",
@@ -1009,7 +997,6 @@
     "/api/v1/records/{recordId}/model": {
       "get": {
         "tags": [
-          "v1",
           "files"
         ],
         "summary": "Get Model",
@@ -1078,7 +1065,6 @@
     "/api/v1/ontology": {
       "get": {
         "tags": [
-          "v1",
           "ontology"
         ],
         "summary": "Get Ontology",
@@ -1101,7 +1087,6 @@
     "/api/v1/llm/chat": {
       "post": {
         "tags": [
-          "v1",
           "llm"
         ],
         "summary": "Chat",
@@ -1194,7 +1179,6 @@
     "/api/v1/llm/chat/stream": {
       "post": {
         "tags": [
-          "v1",
           "llm"
         ],
         "summary": "Chat Stream",
@@ -1287,7 +1271,6 @@
     "/api/v1/llm/providers": {
       "get": {
         "tags": [
-          "v1",
           "llm"
         ],
         "summary": "Providers",
@@ -1314,7 +1297,6 @@
     "/api/v1/llm/models": {
       "get": {
         "tags": [
-          "v1",
           "llm"
         ],
         "summary": "Models",
@@ -2042,7 +2024,7 @@
           "similarityScore": {
             "type": "number",
             "title": "Similarityscore",
-            "description": "Lexical similarity score (0.0\u20131.0, higher is more similar)."
+            "description": "Lexical similarity score (0.0–1.0, higher is more similar)."
           }
         },
         "type": "object",

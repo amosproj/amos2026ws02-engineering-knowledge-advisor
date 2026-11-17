@@ -1,12 +1,12 @@
 from db.model_base import ModelBase as ModelBase
-from db.model_base import get_ograg_tables as get_ograg_tables
+from db.model_base import get_tables as get_tables
 from db.names import PROCESSING_INDEX as PROCESSING_INDEX
 from db.names import STATUS_CHECK as STATUS_CHECK
-from db.names import CadUploadColumn as CadUploadColumn
-from db.names import CadUploadStatus as CadUploadStatus
 from db.names import CommonColumn as CommonColumn
 from db.names import LinkColumn as LinkColumn
 from db.names import RecordColumn as RecordColumn
 from db.names import TableName as TableName
+from db.names import UploadColumn as UploadColumn
+from db.names import UploadStatus as UploadStatus
 from db.tables import Tables as Tables
 from db.tables import define_tables as define_tables
