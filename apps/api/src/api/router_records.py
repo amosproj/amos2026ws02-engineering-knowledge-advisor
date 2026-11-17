@@ -322,7 +322,7 @@ async def get_records_to_review(
     ]
 
 
-# keep this route under ``/records/review``, otherwise 'review' is interpreted as a ``record_id``
+# keep this route under ``/records/review``, otherwise 'review' is interpreted as a ``{recordId}``
 @v1_records_router.get(
     "/records/{recordId}",
     response_model_exclude_unset=True,

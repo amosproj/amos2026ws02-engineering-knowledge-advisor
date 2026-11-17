@@ -559,7 +559,6 @@
     "/api/v1/records/query": {
       "get": {
         "tags": [
-          "v1",
           "records"
         ],
         "summary": "Query Records",
@@ -998,7 +997,6 @@
     "/api/v1/records/{recordId}/model": {
       "get": {
         "tags": [
-          "v1",
           "files"
         ],
         "summary": "Get Model",
@@ -2026,7 +2024,7 @@
           "similarityScore": {
             "type": "number",
             "title": "Similarityscore",
-            "description": "Lexical similarity score (0.0\u20131.0, higher is more similar)."
+            "description": "Lexical similarity score (0.0–1.0, higher is more similar)."
           }
         },
         "type": "object",

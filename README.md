@@ -149,8 +149,9 @@ npm run test:watch   # re-run on change
 The API can be run locally with uv installed:
 
 ```sh
-uv sync --project apps/api
-uv run --project apps/api uvicorn main:app --reload
+uv sync --project apps/api                                                   # sync/create venv based on apps/api/pyproject.toml
+uv run --project apps/api uvicorn main:app --reload                          # run with hot-reload
+uv run --project apps/api uvicorn main:app --loop asyncio:SelectorEventLoop  # run on Windows
 ```
 
 The local API runs at `http://127.0.0.1:8000`. Local execution requires any external services to be configured and reachable.
