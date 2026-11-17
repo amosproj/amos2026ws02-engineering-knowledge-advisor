@@ -1,12 +1,21 @@
-import { lazy, Suspense, useCallback, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from '@tanstack/react-router'
-import { Cancel01Icon } from '@hugeicons/core-free-icons'
+import {
+    ArrowLeft01Icon,
+    Cancel01Icon,
+    HierarchyIcon,
+    MinusSignIcon,
+} from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { cn } from 'cn'
+import { usePanelRef } from 'react-resizable-panels'
 
 import {
     Button,
+    Drawer,
+    DrawerContent,
+    DrawerTitle,
     Empty,
     EmptyContent,
     EmptyDescription,
@@ -61,6 +70,36 @@ function MachineView({ machineId }: { machineId: string }) {
     const importItem = items.find((item) => item.machineId === machineId)
     const containerRef = useRef<HTMLDivElement>(null)
     const [inset, setInset] = useState(NO_INSET)
+    const treePanelRef = usePanelRef()
+    const detailsPanelRef = usePanelRef()
+    const [treeCollapsed, setTreeCollapsed] = useState(false)
+    const treeButtonRef = useRef<HTMLButtonElement>(null)
+    const collapseButtonRef = useRef<HTMLButtonElement>(null)
+    const [drawer, setDrawer] = useState<'tree' | 'details' | null>(null)
+    const drawerTitleRef = useRef<HTMLHeadingElement>(null)
+
+    if (!isMobile && drawer !== null) setDrawer(null)
+
+    // Set by the buttons that hide themselves; focus moves once the new layout is committed
+    const focusPending = useRef(false)
+
+    useEffect(() => {
+        if (!focusPending.current) return
+        focusPending.current = false
+        const frame = requestAnimationFrame(() =>
+            (treeCollapsed ? treeButtonRef : collapseButtonRef).current?.focus(),
+        )
+        return () => cancelAnimationFrame(frame)
+    }, [treeCollapsed])
+
+    useEffect(() => {
+        if (drawer !== null) {
+            drawerTitleRef.current?.focus()
+        } else if (focusPending.current) {
+            focusPending.current = false
+            treeButtonRef.current?.focus()
+        }
+    }, [drawer, selected])
 
     // The 3D view spans the whole area; the free space between the floating panels is measured here
     const visibleRef = useCallback((element: HTMLDivElement | null) => {
@@ -113,92 +152,196 @@ function MachineView({ machineId }: { machineId: string }) {
     }
 
     const { record } = machine.data
-    const viewer = (
-        <div
-            className={cn(
-                'bg-linear-to-b from-neutral-100 to-neutral-300 dark:from-neutral-700 dark:to-neutral-900',
-                isMobile
-                    ? 'relative h-72 overflow-hidden rounded-xl border'
-                    : 'absolute inset-0 border-t',
-            )}
-        >
-            <ViewerArea machine={machine.data} inset={isMobile ? NO_INSET : inset} />
-        </div>
+    const selectNode = (node: AssemblyNode) => {
+        setSelected(node)
+        if (isMobile) setDrawer('details')
+        else if (detailsPanelRef.current?.isCollapsed()) detailsPanelRef.current.resize(288)
+    }
+    const closeDetails = () => {
+        setSelected(undefined)
+        detailsPanelRef.current?.collapse()
+    }
+    const tree = (
+        <TreeArea
+            machine={machine.data}
+            importItem={importItem}
+            selectedId={selected?.id}
+            onSelect={selectNode}
+        />
     )
-    const treePanel = (
-        <Panel
-            className={isMobile ? 'h-96 rounded-xl border' : 'h-full border-r shadow-lg'}
-            title="Assembly tree"
-        >
-            <ScrollArea className="min-h-0 flex-1">
-                <div className="p-2">
-                    <TreeArea
-                        machine={machine.data}
-                        importItem={importItem}
-                        selectedId={selected?.id}
-                        onSelect={setSelected}
-                    />
-                </div>
-            </ScrollArea>
-        </Panel>
-    )
-    const detailsPanel = selected ? (
-        <Panel
-            className="max-h-full rounded-xl border"
-            title={selected.name}
-            onClose={() => setSelected(undefined)}
-        >
-            <div className="min-h-0 flex-1 overflow-auto p-2">
-                <AssemblyDetails node={selected} machineName={record.name} />
-            </div>
-        </Panel>
-    ) : null
+    const details = selected ? <AssemblyDetails node={selected} machineName={record.name} /> : null
 
-    if (isMobile) {
-        return (
-            <div className="flex flex-1 flex-col gap-3 p-4 pt-0">
-                {viewer}
-                {treePanel}
-                {detailsPanel}
-            </div>
-        )
+    const collapseTree = () => {
+        focusPending.current = true
+        treePanelRef.current?.collapse()
+    }
+    const expandTree = () => {
+        focusPending.current = true
+        treePanelRef.current?.expand()
+    }
+    const closeDrawer = () => {
+        focusPending.current = true
+        setDrawer(null)
     }
 
     return (
-        <div ref={containerRef} className="relative flex-1">
-            {viewer}
-            <div className="pointer-events-none absolute inset-0 top-px">
-                <ResizablePanelGroup>
-                    <ResizablePanel
-                        id="tree"
-                        defaultSize={320}
-                        minSize={200}
-                        maxSize="45%"
-                        groupResizeBehavior="preserve-pixel-size"
-                    >
-                        {treePanel}
-                    </ResizablePanel>
-                    <PanelHandle label="Resize assembly tree" />
-                    <ResizablePanel id="viewer">
-                        <div ref={visibleRef} className="h-full" />
-                    </ResizablePanel>
-                    {detailsPanel ? (
-                        <>
-                            <PanelHandle label="Resize details" />
-                            <ResizablePanel
-                                id="details"
-                                defaultSize={288}
-                                minSize={200}
-                                maxSize="45%"
-                                groupResizeBehavior="preserve-pixel-size"
-                            >
-                                <div className="h-full py-2 pr-2">{detailsPanel}</div>
-                            </ResizablePanel>
-                        </>
-                    ) : null}
-                </ResizablePanelGroup>
+        <div ref={containerRef} className="relative flex-1 overflow-hidden">
+            <div className="absolute inset-0 border-t bg-linear-to-b from-neutral-100 to-neutral-300 dark:from-neutral-700 dark:to-neutral-900">
+                <ViewerArea machine={machine.data} inset={isMobile ? NO_INSET : inset} />
             </div>
+            {isMobile ? (
+                <>
+                    {drawer === null ? (
+                        <TreeButton ref={treeButtonRef} onClick={() => setDrawer('tree')} />
+                    ) : null}
+                    <Drawer
+                        open={drawer !== null}
+                        onOpenChange={(open) => {
+                            if (!open) closeDrawer()
+                        }}
+                        modal={false}
+                        disablePointerDismissal
+                        showSwipeHandle
+                        snapPoints={[0.45, 1]}
+                    >
+                        <DrawerContent keepMounted>
+                            <header className="flex h-11 shrink-0 items-center gap-1 border-b px-2">
+                                {drawer === 'details' ? (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Back to the assembly tree"
+                                        onClick={() => setDrawer('tree')}
+                                    >
+                                        <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
+                                    </Button>
+                                ) : null}
+                                <DrawerTitle
+                                    ref={drawerTitleRef}
+                                    tabIndex={-1}
+                                    className="min-w-0 flex-1 truncate px-1 text-sm outline-none"
+                                >
+                                    {drawer === 'details' && selected
+                                        ? selected.name
+                                        : 'Assembly tree'}
+                                </DrawerTitle>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Close"
+                                    onClick={closeDrawer}
+                                >
+                                    <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
+                                </Button>
+                            </header>
+                            <div className="min-h-0 flex-1 overflow-y-auto p-2 pb-[calc(var(--drawer-snap-point-offset,0px)+0.5rem)]">
+                                <div hidden={drawer === 'details'}>{tree}</div>
+                                {drawer === 'details' ? details : null}
+                            </div>
+                        </DrawerContent>
+                    </Drawer>
+                </>
+            ) : (
+                <div className="pointer-events-none absolute inset-0 top-px">
+                    <ResizablePanelGroup>
+                        <ResizablePanel
+                            id="tree"
+                            panelRef={treePanelRef}
+                            collapsible
+                            collapsedSize={0}
+                            defaultSize={320}
+                            minSize={200}
+                            maxSize="45%"
+                            groupResizeBehavior="preserve-pixel-size"
+                            onResize={(size) => setTreeCollapsed(size.inPixels === 0)}
+                        >
+                            <Panel
+                                className={cn(
+                                    'h-full border-r shadow-lg',
+                                    treeCollapsed && 'invisible',
+                                )}
+                                title="Assembly tree"
+                                action={
+                                    <Button
+                                        ref={collapseButtonRef}
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Collapse the assembly tree"
+                                        onClick={collapseTree}
+                                    >
+                                        <HugeiconsIcon icon={MinusSignIcon} strokeWidth={2} />
+                                    </Button>
+                                }
+                            >
+                                <ScrollArea className="min-h-0 flex-1">
+                                    <div className="p-2">{tree}</div>
+                                </ScrollArea>
+                            </Panel>
+                        </ResizablePanel>
+                        <PanelHandle label="Resize assembly tree" />
+                        <ResizablePanel id="viewer">
+                            <div ref={visibleRef} className="h-full" />
+                        </ResizablePanel>
+                        <PanelHandle label="Resize details" disabled={!selected} />
+                        <ResizablePanel
+                            id="details"
+                            panelRef={detailsPanelRef}
+                            collapsible
+                            collapsedSize={0}
+                            defaultSize={0}
+                            minSize={200}
+                            maxSize="45%"
+                            groupResizeBehavior="preserve-pixel-size"
+                            onResize={(size) => {
+                                if (size.inPixels === 0) setSelected(undefined)
+                            }}
+                        >
+                            {selected ? (
+                                <div className="h-full py-2 pr-2">
+                                    <Panel
+                                        className="max-h-full rounded-xl border"
+                                        title={selected.name}
+                                        action={
+                                            <Button
+                                                variant="ghost"
+                                                size="icon-sm"
+                                                aria-label="Close"
+                                                onClick={closeDetails}
+                                            >
+                                                <HugeiconsIcon
+                                                    icon={Cancel01Icon}
+                                                    strokeWidth={2}
+                                                />
+                                            </Button>
+                                        }
+                                    >
+                                        <div className="min-h-0 flex-1 overflow-auto p-2">
+                                            {details}
+                                        </div>
+                                    </Panel>
+                                </div>
+                            ) : null}
+                        </ResizablePanel>
+                    </ResizablePanelGroup>
+                    {treeCollapsed ? <TreeButton ref={treeButtonRef} onClick={expandTree} /> : null}
+                </div>
+            )}
         </div>
+    )
+}
+
+function TreeButton({ ref, onClick }: { ref: React.Ref<HTMLButtonElement>; onClick: () => void }) {
+    return (
+        <Button
+            ref={ref}
+            variant="outline"
+            size="icon"
+            aria-label="Show the assembly tree"
+            className="pointer-events-auto absolute top-3 left-3 rounded-full shadow-md"
+            onClick={onClick}
+        >
+            <HugeiconsIcon icon={HierarchyIcon} strokeWidth={2} />
+        </Button>
     )
 }
 
@@ -241,10 +384,11 @@ function ViewerMessage({ inset, children }: { inset: ViewInset; children: React.
     )
 }
 
-function PanelHandle({ label }: { label: string }) {
+function PanelHandle({ label, disabled }: { label: string; disabled?: boolean }) {
     return (
         <ResizableHandle
             aria-label={label}
+            disabled={disabled}
             className="focus-visible:bg-ring pointer-events-auto mx-0.5 my-3 w-1 rounded-full bg-transparent focus-visible:ring-0"
         />
     )
@@ -253,11 +397,11 @@ function PanelHandle({ label }: { label: string }) {
 type PanelProps = {
     title: string
     className: string
-    onClose?: () => void
+    action: React.ReactNode
     children: React.ReactNode
 }
 
-function Panel({ title, className, onClose, children }: PanelProps) {
+function Panel({ title, className, action, children }: PanelProps) {
     return (
         <section
             aria-label={title}
@@ -267,11 +411,7 @@ function Panel({ title, className, onClose, children }: PanelProps) {
                 <h2 className="truncate text-sm font-medium" title={title}>
                     {title}
                 </h2>
-                {onClose ? (
-                    <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
-                        <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
-                    </Button>
-                ) : null}
+                {action}
             </header>
             {children}
         </section>

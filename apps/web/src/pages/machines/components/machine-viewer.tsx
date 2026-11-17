@@ -128,7 +128,7 @@ export default function MachineViewer({ fileId, inset }: MachineViewerProps) {
                 aria-label="Reset view"
                 title="Reset view"
                 className="text-muted-foreground absolute"
-                style={{ right: inset.right + 15, bottom: 110 }}
+                style={{ right: 15, bottom: 110 }}
                 onClick={() => setResetCount((count) => count + 1)}
             >
                 <HugeiconsIcon icon={Home09Icon} strokeWidth={1.5} className="size-5" />
@@ -239,7 +239,7 @@ function Scene({ scene, sphere, inset, resetCount }: SceneProps) {
         <>
             <primitive object={scene} />
             <CameraControls ref={controls} makeDefault dollyToCursor mouseButtons={MOUSE_BUTTONS} />
-            <GizmoHelper alignment="bottom-right" margin={[inset.right + 64, 64]}>
+            <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
                 <GizmoViewcube onClick={lookFrom} />
             </GizmoHelper>
         </>
