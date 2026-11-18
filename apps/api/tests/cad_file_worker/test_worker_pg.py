@@ -1,11 +1,16 @@
 """The CAD file worker on a scratch Postgres, with an in-memory object storage."""
 
 import asyncio
+import gzip
+import logging
 import os
+import tempfile
 import threading
 from collections.abc import AsyncGenerator, Callable, Coroutine, Generator, Iterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -17,13 +22,17 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from step_documents import DocumentBuilder, box
 
-from cad_file_worker import cleanup
+from cad_file_worker import cleanup, processing
 from cad_file_worker.cleanup import delete_orphan_objects, expire_abandoned_uploads
+from cad_file_worker.conversion import Conversion
 from cad_file_worker.processing import process_next_cad_upload
 from db import TableName, Tables, define_tables
-from services.catalog import CatalogService, PresignedForm
-from services.object_storage import ObjectStorage, StoredObject
+from logger import logger
+from services import Record
+from services.catalog import CatalogService, PresignedForm, TreeNode
+from services.object_storage import ObjectStorage, ObjectStorageError, StoredObject
 from services.ograg.ontology import Ontology
 from services.ograg.service import OgRagService
 from services.postgres.record_store import PgRecordStore
@@ -36,15 +45,23 @@ pytestmark = pytest.mark.skipif(
     reason="set API_TEST_DATABASE_URL to a scratch Postgres",
 )
 
-STEP: bytes = b"ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n"
-NOT_STEP: bytes = b"solid cube\nendsolid cube\n"
-SELECT_OGRAG_TABLES: str = (
-    "SELECT tablename FROM pg_tables"
-    " WHERE schemaname = current_schema() AND tablename LIKE 'ograg\\_%'"
+EMPTY_STEP: bytes = (
+    b"ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n"
 )
+NOT_STEP: bytes = b"solid cube\nendsolid cube\n"
 LONG_AGO: datetime = datetime(2020, 1, 1, tzinfo=UTC)
 
 type Sessions = async_sessionmaker[AsyncSession]
+
+
+def write_plate() -> bytes:
+    builder = DocumentBuilder()
+    builder.part("Plate", box())
+    with tempfile.TemporaryDirectory() as folder:
+        return builder.write_step(Path(folder) / "plate.step").read_bytes()
+
+
+STEP: bytes = write_plate()
 
 
 class ContentStorage(ObjectStorage):
@@ -53,6 +70,7 @@ class ContentStorage(ObjectStorage):
     def __init__(self) -> None:
         self.contents: dict[str, bytes] = {}
         self.modified: dict[str, datetime] = {}
+        self.encodings: dict[str, str | None] = {}
 
     def put(self, key: str, content: bytes, modified: datetime | None = None) -> None:
         self.contents[key] = content
@@ -63,6 +81,19 @@ class ContentStorage(ObjectStorage):
 
     def create_upload_form(self, key: str, size: int) -> tuple[str, dict[str, str]]:
         return "/storage/test", {"key": key}
+
+    def upload_file(
+        self,
+        key: str,
+        path: Path,
+        content_type: str,
+        content_encoding: str | None = None,
+    ) -> None:
+        self.put(key, path.read_bytes())
+        self.encodings[key] = content_encoding
+
+    def create_download_url(self, key: str) -> str:
+        return f"/storage/test/{key}?signed"
 
     def get_object_size(self, key: str) -> int | None:
         content: bytes | None = self.contents.get(key)
@@ -151,6 +182,24 @@ class Worker:
         async with self.sessions() as session:
             return await self.catalog.get_status(session, record_id)
 
+    async def get_machine(self) -> Record:
+        async with self.sessions() as session:
+            return await self.catalog.get_record(session, self.machine_id)
+
+    async def get_assemblies(self) -> list[Record]:
+        """The machine's assembly groups and instances."""
+        async with self.sessions() as session:
+            tree: TreeNode = await self.catalog.get_tree(session, self.machine_id)
+        # a record appears once per parent
+        found: dict[str, Record] = {}
+        pending: list[TreeNode] = [tree]
+        while pending:
+            node: TreeNode = pending.pop()
+            pending += node.linked
+            if node.record.cls in ("AssemblyGroup", "AssemblyInstance"):
+                found[node.record.id] = node.record
+        return sorted(found.values(), key=lambda rec: (rec.cls, rec.id))
+
 
 def run_async(check: Callable[[], Coroutine[Any, Any, None]]) -> None:
     asyncio.run(check(), loop_factory=asyncio.SelectorEventLoop)
@@ -163,8 +212,7 @@ async def open_worker() -> AsyncGenerator[Worker]:
     tables: Tables = define_tables(MetaData())
     try:
         async with engine.begin() as conn:
-            await conn.execute(text(f'DROP TABLE IF EXISTS "{TableName.CAD_UPLOADS}"'))
-            for name in (await conn.execute(text(SELECT_OGRAG_TABLES))).scalars():
+            for name in TableName:
                 await conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
             await conn.run_sync(tables.metadata.create_all)
         ontology: Ontology = load_ontology()
@@ -195,8 +243,21 @@ def test_a_valid_step_file_becomes_ready():
             upload: Upload | None = await worker.get_upload(file_id)
             assert upload is not None and upload.status == UploadStatus.READY
             assert await worker.get_status(worker.machine_id) == UploadStatus.READY
-            assert worker.storage.contents
+            model_key: str = f"files/{file_id}/model.glb"
+            assert upload.model_key == model_key
+            # gzipped, the browser unpacks it on download
+            assert worker.storage.encodings[model_key] == "gzip"
+            assert gzip.decompress(worker.storage.contents[model_key])[:4] == b"glTF"
             assert not await worker.process()
+            group, instance = await worker.get_assemblies()
+            assert (group.cls, group.input["name"]) == ("AssemblyGroup", "Plate")
+            assert instance.input["rootOf"] == worker.machine_id
+            assert instance.input["instanceOf"] == group.id
+            assert (await worker.get_machine()).input["properties"] == {
+                "sizeX": 0.01,
+                "sizeY": 0.01,
+                "sizeZ": 0.01,
+            }
 
     run_async(run_check)
 
@@ -206,8 +267,9 @@ def test_a_valid_step_file_becomes_ready():
     [
         (NOT_STEP, "invalid_step_file", True),
         (None, "upload_not_found", False),
+        (EMPTY_STEP, "parse_error", True),
     ],
-    ids=["not a step file", "object missing"],
+    ids=["not a step file", "object missing", "no shapes"],
 )
 def test_a_file_that_cannot_be_checked_fails(
     content: bytes | None, error_code: str, deleted: bool
@@ -237,7 +299,135 @@ def test_the_same_content_is_ready_on_two_machines():
             for file_id in (first_id, copy_id):
                 upload: Upload | None = await worker.get_upload(file_id)
                 assert upload is not None and upload.status == UploadStatus.READY
-            assert len(worker.storage.contents) == 2
+            # each file with its source and its 3D model
+            assert sorted(key.rsplit("/", 1)[1] for key in worker.storage.contents) == [
+                "model.glb",
+                "model.glb",
+                "source.step",
+                "source.step",
+            ]
+            assert len(await worker.get_assemblies()) == 2
+
+    run_async(run_check)
+
+
+def test_a_machine_with_an_assembly_tree_refuses_the_import():
+    async def run_check() -> None:
+        async with open_worker() as worker:
+            file_id: str = await worker.add_processing_file(STEP)
+            async with worker.sessions() as session, session.begin():
+                group_id: str = (
+                    await worker.catalog.create_record(
+                        session,
+                        {
+                            "@type": "AssemblyGroup",
+                            "name": "Old",
+                            "definedIn": worker.machine_id,
+                        },
+                    )
+                ).record.id
+                await worker.catalog.create_record(
+                    session,
+                    {
+                        "@type": "AssemblyInstance",
+                        "name": "Old",
+                        "instanceOf": group_id,
+                        "rootOf": worker.machine_id,
+                    },
+                )
+            kept: list[Record] = await worker.get_assemblies()
+
+            assert await worker.process()
+            upload: Upload | None = await worker.get_upload(file_id)
+            assert upload is not None
+            assert (upload.status, upload.error_code) == ("failed", "import_error")
+            assert await worker.get_assemblies() == kept
+            assert "properties" not in (await worker.get_machine()).input
+            assert worker.storage.contents == {}
+
+    run_async(run_check)
+
+
+def test_a_glb_failure_still_makes_the_file_ready(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+):
+    convert = processing.convert_step_file
+
+    def convert_without_glb(
+        step_path: Path,
+        glb_path: Path,
+        timeout: float,
+        stopping: threading.Event,
+        on_progress: Callable[[], None],
+    ) -> Conversion:
+        result: Conversion = convert(
+            step_path, glb_path, timeout, stopping, on_progress
+        )
+        glb_path.unlink()
+        return replace(result, glb_error="RuntimeError: boom")
+
+    async def run_check() -> None:
+        async with open_worker() as worker:
+            file_id: str = await worker.add_processing_file(STEP)
+            monkeypatch.setattr(processing, "convert_step_file", convert_without_glb)
+
+            with caplog.at_level(logging.WARNING, logger=logger.name):
+                assert await worker.process()
+
+            upload: Upload | None = await worker.get_upload(file_id)
+            assert upload is not None
+            assert (upload.status, upload.model_key) == ("ready", None)
+            assert len(await worker.get_assemblies()) == 2
+            assert any(
+                file_id in entry.getMessage() and "boom" in entry.getMessage()
+                for entry in caplog.records
+            )
+
+    run_async(run_check)
+
+
+def test_an_upload_failure_still_makes_the_file_ready(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+):
+    def fail(*_: object) -> None:
+        raise ObjectStorageError("storage down")
+
+    async def run_check() -> None:
+        async with open_worker() as worker:
+            file_id: str = await worker.add_processing_file(STEP)
+            monkeypatch.setattr(worker.storage, "upload_file", fail)
+
+            with caplog.at_level(logging.ERROR, logger=logger.name):
+                assert await worker.process()
+
+            upload: Upload | None = await worker.get_upload(file_id)
+            assert upload is not None
+            assert (upload.status, upload.model_key) == ("ready", None)
+            assert not await worker.process()
+            errors = [
+                entry
+                for entry in caplog.records
+                if entry.levelno == logging.ERROR and file_id in entry.getMessage()
+            ]
+            assert errors and errors[0].exc_info is not None
+
+    run_async(run_check)
+
+
+def test_a_conversion_taking_too_long_fails(monkeypatch: pytest.MonkeyPatch):
+    async def run_check() -> None:
+        async with open_worker() as worker:
+            file_id: str = await worker.add_processing_file(STEP)
+            monkeypatch.setattr(processing, "MAX_CONVERSION_SECONDS", 0)
+
+            assert await worker.process()
+            upload: Upload | None = await worker.get_upload(file_id)
+            assert upload is not None
+            assert (upload.status, upload.error_code) == (
+                "failed",
+                "processing_timeout",
+            )
+            assert await worker.get_assemblies() == []
 
     run_async(run_check)
 

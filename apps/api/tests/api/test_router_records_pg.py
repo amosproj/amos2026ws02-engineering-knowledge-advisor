@@ -4,6 +4,7 @@ import asyncio
 import os
 from collections.abc import AsyncGenerator, Callable, Generator, Iterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import psycopg
@@ -17,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from api.router_files import v1_files_router
 from api.router_records import v1_records_router
-from db import ModelBase, get_ograg_tables
+from db import ModelBase, TableName, get_tables
 from db.session import create_sessionmaker
 from handler.exception_handler import register
 from handler.service_exception_handler import register as register_service
@@ -55,6 +56,18 @@ class FakeStorage(ObjectStorage):
     def create_upload_form(self, key: str, size: int) -> tuple[str, dict[str, str]]:
         return "/storage/test", {"key": key}
 
+    def upload_file(
+        self,
+        key: str,
+        path: Path,
+        content_type: str,
+        content_encoding: str | None = None,
+    ) -> None:
+        raise NotImplementedError
+
+    def create_download_url(self, key: str) -> str:
+        raise NotImplementedError
+
     def get_object_size(self, key: str) -> int | None:
         return self.sizes.get(key)
 
@@ -71,9 +84,7 @@ class FakeStorage(ObjectStorage):
         with self.sync_engine.connect() as conn:
             for prefix in prefixes:
                 committed = conn.scalar(
-                    text(
-                        "SELECT status FROM cad_uploads WHERE source_key LIKE :prefix"
-                    ),
+                    text("SELECT status FROM uploads WHERE source_key LIKE :prefix"),
                     {"prefix": prefix + "%"},
                 )
                 # deleted with its file, or failed
@@ -87,17 +98,9 @@ class FakeStorage(ObjectStorage):
 @pytest.fixture
 def sync_engine() -> Iterator[Engine]:
     engine: Engine = create_engine(URL)
-    get_ograg_tables()
+    get_tables()
     with engine.begin() as conn:
-        # cad_uploads first: dropping ograg_records with CASCADE would only drop its foreign key
-        conn.execute(text("DROP TABLE IF EXISTS cad_uploads"))
-        names = conn.execute(
-            text(
-                "SELECT tablename FROM pg_tables"
-                " WHERE schemaname = current_schema() AND tablename LIKE 'ograg\\_%'"
-            )
-        ).scalars()
-        for name in list(names):
+        for name in TableName:
             conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
         ModelBase.metadata.create_all(conn)
     yield engine
@@ -120,12 +123,12 @@ def client(storage: FakeStorage) -> Iterator[TestClient]:
             ontology,
             PgRecordStore(
                 engine,
-                get_ograg_tables(),
+                get_tables(),
                 identity_property_names=ontology.get_identity_property_names(),
             ),
         )
         app.state.catalog = CatalogService(
-            app.state.ograg, PgUploadStore(get_ograg_tables()), storage
+            app.state.ograg, PgUploadStore(get_tables()), storage
         )
         try:
             yield
@@ -158,7 +161,7 @@ def create_group(client: TestClient, machine_id: str) -> str:
             "@type": "AssemblyGroup",
             "name": "Input tray",
             "identifier": "AG-01",
-            "rootOf": machine_id,
+            "definedIn": machine_id,
         },
     )
 
@@ -200,7 +203,7 @@ def tree(client: TestClient) -> tuple[str, str]:
 def get_status(engine: Engine, file_id: str) -> str | None:
     with engine.connect() as conn:
         return conn.scalar(
-            text("SELECT status FROM cad_uploads WHERE cad_file_id = :id"),
+            text("SELECT status FROM uploads WHERE file_id = :id"),
             {"id": file_id},
         )
 
@@ -213,7 +216,7 @@ def assert_problem(response: Response, status: int, error_code: str | None) -> N
 
 @pytest.fixture
 def locked(sync_engine: Engine) -> Iterator[Callable[[str], None]]:
-    """Locks a cad_uploads row from another connection, as the worker does, until the test ends."""
+    """Locks an uploads row from another connection, as the worker does, until the test ends."""
     url: str = sync_engine.url.set(drivername="postgresql").render_as_string(
         hide_password=False
     )
@@ -221,7 +224,7 @@ def locked(sync_engine: Engine) -> Iterator[Callable[[str], None]]:
 
         def lock(file_id: str) -> None:
             conn.execute(
-                "SELECT 1 FROM cad_uploads WHERE cad_file_id = %s FOR UPDATE",
+                "SELECT 1 FROM uploads WHERE file_id = %s FOR UPDATE",
                 (file_id,),
             )
 
@@ -400,7 +403,8 @@ def test_the_tree_and_the_ancestors_read_every_level_from_postgres(
 ):
     machine_id, group_id = tree(client)
     inner_id: str = create_record(
-        client, {"@type": "AssemblyGroup", "name": "Gripper", "partOf": group_id}
+        client,
+        {"@type": "AssemblyInstance", "name": "Input tray:1", "instanceOf": group_id},
     )
     file_id, form = create_file(client, machine_id)
     upload(storage, form)

@@ -360,73 +360,7 @@
       "version": "8.0.1.1.0"
     },
     {
-      "bom-ref": "cadquery-ocp-stubs-10@8.0.1.1.0",
-      "externalReferences": [
-        {
-          "hashes": [
-            {
-              "alg": "SHA-256",
-              "content": "fcb92e6e5118f1dfc7c85d4a0a1547c93d238546474e3bc0c7169e5d86e198d9"
-            }
-          ],
-          "type": "distribution",
-          "url": "https://files.pythonhosted.org/packages/49/ae/114c3f48e1456c294dfe93385c2ddfd60115a77422946fec7a5fe55e5c71/cadquery_ocp_stubs-8.0.1.1.0-py3-none-macosx_11_0_arm64.whl"
-        },
-        {
-          "hashes": [
-            {
-              "alg": "SHA-256",
-              "content": "0366906c1303b1c19814b871a6aa3494a2df2aaf52af2742337cdd45e6a9ee66"
-            }
-          ],
-          "type": "distribution",
-          "url": "https://files.pythonhosted.org/packages/f8/e5/bcf3d4dcf8ca25634d309b40524c4c4372aaf9bc49b7949a5f9b9913ef4f/cadquery_ocp_stubs-8.0.1.1.0-py3-none-macosx_11_0_x86_64.whl"
-        },
-        {
-          "hashes": [
-            {
-              "alg": "SHA-256",
-              "content": "d1b83dd23193646f4c23ad08e8f86b4fa731d4354c7dab5a80d8b0fea75c205b"
-            }
-          ],
-          "type": "distribution",
-          "url": "https://files.pythonhosted.org/packages/f0/5c/eabe2cf433d70459c6fc3a37497482b35a1715d9f1747a65ec3c7d664c6c/cadquery_ocp_stubs-8.0.1.1.0-py3-none-manylinux_2_28_aarch64.whl"
-        },
-        {
-          "hashes": [
-            {
-              "alg": "SHA-256",
-              "content": "e04f54e6f286b38422c5ab9240e3de9e5a484fc76b400a399c19df5b670581ed"
-            }
-          ],
-          "type": "distribution",
-          "url": "https://files.pythonhosted.org/packages/46/7f/b91cd251ad52e3540b24f5f4536681c51647376a1700fd82cbbcd6f32d02/cadquery_ocp_stubs-8.0.1.1.0-py3-none-manylinux_2_28_x86_64.whl"
-        },
-        {
-          "hashes": [
-            {
-              "alg": "SHA-256",
-              "content": "0b23659d9243b6b86313837e36f4d9623d341cdc9eec87ea94bf2028abf2040e"
-            }
-          ],
-          "type": "distribution",
-          "url": "https://files.pythonhosted.org/packages/9f/31/1b34d57ad642477ea92ad750fe59d4b8444b02dce3296dc7a7e33f53f85a/cadquery_ocp_stubs-8.0.1.1.0-py3-none-win_amd64.whl"
-        }
-      ],
-      "licenses": [
-        {
-          "license": {
-            "id": "Apache-2.0"
-          }
-        }
-      ],
-      "name": "cadquery-ocp-stubs",
-      "purl": "pkg:pypi/cadquery-ocp-stubs@8.0.1.1.0",
-      "type": "library",
-      "version": "8.0.1.1.0"
-    },
-    {
-      "bom-ref": "click-11@8.5.0",
+      "bom-ref": "click-10@8.5.0",
       "externalReferences": [
         {
           "hashes": [
@@ -462,7 +396,7 @@
       "version": "8.5.0"
     },
     {
-      "bom-ref": "contourpy-12@1.4.0",
+      "bom-ref": "contourpy-11@1.4.0",
       "externalReferences": [
         {
           "hashes": [
@@ -1068,7 +1002,7 @@
       "version": "1.4.0"
     },
     {
-      "bom-ref": "cycler-13@0.12.1",
+      "bom-ref": "cycler-12@0.12.1",
       "externalReferences": [
         {
           "hashes": [
@@ -1097,7 +1031,7 @@
       "version": "0.12.1"
     },
     {
-      "bom-ref": "fastapi-14@0.156.8",
+      "bom-ref": "fastapi-13@0.156.8",
       "externalReferences": [
         {
           "hashes": [
@@ -1133,7 +1067,7 @@
       "version": "0.156.8"
     },
     {
-      "bom-ref": "fonttools-15@4.68.0",
+      "bom-ref": "fonttools-14@4.68.0",
       "externalReferences": [
         {
           "hashes": [
@@ -1619,7 +1553,7 @@
       "version": "4.68.0"
     },
     {
-      "bom-ref": "greenlet-16@3.5.6",
+      "bom-ref": "greenlet-15@3.5.6",
       "externalReferences": [
         {
           "hashes": [
@@ -2133,7 +2067,7 @@
       "version": "3.5.6"
     },
     {
-      "bom-ref": "h11-17@0.16.0",
+      "bom-ref": "h11-16@0.16.0",
       "externalReferences": [
         {
           "hashes": [
@@ -2169,7 +2103,7 @@
       "version": "0.16.0"
     },
     {
-      "bom-ref": "httpcore2-18@2.16.0",
+      "bom-ref": "httpcore2-17@2.16.0",
       "externalReferences": [
         {
           "hashes": [
@@ -2211,7 +2145,7 @@
       "version": "2.16.0"
     },
     {
-      "bom-ref": "httptools-19@0.9.0",
+      "bom-ref": "httptools-18@0.9.0",
       "externalReferences": [
         {
           "hashes": [
@@ -2887,7 +2821,7 @@
       "version": "0.9.0"
     },
     {
-      "bom-ref": "httpx2-20@2.16.0",
+      "bom-ref": "httpx2-19@2.16.0",
       "externalReferences": [
         {
           "hashes": [
@@ -2923,7 +2857,7 @@
       "version": "2.16.0"
     },
     {
-      "bom-ref": "httpx2-jsfetch-21@1.0",
+      "bom-ref": "httpx2-jsfetch-20@1.0",
       "externalReferences": [
         {
           "hashes": [
@@ -2965,7 +2899,7 @@
       "version": "1.0"
     },
     {
-      "bom-ref": "idna-22@3.20",
+      "bom-ref": "idna-21@3.20",
       "externalReferences": [
         {
           "hashes": [
@@ -3001,7 +2935,7 @@
       "version": "3.20"
     },
     {
-      "bom-ref": "jmespath-23@1.1.0",
+      "bom-ref": "jmespath-22@1.1.0",
       "externalReferences": [
         {
           "hashes": [
@@ -3037,7 +2971,7 @@
       "version": "1.1.0"
     },
     {
-      "bom-ref": "kiwisolver-24@1.5.1",
+      "bom-ref": "kiwisolver-23@1.5.1",
       "externalReferences": [
         {
           "hashes": [
@@ -3896,7 +3830,7 @@
       "version": "1.5.1"
     },
     {
-      "bom-ref": "mako-25@1.4.3",
+      "bom-ref": "mako-24@1.4.3",
       "externalReferences": [
         {
           "hashes": [
@@ -3932,7 +3866,7 @@
       "version": "1.4.3"
     },
     {
-      "bom-ref": "markupsafe-26@3.0.4",
+      "bom-ref": "markupsafe-25@3.0.4",
       "externalReferences": [
         {
           "hashes": [
@@ -4858,7 +4792,7 @@
       "version": "3.0.4"
     },
     {
-      "bom-ref": "matplotlib-27@3.11.2",
+      "bom-ref": "matplotlib-26@3.11.2",
       "externalReferences": [
         {
           "hashes": [
@@ -5234,7 +5168,7 @@
       "version": "3.11.2"
     },
     {
-      "bom-ref": "numpy-28@2.5.4",
+      "bom-ref": "numpy-27@2.5.4",
       "externalReferences": [
         {
           "hashes": [
@@ -5798,7 +5732,7 @@
       "version": "2.5.4"
     },
     {
-      "bom-ref": "opentelemetry-api-29@1.45.1",
+      "bom-ref": "opentelemetry-api-28@1.45.1",
       "externalReferences": [
         {
           "hashes": [
@@ -5834,7 +5768,7 @@
       "version": "1.45.1"
     },
     {
-      "bom-ref": "packaging-30@26.3",
+      "bom-ref": "packaging-29@26.3",
       "externalReferences": [
         {
           "hashes": [
@@ -5868,7 +5802,7 @@
       "version": "26.3"
     },
     {
-      "bom-ref": "pgvector-31@0.5.1",
+      "bom-ref": "pgvector-30@0.5.1",
       "externalReferences": [
         {
           "hashes": [
@@ -5904,7 +5838,7 @@
       "version": "0.5.1"
     },
     {
-      "bom-ref": "pillow-32@13.0.0",
+      "bom-ref": "pillow-31@13.0.0",
       "externalReferences": [
         {
           "hashes": [
@@ -6470,7 +6404,7 @@
       "version": "13.0.0"
     },
     {
-      "bom-ref": "psycopg-33@3.3.6",
+      "bom-ref": "psycopg-32@3.3.6",
       "externalReferences": [
         {
           "hashes": [
@@ -6506,7 +6440,7 @@
       "version": "3.3.6"
     },
     {
-      "bom-ref": "psycopg-binary-34@3.3.6",
+      "bom-ref": "psycopg-binary-33@3.3.6",
       "externalReferences": [
         {
           "hashes": [
@@ -6858,7 +6792,7 @@
       "version": "3.3.6"
     },
     {
-      "bom-ref": "pydantic-35@2.14.1",
+      "bom-ref": "pydantic-34@2.14.1",
       "externalReferences": [
         {
           "hashes": [
@@ -6894,7 +6828,7 @@
       "version": "2.14.1"
     },
     {
-      "bom-ref": "pydantic-core-36@2.50.1",
+      "bom-ref": "pydantic-core-35@2.50.1",
       "externalReferences": [
         {
           "hashes": [
@@ -7680,7 +7614,7 @@
       "version": "2.50.1"
     },
     {
-      "bom-ref": "pydantic-settings-37@2.16.1",
+      "bom-ref": "pydantic-settings-36@2.16.1",
       "externalReferences": [
         {
           "hashes": [
@@ -7716,7 +7650,7 @@
       "version": "2.16.1"
     },
     {
-      "bom-ref": "pyparsing-38@3.3.3",
+      "bom-ref": "pyparsing-37@3.3.3",
       "externalReferences": [
         {
           "hashes": [
@@ -7752,7 +7686,7 @@
       "version": "3.3.3"
     },
     {
-      "bom-ref": "python-dateutil-39@2.9.0.post0",
+      "bom-ref": "python-dateutil-38@2.9.0.post0",
       "externalReferences": [
         {
           "hashes": [
@@ -7786,7 +7720,7 @@
       "version": "2.9.0.post0"
     },
     {
-      "bom-ref": "python-dotenv-40@1.2.4",
+      "bom-ref": "python-dotenv-39@1.2.4",
       "externalReferences": [
         {
           "hashes": [
@@ -7822,7 +7756,7 @@
       "version": "1.2.4"
     },
     {
-      "bom-ref": "pyyaml-41@6.0.3",
+      "bom-ref": "pyyaml-40@6.0.3",
       "externalReferences": [
         {
           "hashes": [
@@ -8128,7 +8062,7 @@
       "version": "6.0.3"
     },
     {
-      "bom-ref": "s3transfer-42@0.19.3",
+      "bom-ref": "s3transfer-41@0.19.3",
       "externalReferences": [
         {
           "hashes": [
@@ -8164,7 +8098,7 @@
       "version": "0.19.3"
     },
     {
-      "bom-ref": "six-43@1.17.0",
+      "bom-ref": "six-42@1.17.0",
       "externalReferences": [
         {
           "hashes": [
@@ -8200,7 +8134,7 @@
       "version": "1.17.0"
     },
     {
-      "bom-ref": "sqlalchemy-44@2.1.5",
+      "bom-ref": "sqlalchemy-43@2.1.5",
       "externalReferences": [
         {
           "hashes": [
@@ -8736,7 +8670,7 @@
       "version": "2.1.5"
     },
     {
-      "bom-ref": "starlette-45@1.10.0",
+      "bom-ref": "starlette-44@1.10.0",
       "externalReferences": [
         {
           "hashes": [
@@ -8772,7 +8706,7 @@
       "version": "1.10.0"
     },
     {
-      "bom-ref": "truststore-46@0.10.5",
+      "bom-ref": "truststore-45@0.10.5",
       "externalReferences": [
         {
           "hashes": [
@@ -8814,7 +8748,7 @@
       "version": "0.10.5"
     },
     {
-      "bom-ref": "typing-extensions-47@4.16.0",
+      "bom-ref": "typing-extensions-46@4.16.0",
       "externalReferences": [
         {
           "hashes": [
@@ -8850,7 +8784,7 @@
       "version": "4.16.0"
     },
     {
-      "bom-ref": "typing-inspection-48@0.4.4",
+      "bom-ref": "typing-inspection-47@0.4.4",
       "externalReferences": [
         {
           "hashes": [
@@ -8886,7 +8820,7 @@
       "version": "0.4.4"
     },
     {
-      "bom-ref": "tzdata-49@2026.5",
+      "bom-ref": "tzdata-48@2026.5",
       "externalReferences": [
         {
           "hashes": [
@@ -8928,7 +8862,7 @@
       "version": "2026.5"
     },
     {
-      "bom-ref": "urllib3-50@2.8.0",
+      "bom-ref": "urllib3-49@2.8.0",
       "externalReferences": [
         {
           "hashes": [
@@ -8964,7 +8898,7 @@
       "version": "2.8.0"
     },
     {
-      "bom-ref": "uvicorn-51@0.54.0",
+      "bom-ref": "uvicorn-50@0.54.0",
       "externalReferences": [
         {
           "hashes": [
@@ -9000,7 +8934,7 @@
       "version": "0.54.0"
     },
     {
-      "bom-ref": "uvloop-52@0.23.0",
+      "bom-ref": "uvloop-51@0.23.0",
       "externalReferences": [
         {
           "hashes": [
@@ -9330,7 +9264,7 @@
       "version": "0.23.0"
     },
     {
-      "bom-ref": "vtk-53@9.6.2",
+      "bom-ref": "vtk-52@9.6.2",
       "externalReferences": [
         {
           "hashes": [
@@ -9459,7 +9393,7 @@
       "version": "9.6.2"
     },
     {
-      "bom-ref": "watchfiles-54@1.3.0",
+      "bom-ref": "watchfiles-53@1.3.0",
       "externalReferences": [
         {
           "hashes": [
@@ -9765,7 +9699,7 @@
       "version": "1.3.0"
     },
     {
-      "bom-ref": "websockets-55@17.3",
+      "bom-ref": "websockets-54@17.3",
       "externalReferences": [
         {
           "hashes": [
@@ -10804,9 +10738,9 @@
   "dependencies": [
     {
       "dependsOn": [
-        "mako-25@1.4.3",
-        "sqlalchemy-44@2.1.5",
-        "typing-extensions-47@4.16.0"
+        "mako-24@1.4.3",
+        "sqlalchemy-43@2.1.5",
+        "typing-extensions-46@4.16.0"
       ],
       "ref": "alembic-2@1.20.0"
     },
@@ -10818,8 +10752,8 @@
     },
     {
       "dependsOn": [
-        "idna-22@3.20",
-        "typing-extensions-47@4.16.0"
+        "idna-21@3.20",
+        "typing-extensions-46@4.16.0"
       ],
       "ref": "anyio-5@4.15.1"
     },
@@ -10828,39 +10762,38 @@
         "alembic-2@1.20.0",
         "boto3-6@1.43.116",
         "cadquery-ocp-8@8.0.1.1.0",
-        "cadquery-ocp-stubs-10@8.0.1.1.0",
-        "fastapi-14@0.156.8",
-        "httpx2-20@2.16.0",
-        "numpy-28@2.5.4",
-        "pgvector-31@0.5.1",
-        "psycopg-33@3.3.6",
-        "pydantic-settings-37@2.16.1",
-        "sqlalchemy-44@2.1.5",
-        "starlette-45@1.10.0",
-        "uvicorn-51@0.54.0"
+        "fastapi-13@0.156.8",
+        "httpx2-19@2.16.0",
+        "numpy-27@2.5.4",
+        "pgvector-30@0.5.1",
+        "psycopg-32@3.3.6",
+        "pydantic-settings-36@2.16.1",
+        "sqlalchemy-43@2.1.5",
+        "starlette-44@1.10.0",
+        "uvicorn-50@0.54.0"
       ],
       "ref": "api-1@0.2.1"
     },
     {
       "dependsOn": [
         "botocore-7@1.43.116",
-        "jmespath-23@1.1.0",
-        "s3transfer-42@0.19.3"
+        "jmespath-22@1.1.0",
+        "s3transfer-41@0.19.3"
       ],
       "ref": "boto3-6@1.43.116"
     },
     {
       "dependsOn": [
-        "jmespath-23@1.1.0",
-        "python-dateutil-39@2.9.0.post0",
-        "urllib3-50@2.8.0"
+        "jmespath-22@1.1.0",
+        "python-dateutil-38@2.9.0.post0",
+        "urllib3-49@2.8.0"
       ],
       "ref": "botocore-7@1.43.116"
     },
     {
       "dependsOn": [
         "cadquery-ocp-proxy-9@8.0.1.1.0",
-        "vtk-53@9.6.2"
+        "vtk-52@9.6.2"
       ],
       "ref": "cadquery-ocp-8@8.0.1.1.0"
     },
@@ -10868,232 +10801,229 @@
       "ref": "cadquery-ocp-proxy-9@8.0.1.1.0"
     },
     {
-      "ref": "cadquery-ocp-stubs-10@8.0.1.1.0"
-    },
-    {
-      "ref": "click-11@8.5.0"
+      "ref": "click-10@8.5.0"
     },
     {
       "dependsOn": [
-        "numpy-28@2.5.4"
+        "numpy-27@2.5.4"
       ],
-      "ref": "contourpy-12@1.4.0"
+      "ref": "contourpy-11@1.4.0"
     },
     {
-      "ref": "cycler-13@0.12.1"
+      "ref": "cycler-12@0.12.1"
     },
     {
       "dependsOn": [
         "annotated-doc-3@0.0.5",
-        "opentelemetry-api-29@1.45.1",
-        "pydantic-35@2.14.1",
-        "starlette-45@1.10.0",
-        "typing-extensions-47@4.16.0",
-        "typing-inspection-48@0.4.4"
+        "opentelemetry-api-28@1.45.1",
+        "pydantic-34@2.14.1",
+        "starlette-44@1.10.0",
+        "typing-extensions-46@4.16.0",
+        "typing-inspection-47@0.4.4"
       ],
-      "ref": "fastapi-14@0.156.8"
+      "ref": "fastapi-13@0.156.8"
     },
     {
-      "ref": "fonttools-15@4.68.0"
+      "ref": "fonttools-14@4.68.0"
     },
     {
-      "ref": "greenlet-16@3.5.6"
+      "ref": "greenlet-15@3.5.6"
     },
     {
-      "ref": "h11-17@0.16.0"
+      "ref": "h11-16@0.16.0"
     },
     {
       "dependsOn": [
-        "h11-17@0.16.0",
-        "truststore-46@0.10.5"
+        "h11-16@0.16.0",
+        "truststore-45@0.10.5"
       ],
-      "ref": "httpcore2-18@2.16.0"
+      "ref": "httpcore2-17@2.16.0"
     },
     {
-      "ref": "httptools-19@0.9.0"
+      "ref": "httptools-18@0.9.0"
     },
     {
       "dependsOn": [
         "anyio-5@4.15.1",
-        "httpcore2-18@2.16.0",
-        "httpx2-jsfetch-21@1.0",
-        "idna-22@3.20",
-        "truststore-46@0.10.5"
+        "httpcore2-17@2.16.0",
+        "httpx2-jsfetch-20@1.0",
+        "idna-21@3.20",
+        "truststore-45@0.10.5"
       ],
-      "ref": "httpx2-20@2.16.0"
+      "ref": "httpx2-19@2.16.0"
     },
     {
-      "ref": "httpx2-jsfetch-21@1.0"
+      "ref": "httpx2-jsfetch-20@1.0"
     },
     {
-      "ref": "idna-22@3.20"
+      "ref": "idna-21@3.20"
     },
     {
-      "ref": "jmespath-23@1.1.0"
+      "ref": "jmespath-22@1.1.0"
     },
     {
-      "ref": "kiwisolver-24@1.5.1"
+      "ref": "kiwisolver-23@1.5.1"
     },
     {
       "dependsOn": [
-        "markupsafe-26@3.0.4"
+        "markupsafe-25@3.0.4"
       ],
-      "ref": "mako-25@1.4.3"
+      "ref": "mako-24@1.4.3"
     },
     {
-      "ref": "markupsafe-26@3.0.4"
+      "ref": "markupsafe-25@3.0.4"
     },
     {
       "dependsOn": [
-        "contourpy-12@1.4.0",
-        "cycler-13@0.12.1",
-        "fonttools-15@4.68.0",
-        "kiwisolver-24@1.5.1",
-        "numpy-28@2.5.4",
-        "packaging-30@26.3",
-        "pillow-32@13.0.0",
-        "pyparsing-38@3.3.3",
-        "python-dateutil-39@2.9.0.post0"
+        "contourpy-11@1.4.0",
+        "cycler-12@0.12.1",
+        "fonttools-14@4.68.0",
+        "kiwisolver-23@1.5.1",
+        "numpy-27@2.5.4",
+        "packaging-29@26.3",
+        "pillow-31@13.0.0",
+        "pyparsing-37@3.3.3",
+        "python-dateutil-38@2.9.0.post0"
       ],
-      "ref": "matplotlib-27@3.11.2"
+      "ref": "matplotlib-26@3.11.2"
     },
     {
-      "ref": "numpy-28@2.5.4"
+      "ref": "numpy-27@2.5.4"
     },
     {
       "dependsOn": [
-        "typing-extensions-47@4.16.0"
+        "typing-extensions-46@4.16.0"
       ],
-      "ref": "opentelemetry-api-29@1.45.1"
+      "ref": "opentelemetry-api-28@1.45.1"
     },
     {
-      "ref": "packaging-30@26.3"
+      "ref": "packaging-29@26.3"
     },
     {
-      "ref": "pgvector-31@0.5.1"
+      "ref": "pgvector-30@0.5.1"
     },
     {
-      "ref": "pillow-32@13.0.0"
+      "ref": "pillow-31@13.0.0"
     },
     {
       "dependsOn": [
-        "psycopg-binary-34@3.3.6",
-        "tzdata-49@2026.5"
+        "psycopg-binary-33@3.3.6",
+        "tzdata-48@2026.5"
       ],
-      "ref": "psycopg-33@3.3.6"
+      "ref": "psycopg-32@3.3.6"
     },
     {
-      "ref": "psycopg-binary-34@3.3.6"
+      "ref": "psycopg-binary-33@3.3.6"
     },
     {
       "dependsOn": [
         "annotated-types-4@0.8.0",
-        "pydantic-core-36@2.50.1",
-        "typing-extensions-47@4.16.0",
-        "typing-inspection-48@0.4.4"
+        "pydantic-core-35@2.50.1",
+        "typing-extensions-46@4.16.0",
+        "typing-inspection-47@0.4.4"
       ],
-      "ref": "pydantic-35@2.14.1"
+      "ref": "pydantic-34@2.14.1"
     },
     {
       "dependsOn": [
-        "typing-extensions-47@4.16.0"
+        "typing-extensions-46@4.16.0"
       ],
-      "ref": "pydantic-core-36@2.50.1"
+      "ref": "pydantic-core-35@2.50.1"
     },
     {
       "dependsOn": [
-        "pydantic-35@2.14.1",
-        "python-dotenv-40@1.2.4",
-        "typing-extensions-47@4.16.0",
-        "typing-inspection-48@0.4.4"
+        "pydantic-34@2.14.1",
+        "python-dotenv-39@1.2.4",
+        "typing-extensions-46@4.16.0",
+        "typing-inspection-47@0.4.4"
       ],
-      "ref": "pydantic-settings-37@2.16.1"
+      "ref": "pydantic-settings-36@2.16.1"
     },
     {
-      "ref": "pyparsing-38@3.3.3"
+      "ref": "pyparsing-37@3.3.3"
     },
     {
       "dependsOn": [
-        "six-43@1.17.0"
+        "six-42@1.17.0"
       ],
-      "ref": "python-dateutil-39@2.9.0.post0"
+      "ref": "python-dateutil-38@2.9.0.post0"
     },
     {
-      "ref": "python-dotenv-40@1.2.4"
+      "ref": "python-dotenv-39@1.2.4"
     },
     {
-      "ref": "pyyaml-41@6.0.3"
+      "ref": "pyyaml-40@6.0.3"
     },
     {
       "dependsOn": [
         "botocore-7@1.43.116"
       ],
-      "ref": "s3transfer-42@0.19.3"
+      "ref": "s3transfer-41@0.19.3"
     },
     {
-      "ref": "six-43@1.17.0"
-    },
-    {
-      "dependsOn": [
-        "greenlet-16@3.5.6",
-        "typing-extensions-47@4.16.0"
-      ],
-      "ref": "sqlalchemy-44@2.1.5"
+      "ref": "six-42@1.17.0"
     },
     {
       "dependsOn": [
-        "anyio-5@4.15.1"
+        "greenlet-15@3.5.6",
+        "typing-extensions-46@4.16.0"
       ],
-      "ref": "starlette-45@1.10.0"
-    },
-    {
-      "ref": "truststore-46@0.10.5"
-    },
-    {
-      "ref": "typing-extensions-47@4.16.0"
-    },
-    {
-      "dependsOn": [
-        "typing-extensions-47@4.16.0"
-      ],
-      "ref": "typing-inspection-48@0.4.4"
-    },
-    {
-      "ref": "tzdata-49@2026.5"
-    },
-    {
-      "ref": "urllib3-50@2.8.0"
-    },
-    {
-      "dependsOn": [
-        "click-11@8.5.0",
-        "h11-17@0.16.0",
-        "httptools-19@0.9.0",
-        "python-dotenv-40@1.2.4",
-        "pyyaml-41@6.0.3",
-        "uvloop-52@0.23.0",
-        "watchfiles-54@1.3.0",
-        "websockets-55@17.3"
-      ],
-      "ref": "uvicorn-51@0.54.0"
-    },
-    {
-      "ref": "uvloop-52@0.23.0"
-    },
-    {
-      "dependsOn": [
-        "matplotlib-27@3.11.2"
-      ],
-      "ref": "vtk-53@9.6.2"
+      "ref": "sqlalchemy-43@2.1.5"
     },
     {
       "dependsOn": [
         "anyio-5@4.15.1"
       ],
-      "ref": "watchfiles-54@1.3.0"
+      "ref": "starlette-44@1.10.0"
     },
     {
-      "ref": "websockets-55@17.3"
+      "ref": "truststore-45@0.10.5"
+    },
+    {
+      "ref": "typing-extensions-46@4.16.0"
+    },
+    {
+      "dependsOn": [
+        "typing-extensions-46@4.16.0"
+      ],
+      "ref": "typing-inspection-47@0.4.4"
+    },
+    {
+      "ref": "tzdata-48@2026.5"
+    },
+    {
+      "ref": "urllib3-49@2.8.0"
+    },
+    {
+      "dependsOn": [
+        "click-10@8.5.0",
+        "h11-16@0.16.0",
+        "httptools-18@0.9.0",
+        "python-dotenv-39@1.2.4",
+        "pyyaml-40@6.0.3",
+        "uvloop-51@0.23.0",
+        "watchfiles-53@1.3.0",
+        "websockets-54@17.3"
+      ],
+      "ref": "uvicorn-50@0.54.0"
+    },
+    {
+      "ref": "uvloop-51@0.23.0"
+    },
+    {
+      "dependsOn": [
+        "matplotlib-26@3.11.2"
+      ],
+      "ref": "vtk-52@9.6.2"
+    },
+    {
+      "dependsOn": [
+        "anyio-5@4.15.1"
+      ],
+      "ref": "watchfiles-53@1.3.0"
+    },
+    {
+      "ref": "websockets-54@17.3"
     }
   ],
   "metadata": {

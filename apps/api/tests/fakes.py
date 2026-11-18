@@ -164,6 +164,29 @@ class MemoryRecordStore(RecordStore):
             )
         ]
 
+    @override
+    async def query_records(
+        self,
+        query: str,
+        cls: str | None = None,
+        limit: int | None = None,
+        tx: Tx | None = None,
+    ) -> list[tuple[Record, float]]:
+        records = await self.get_all_records()
+        if cls is not None:
+            records = [rec for rec in records if rec.cls == cls]
+        query_lower = query.lower()
+        matched: list[tuple[Record, float]] = []
+        for rec in records:
+            graph_text = str(rec.graph).lower()
+            if query_lower in graph_text:
+                score = 1.0 / (1 + abs(graph_text.find(query_lower)))
+                matched.append((rec, score))
+        matched.sort(key=lambda item: item[1], reverse=True)
+        if limit is not None:
+            matched = matched[:limit]
+        return matched
+
 
 def load_ontology() -> Ontology:
     return Ontology.load(ONTOLOGY_PATH)
@@ -259,7 +282,9 @@ class MemoryUploadStore(UploadStore):
         raise NotImplementedError
 
     @override
-    async def set_ready(self, file_id: str, sha256: str, tx: Tx) -> None:
+    async def set_ready(
+        self, file_id: str, sha256: str, model_key: str | None, tx: Tx
+    ) -> None:
         raise NotImplementedError
 
     @override
@@ -299,6 +324,20 @@ class MemoryStorage(ObjectStorage):
     @override
     def create_upload_form(self, key: str, size: int) -> tuple[str, dict[str, str]]:
         return "/storage/test", {"key": key}
+
+    @override
+    def upload_file(
+        self,
+        key: str,
+        path: Path,
+        content_type: str,
+        content_encoding: str | None = None,
+    ) -> None:
+        self.sizes[key] = path.stat().st_size
+
+    @override
+    def create_download_url(self, key: str) -> str:
+        return f"/storage/test/{key}?signed"
 
     @override
     def get_object_size(self, key: str) -> int | None:

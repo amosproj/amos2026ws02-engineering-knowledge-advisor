@@ -75,6 +75,18 @@ class FileUpload(CamelModel):
     size_bytes: int = Field(description="Announced size, checked on complete.")
     created_at: datetime = Field(description="When the upload form was requested.")
     updated_at: datetime = Field(description="Last status change.")
+    has_model: bool = Field(
+        description="Whether the 3D model (GLB) can be downloaded: GET /records/{id}/model."
+    )
+
+
+class RecordNodeWithScore(CamelModel):
+    """A record node with a lexical search similarity score."""
+
+    record: RecordNode = Field(description=FIELD_DESCRIPTION_RECORD)
+    similarity_score: float = Field(
+        description="Lexical similarity score (0.0–1.0, higher is more similar)."
+    )
 
 
 class RecordView(CamelModel):
@@ -92,6 +104,10 @@ class RecordView(CamelModel):
     children: list[RecordNode] | None = Field(
         default=None,
         description="Records whose parent links point to the record.",
+    )
+    similarity_score: float | None = Field(
+        default=None,
+        description="How similar the record is to the query.",
     )
 
 

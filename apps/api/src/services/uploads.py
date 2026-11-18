@@ -33,6 +33,7 @@ class Upload:
         size_bytes: size announced before the upload.
         created_at: when the upload was registered.
         updated_at: last change of the state.
+        model_key: object storage key of the 3D model (GLB), ``None`` without one.
     """
 
     file_id: str
@@ -42,6 +43,7 @@ class Upload:
     size_bytes: int
     created_at: datetime
     updated_at: datetime
+    model_key: str | None = None
 
 
 class LockTimeoutError(ConflictError):
@@ -100,8 +102,10 @@ class UploadStore(ABC):
         ...
 
     @abstractmethod
-    async def set_ready(self, file_id: str, sha256: str, tx: Tx) -> None:
-        """Marks the file ``ready`` with its content hash."""
+    async def set_ready(
+        self, file_id: str, sha256: str, model_key: str | None, tx: Tx
+    ) -> None:
+        """Marks the file ``ready`` with its content hash and the key of its 3D model, ``None`` without one."""
         ...
 
     @abstractmethod

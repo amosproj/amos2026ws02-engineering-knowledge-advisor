@@ -3,7 +3,8 @@ from typing import Any
 import pytest
 from fakes import build_ontology_with, make_catalog, make_service
 
-from services import Link, Record
+from services import Json, Link, Record
+from services.cad.model import BoundingBox, CadDefinition, CadModel, CadOccurrence
 from services.catalog import CatalogService, TreeNode
 from services.catalog.records import (
     NotFoundError,
@@ -15,7 +16,12 @@ from services.catalog.records import (
     update_record,
 )
 from services.catalog.service import get_files_status
-from services.ograg.service import DeleteResult, OgRagService, RecordError
+from services.ograg.service import (
+    DeleteResult,
+    OgRagService,
+    ParentLimitError,
+    RecordError,
+)
 from services.uploads import UploadStatus
 
 pytestmark = pytest.mark.anyio
@@ -44,13 +50,24 @@ async def create_tree(ograg: OgRagService) -> tuple[str, str, str]:
             "@type": "AssemblyGroup",
             "name": "Input tray",
             "identifier": "AG-01",
-            "rootOf": machine_id,
+            "definedIn": machine_id,
         },
     )
     cad_file_id, _ = await create_record(
         ograg, TX, {"@type": "CadFile", "name": "cell.step", "partOf": machine_id}
     )
     return machine_id, group_id, cad_file_id
+
+
+async def add_instance(
+    ograg: OgRagService, name: str, group_id: str, **links: Json
+) -> str:
+    instance_id, _ = await create_record(
+        ograg,
+        TX,
+        {"@type": "AssemblyInstance", "name": name, "instanceOf": group_id, **links},
+    )
+    return instance_id
 
 
 async def add_item(ograg: OgRagService, group_id: str) -> None:
@@ -94,7 +111,7 @@ async def test_a_child_needs_an_existing_parent_of_the_right_class():
     _, group_id, _ = await create_tree(ograg)
     with pytest.raises(RecordError):
         await create_record(
-            ograg, TX, {"@type": "AssemblyGroup", "name": "x", "rootOf": group_id}
+            ograg, TX, {"@type": "AssemblyGroup", "name": "x", "definedIn": group_id}
         )
     with pytest.raises(RecordError):
         await create_record(
@@ -115,7 +132,7 @@ async def test_an_update_changes_only_the_given_fields():
     group: Record = await get_record(ograg, TX, group_id)
     assert group.graph["name"] == "Tray"
     assert "identifier" not in group.graph
-    assert group.graph["rootOf"] == machine_id
+    assert group.graph["definedIn"] == machine_id
 
 
 async def test_invalid_fields_are_refused():
@@ -129,7 +146,7 @@ async def test_invalid_fields_are_refused():
         await update_record(ograg, TX, group_id, {"colour": "red"})
     # a link must still name a record of the right class
     with pytest.raises(RecordError):
-        await update_record(ograg, TX, group_id, {"rootOf": group_id})
+        await update_record(ograg, TX, group_id, {"definedIn": group_id})
     with pytest.raises(NotFoundError):
         await update_record(ograg, TX, "missing", {"name": "x"})
 
@@ -137,26 +154,23 @@ async def test_invalid_fields_are_refused():
 async def test_an_update_is_a_json_merge_patch():
     ograg: OgRagService = make_service()
     machine_id, group_id, _ = await create_tree(ograg)
-    other_id, _ = await create_record(
-        ograg, TX, {"@type": "AssemblyGroup", "name": "Feeder", "rootOf": machine_id}
-    )
+    root_id: str = await add_instance(ograg, "Tray:1", group_id, rootOf=machine_id)
+    other_id: str = await add_instance(ograg, "Feeder:1", group_id, partOf=root_id)
+    inner_id: str = await add_instance(ograg, "Gripper:1", group_id, partOf=[root_id])
     await update_record(
-        ograg, TX, group_id, {"properties": {"path": "RC-01/AG", "dimensions": 800}}
+        ograg, TX, group_id, {"properties": {"sizeX": 0.8, "sizeY": 0.5}}
     )
 
     # nested objects merge key by key, null removes a key
     await update_record(
-        ograg, TX, group_id, {"properties": {"dimensions": 900, "path": None}}
+        ograg, TX, group_id, {"properties": {"sizeX": 0.9, "sizeY": None}}
     )
     group: Record = await get_record(ograg, TX, group_id)
-    assert group.graph["properties"] == {
-        "@type": "AssemblyProperties",
-        "dimensions": 900,
-    }
+    assert group.graph["properties"] == {"@type": "AssemblyProperties", "sizeX": 0.9}
     # links are replaced as a whole
-    await update_record(ograg, TX, group_id, {"rootOf": None, "partOf": [other_id]})
-    moved: Record = await get_record(ograg, TX, group_id)
-    assert (moved.graph.get("rootOf"), moved.graph["partOf"]) == (None, [other_id])
+    await update_record(ograg, TX, inner_id, {"instanceOf": None, "partOf": [other_id]})
+    moved: Record = await get_record(ograg, TX, inner_id)
+    assert (moved.graph.get("instanceOf"), moved.graph["partOf"]) == (None, [other_id])
 
 
 async def test_identifiers_may_be_shared():
@@ -175,11 +189,14 @@ async def test_identifiers_may_be_shared():
 async def test_deleting_a_machine_deletes_its_tree_and_keeps_knowledge():
     ograg: OgRagService = make_service()
     machine_id, group_id, cad_file_id = await create_tree(ograg)
+    root_id: str = await add_instance(ograg, "Tray:1", group_id, rootOf=machine_id)
     await add_item(ograg, group_id)
 
     tree: list[Record] = await lock_tree(ograg, TX, machine_id)
     assert tree[0].id == machine_id
-    assert sorted(rec.id for rec in tree[1:]) == sorted([group_id, cad_file_id])
+    assert sorted(rec.id for rec in tree[1:]) == sorted(
+        [group_id, root_id, cad_file_id]
+    )
     result: DeleteResult = await delete_tree(ograg, TX, tree)
 
     assert result.deleted_ids == [rec.id for rec in reversed(tree)]
@@ -188,20 +205,19 @@ async def test_deleting_a_machine_deletes_its_tree_and_keeps_knowledge():
     assert item is not None and item.review
 
 
-async def test_deleting_a_group_deletes_the_groups_inside_it_first():
+async def test_deleting_an_instance_deletes_the_instances_inside_it_first():
     ograg: OgRagService = make_service()
-    _, group_id, _ = await create_tree(ograg)
-    inner_id, _ = await create_record(
-        ograg, TX, {"@type": "AssemblyGroup", "name": "Gripper", "partOf": group_id}
-    )
-    innermost_id, _ = await create_record(
-        ograg, TX, {"@type": "AssemblyGroup", "name": "Finger", "partOf": inner_id}
-    )
+    machine_id, group_id, _ = await create_tree(ograg)
+    root_id: str = await add_instance(ograg, "Tray:1", group_id, rootOf=machine_id)
+    inner_id: str = await add_instance(ograg, "Gripper:1", group_id, partOf=root_id)
+    innermost_id: str = await add_instance(ograg, "Finger:1", group_id, partOf=inner_id)
 
-    tree: list[Record] = await lock_tree(ograg, TX, group_id)
-    assert [rec.id for rec in tree] == [group_id, inner_id, innermost_id]
+    # the group they are instances of stays
+    tree: list[Record] = await lock_tree(ograg, TX, root_id)
+    assert [rec.id for rec in tree] == [root_id, inner_id, innermost_id]
     result: DeleteResult = await delete_tree(ograg, TX, tree)
-    assert result.deleted_ids == [innermost_id, inner_id, group_id]
+    assert result.deleted_ids == [innermost_id, inner_id, root_id]
+    assert (await get_record(ograg, TX, group_id)).id == group_id
 
 
 async def test_records_written_by_the_generic_endpoint_are_handled():
@@ -254,31 +270,33 @@ def get_shape(node: TreeNode) -> dict[str, object]:
 async def test_the_tree_holds_every_record_below_once_per_parent():
     ograg: OgRagService = make_service()
     machine_id, group_id, cad_file_id = await create_tree(ograg)
-    inner_id, _ = await create_record(
-        ograg, TX, {"@type": "AssemblyGroup", "name": "Gripper", "partOf": group_id}
-    )
+    root_id: str = await add_instance(ograg, "Tray:1", group_id, rootOf=machine_id)
+    inner_id: str = await add_instance(ograg, "Gripper:1", group_id, partOf=root_id)
     await ograg.upsert_record(
         ITEM_ID,
         {
             "@type": "KnowledgeItem",
             "itemType": "lesson learned",
-            "appliesTo": [inner_id],
+            "appliesToInstance": [inner_id],
             "appliesToMachine": [machine_id],
         },
     )
     catalog: CatalogService = make_catalog(ograg)
 
     tree: TreeNode = await catalog.get_tree(TX, machine_id)
+    inner: dict[str, object] = {inner_id: {ITEM_ID: {}}}
+    # the instances hang below the machine and below their group
     assert get_shape(tree) == {
         cad_file_id: {},
-        group_id: {inner_id: {ITEM_ID: {}}},
+        group_id: {root_id: inner, **inner},
+        root_id: inner,
         ITEM_ID: {},
     }
     assert [child.file for child in tree.linked if child.record.id == cad_file_id] == [
         True
     ]
 
-    shallow: TreeNode = await catalog.get_tree(TX, group_id, depth=1)
+    shallow: TreeNode = await catalog.get_tree(TX, root_id, depth=1)
     assert get_shape(shallow) == {inner_id: {}}
     with pytest.raises(NotFoundError):
         await catalog.get_tree(TX, "missing")
@@ -287,23 +305,23 @@ async def test_the_tree_holds_every_record_below_once_per_parent():
 async def test_the_ancestors_lead_up_to_the_top_once_per_parent():
     ograg: OgRagService = make_service()
     machine_id, group_id, _ = await create_tree(ograg)
-    inner_id, _ = await create_record(
-        ograg, TX, {"@type": "AssemblyGroup", "name": "Gripper", "partOf": group_id}
-    )
+    root_id: str = await add_instance(ograg, "Tray:1", group_id, rootOf=machine_id)
+    inner_id: str = await add_instance(ograg, "Gripper:1", group_id, partOf=root_id)
     await ograg.upsert_record(
         ITEM_ID,
         {
             "@type": "KnowledgeItem",
             "itemType": "lesson learned",
-            "appliesTo": [inner_id],
+            "appliesToInstance": [inner_id],
             "appliesToMachine": [machine_id],
         },
     )
     catalog: CatalogService = make_catalog(ograg)
 
     ancestors: TreeNode = await catalog.get_ancestors(TX, ITEM_ID)
+    group: dict[str, object] = {group_id: {machine_id: {}}}
     assert get_shape(ancestors) == {
-        inner_id: {group_id: {machine_id: {}}},
+        inner_id: {root_id: {machine_id: {}, **group}, **group},
         machine_id: {},
     }
     near: TreeNode = await catalog.get_ancestors(TX, ITEM_ID, depth=1)
@@ -317,41 +335,37 @@ async def test_a_record_never_appears_below_itself():
     ograg: OgRagService = make_service()
     machine_id, _, _ = await create_tree(ograg)
     first: Record = Record(
-        "AG-A",
-        "AssemblyGroup",
+        "AI-A",
+        "AssemblyInstance",
         {"name": "A"},
         {},
         "v0",
-        (Link("rootOf", machine_id), Link("partOf", "AG-B")),
+        (Link("rootOf", machine_id), Link("partOf", "AI-B")),
     )
     second: Record = Record(
-        "AG-B", "AssemblyGroup", {"name": "B"}, {}, "v0", (Link("partOf", "AG-A"),)
+        "AI-B", "AssemblyInstance", {"name": "B"}, {}, "v0", (Link("partOf", "AI-A"),)
     )
     await ograg.store.save_records([first, second])
 
     tree: TreeNode = await make_catalog(ograg).get_tree(TX, machine_id)
 
-    assert get_shape(tree)["AG-A"] == {"AG-B": {}}
-    ancestors: TreeNode = await make_catalog(ograg).get_ancestors(TX, "AG-A")
-    assert get_shape(ancestors) == {machine_id: {}, "AG-B": {}}
+    assert get_shape(tree)["AI-A"] == {"AI-B": {}}
+    ancestors: TreeNode = await make_catalog(ograg).get_ancestors(TX, "AI-A")
+    assert get_shape(ancestors) == {machine_id: {}, "AI-B": {}}
     # a loop of deleteWithParent links can't be sorted: only the record itself is deleted
     assert [rec.id for rec in await lock_tree(ograg, TX, machine_id)] == [machine_id]
 
 
 async def test_a_record_with_another_parent_left_is_kept_with_what_hangs_below_it():
     ograg: OgRagService = make_service()
-    machine_id, first_id, _ = await create_tree(ograg)
-    second_id, _ = await create_record(
-        ograg, TX, {"@type": "AssemblyGroup", "name": "Feeder", "rootOf": machine_id}
+    machine_id, group_id, _ = await create_tree(ograg)
+    root_id: str = await add_instance(ograg, "Tray:1", group_id, rootOf=machine_id)
+    first_id: str = await add_instance(ograg, "Gripper:1", group_id, partOf=root_id)
+    second_id: str = await add_instance(ograg, "Feeder:1", group_id, partOf=root_id)
+    shared_id: str = await add_instance(
+        ograg, "Shared:1", group_id, partOf=[first_id, second_id]
     )
-    shared_id, _ = await create_record(
-        ograg,
-        TX,
-        {"@type": "AssemblyGroup", "name": "Shared", "partOf": [first_id, second_id]},
-    )
-    below_id, _ = await create_record(
-        ograg, TX, {"@type": "AssemblyGroup", "name": "Below", "partOf": shared_id}
-    )
+    below_id: str = await add_instance(ograg, "Below:1", group_id, partOf=shared_id)
 
     tree: list[Record] = await lock_tree(ograg, TX, first_id)
     assert [rec.id for rec in tree] == [first_id]
@@ -362,3 +376,63 @@ async def test_a_record_with_another_parent_left_is_kept_with_what_hangs_below_i
     # once the last such parent goes, it goes too, with what hangs below it
     whole: list[Record] = await lock_tree(ograg, TX, machine_id)
     assert {rec.id for rec in whole} >= {second_id, shared_id, below_id}
+
+
+def cad_model(*roots: str) -> CadModel:
+    """Each root is a frame holding one screw."""
+    screw_box = BoundingBox((0, 0, 0), (0.01, 0.01, 0.01))
+    occurrences: list[CadOccurrence] = []
+    for root in roots:
+        occurrences += [
+            CadOccurrence(root, "frame", None, "Frame", root),
+            CadOccurrence(f"{root}/1", "screw", root, "Screw", None),
+        ]
+    return CadModel(
+        source_name="cell.step",
+        definitions={
+            "frame": CadDefinition("frame", "Frame", screw_box),
+            "screw": CadDefinition("screw", "Screw", screw_box),
+        },
+        occurrences=occurrences,
+        bounding_box=BoundingBox((0, 0, 0), (1, 2, 3)),
+    )
+
+
+async def test_an_import_stores_the_tree_under_the_cad_files_machine():
+    ograg: OgRagService = make_service()
+    machine_id, _, cad_file_id = await create_tree(ograg)
+    await update_record(ograg, TX, machine_id, {"customer": "ACME"})
+
+    warnings: list[str] = await make_catalog(ograg).import_cad_file_tree(
+        TX, cad_file_id, cad_model("A")
+    )
+
+    assert warnings == []
+    machine: Record = await get_record(ograg, TX, machine_id)
+    assert machine.graph["customer"] == "ACME"
+    assert machine.input["properties"] == {"sizeX": 1, "sizeY": 2, "sizeZ": 3}
+    tree: TreeNode = await make_catalog(ograg).get_tree(TX, machine_id)
+    (root,) = [node for node in tree.linked if node.record.cls == "AssemblyInstance"]
+    assert root.record.graph["name"] == "A"
+    assert [node.record.graph["name"] for node in root.linked] == ["Screw"]
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [(("A",), ("B",)), ((), ("B", "C"))],
+    ids=["machine_has_a_tree", "several_roots"],
+)
+async def test_an_import_is_refused_as_a_whole(
+    first: tuple[str, ...], second: tuple[str, ...]
+):
+    ograg: OgRagService = make_service()
+    _, _, cad_file_id = await create_tree(ograg)
+    catalog: CatalogService = make_catalog(ograg)
+    if first:
+        await catalog.import_cad_file_tree(TX, cad_file_id, cad_model(*first))
+    stored: list[Record] = await catalog.get_records(TX)
+
+    with pytest.raises(ParentLimitError):
+        await catalog.import_cad_file_tree(TX, cad_file_id, cad_model(*second))
+
+    assert await catalog.get_records(TX) == stored

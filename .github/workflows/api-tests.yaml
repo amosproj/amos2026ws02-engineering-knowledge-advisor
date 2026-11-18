@@ -37,7 +37,7 @@ jobs:
       PGPORT: "5432"
       PGUSER: postgres
       PGPASSWORD: postgres
-      # tests will drop and recreate every ograg_* table, do **NOT** set this to anything but a temp db
+      # tests will drop and recreate the api tables, do **NOT** set this to anything but a temp db
       API_TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/scratch
 
     steps:
@@ -81,7 +81,7 @@ jobs:
         if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
         env:
           API_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/migrate
-          API_OGRAG_ONTOLOGY_PATH: ${{ github.workspace }}/apps/api/ontology_v0.jsonld
+          API_ONTOLOGY_PATH: ${{ github.workspace }}/apps/api/ontology_v0.jsonld
           # required by the settings, not used by the migrations
           API_S3_ENDPOINT_URL: http://localhost:9000
           API_S3_BUCKET: migrate

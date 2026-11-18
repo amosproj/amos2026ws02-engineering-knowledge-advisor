@@ -9,16 +9,9 @@ describe('toCadFileAction', () => {
         expect(toCadFileAction('empty', undefined)).toEqual({ kind: 'upload' })
     })
 
-    it('replaces a ready file', () => {
-        expect(toCadFileAction('ready', cadFile)).toEqual({
-            kind: 'replace',
-            cadFileId: 'cad-1',
-            name: 'cell.step',
-        })
-    })
-
-    it('offers nothing while the file is processed', () => {
+    it('offers nothing while the file is processed or once it is ready', () => {
         expect(toCadFileAction('processing', cadFile)).toBeNull()
+        expect(toCadFileAction('ready', cadFile)).toBeNull()
     })
 
     it('uploads again a failed, interrupted or missing upload into the same record', () => {

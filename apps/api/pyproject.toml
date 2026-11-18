@@ -21,7 +21,6 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.1.5",
     "uvicorn[standard]>=0.54.0",
     "cadquery-ocp>=8.0.1.1.0",
-    "cadquery-ocp-stubs>=8.0.1.1.0",
 ]
 
 [build-system]
@@ -34,6 +33,7 @@ required-version = "==0.13.5"
 
 [dependency-groups]
 dev = [
+    "cadquery-ocp-stubs>=8.0.1.1.0",
     "httpx2>=2.16.0",
     "pre-commit>=4.7.0",
     "pyright>=1.1.414",

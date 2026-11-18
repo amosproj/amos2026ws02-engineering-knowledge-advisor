@@ -2,8 +2,7 @@ import { QueryClient } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { toast } from '@components'
-import { HttpError } from '@queries/query-errors'
-import { createCadFile, deleteRecord, updateCadFile } from '../query/machine-api'
+import { createCadFile, updateCadFile } from '../query/machine-api'
 import type { ImportItem } from './cad-file-import-context'
 import { CANCELLED, importCadFile, type ImportResult } from './cad-file-import-flow'
 import { createImports } from './cad-file-imports'
@@ -12,7 +11,6 @@ vi.mock('@components', () => ({ toast: { add: vi.fn() } }))
 vi.mock('../query/machine-api', () => ({
     machinesQueryKey: ['machines'],
     createCadFile: vi.fn(),
-    deleteRecord: vi.fn(),
     updateCadFile: vi.fn(),
 }))
 vi.mock('./cad-file-import-flow', () => ({ CANCELLED: 'cancelled', importCadFile: vi.fn() }))
@@ -95,30 +93,6 @@ describe('createImports', () => {
         })
         expect(createCadFile).not.toHaveBeenCalled()
         expect(importCadFile).toHaveBeenCalledWith('cad-1', file, expect.anything())
-    })
-
-    it('deletes the replaced CAD file record before creating the new one', async () => {
-        fakeImports()
-        vi.mocked(createCadFile).mockResolvedValue(written)
-        const { imports } = setup()
-
-        await imports.start({ machineId: 'm-1', file, replaceId: 'cad-old' })
-
-        expect(deleteRecord).toHaveBeenCalledWith({ params: { id: 'cad-old' } })
-        expect(vi.mocked(deleteRecord).mock.invocationCallOrder[0]).toBeLessThan(
-            vi.mocked(createCadFile).mock.invocationCallOrder[0],
-        )
-    })
-
-    it('replaces again after the old record was deleted but the new one not created', async () => {
-        fakeImports()
-        vi.mocked(deleteRecord).mockRejectedValue(new HttpError('NotFound', 404, 'Not found'))
-        vi.mocked(createCadFile).mockResolvedValue(written)
-        const { imports, items } = setup()
-
-        await imports.start({ machineId: 'm-1', file, replaceId: 'cad-old' })
-
-        expect(items()[0].cadFileId).toBe('cad-new')
     })
 
     it('refuses a second upload for the same machine, also while the first one starts', async () => {

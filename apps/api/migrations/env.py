@@ -13,14 +13,14 @@ from alembic import context
 from sqlalchemy import Engine, create_engine, pool
 
 from config.settings import get_settings
-from db import ModelBase, get_ograg_tables
+from db import ModelBase, get_tables
 from db.session import get_database_url
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-get_ograg_tables()  # registers the OG-RAG tables on the metadata
+get_tables()  # registers tables on the metadata
 target_metadata = ModelBase.metadata
 URL = config.get_main_option("sqlalchemy.url") or get_database_url(get_settings())
 

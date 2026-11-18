@@ -21,9 +21,12 @@ flowchart TB
     subgraph apic["api container (FastAPI)"]
         rest["REST API /api<br/>contract: openapi.json"]
         mcp["MCP endpoint /mcp"]
-        cad["CAD parser<br/>(STEP)"]
-        rag["RAG layer<br/>vanilla RAG or ontology-based OG-RAG<br/>+ embedding model"]
-        llm["LLM adapter<br/>one interface: chat, embed"]
+        rag["RAG layer<br/>OG-RAG: hypergraph over records<br/>+ local embedding model"]
+        llm["LLM adapter<br/>one interface: complete, stream"]
+    end
+
+    subgraph workerc["cad-file-worker container"]
+        cad["CAD file worker<br/>STEP check, parse, GLB<br/>(parser in a child process)"]
     end
 
     subgraph datac["data layer"]
@@ -41,29 +44,25 @@ flowchart TB
     nginx -- "/api/*" --> rest
     agent -- "MCP over HTTP" --> mcp
     mcp --> rest
-    rest -- "parse upload" --> cad
-    cad -- "store parts, metadata, vectors" --> db
+    cad -- "pick queued uploads, store assembly tree" --> db
+    cad -- "read STEP file, store GLB" --> s3
     
     rest -- "SQL" --> db
     rest -- "store / load files" --> s3
     rest -- "ask" --> rag
-    rag -- "retrieve chunks" --> db
-    rag -- "embed, generate" --> llm
+    rag -- "retrieve facts" --> db
+    rag -- "generate" --> llm
     llm --> hosted
     llm --> oss
 
     classDef open stroke-dasharray: 2 3,fill:#e6e6e6,color:#444;
-    class mcp,rag,agent,hosted,oss open
+    class mcp,agent,hosted,oss open
 ```
 
 **Main flows**
 
-- **Upload (Creator):** frontend → `/api` → file stored in MinIO → CAD
-  parser extracts parts and metadata → stored in PostgreSQL, text embedded via
-  the LLM adapter and stored in pgvector.
-- **Question (Reader or Agent):** frontend or MCP → `/api` → RAG layer finds
-  relevant chunks in pgvector → LLM adapter sends question + context to the
-  selected model → answer with sources.
+- **Upload (Creator):** frontend → `/api` registers CAD file and signs an upload form → browser uploads file straight to MinIO → CAD file worker checks and parses it in the background → assembly tree stored as records in PostgreSQL, 3D model (GLB) in MinIO → records indexed into the OG-RAG hypergraph with the local embedding model (planned).
+- **Question (Reader or Agent):** frontend or MCP → `/api` → RAG layer finds the closest facts in the hypergraph (pgvector, pg_trgm) → LLM adapter sends question + facts to the selected model → answer citing its facts, or a refusal.
 
 <div class="page-break"></div>
 
@@ -87,21 +86,36 @@ flowchart LR
 
     subgraph api["apps/api (FastAPI)"]
         direction TB
+
         arouter["src/main.py, src/api<br/>app entry, routers /api"]
-        amcp["src/api/mcp<br/>MCP endpoint"]
-        acad["src/cad<br/>STEP parser"]
-        arag["src/rag<br/>retrieval, prompts"]
-        allm["src/llm<br/>adapter + providers"]
-        adb["src/db, src/storage<br/>SQLAlchemy, S3 client"]
         abase["src/model, config,<br/>handler, logger"]
+        amcp["src/api/mcp<br/>MCP endpoint"]
+
+        aworker["src/cad_file_worker<br/>queue, conversion, cleanup"]
+
+        acad["src/services/cad<br/>STEP parser, GLB, to records"]
+        acat["src/services/catalog<br/>records, tree, uploads, files"]
+        aogg["src/services/ograg<br/>ontology, record validation"]
+        arag["src/services/hypergraph, search<br/>OG-RAG retrieval"]
+        allm["src/services/llm<br/>adapter + providers"]
+        adb["src/db, src/services/postgres, s3<br/>SQLAlchemy, S3 client"]
+
         amig["migrations/ (Alembic)"]
         atest["tests/ (pytest)"]
-        arouter --> acad
+
+        arouter --> acat
+        arouter --> aogg
         arouter --> arag
+        arouter --> allm
         amcp --> arouter
+        aworker --> acad
+        aworker --> acat
+        acat --> aogg
+        acat --> adb
+        aogg --> adb
         arag --> allm
         arag --> adb
-        acad --> adb
+
         adb ~~~ abase ~~~ amig ~~~ atest
     end
 
@@ -120,17 +134,17 @@ flowchart LR
 
     classDef planned stroke-dasharray: 6 4,fill:#ffffff;
     classDef open stroke-dasharray: 2 3,fill:#e6e6e6,color:#444;
-    class acad,allm,adb,amig,amcp planned
-    class arag open
+    class arag planned
+    class amcp open
 ```
 
-| Folder | Content |
-|---|---|
-| `apps/web` | React single-page app, built by Vite, served by Nginx |
-| `apps/api` | FastAPI service: routers, CAD parser, RAG, LLM adapter, data access, migrations |
-| `infra` | Nginx and PostgreSQL configuration used by Docker Compose |
-| `Documentation` | Architecture, API conventions, OpenAPI contract, SBOM |
-| `Deliverables` | Sprint deliverables (PDFs, images) |
+| Folder          | Content                                                                                             |
+|-----------------|-----------------------------------------------------------------------------------------------------|
+| `apps/web`      | React single-page app, built by Vite, served by Nginx                                               |
+| `apps/api`      | FastAPI service and CAD file worker: routers, CAD parser, RAG, LLM adapter, data access, migrations |
+| `infra`         | Nginx and PostgreSQL configuration used by Docker Compose                                           |
+| `Documentation` | Architecture, API conventions, OpenAPI contract, SBOM                                               |
+| `Deliverables`  | Sprint deliverables (PDFs, images)                                                                  |
 
 <div class="page-break"></div>
 
@@ -142,32 +156,32 @@ listed here so this page does not go out of date; they are pinned in
 in the SBOM (`Documentation/sbom`). *In use* means part of the current setup,
 *planned* means decided but not implemented, *open* means not decided yet.
 
-| Component | Language | Framework / Product | Status |
-|---|---|---|---|
-| Frontend | TypeScript | React | in use |
-| Frontend build | TypeScript | Vite | in use |
-| Frontend styling | CSS | Tailwind CSS | in use |
-| UI components | TypeScript | shadcn components (copied into the repo) on Base UI | in use |
-| Frontend data / routing | TypeScript | TanStack Query / Router / Form, Zod | in use |
-| Frontend tests | TypeScript | Vitest | in use |
-| Web server | - | Nginx | in use |
-| Backend | Python | FastAPI, Uvicorn | in use |
-| Validation / config | Python | Pydantic, pydantic-settings | in use |
-| Data access | Python | SQLAlchemy, psycopg | in use |
-| DB migrations | Python | Alembic | *planned* |
-| Object storage client | Python | boto3 | in use |
-| Backend tests | Python | pytest | in use |
-| Python packaging | - | uv | in use |
-| Relational + vector DB | SQL | PostgreSQL + pgvector | in use |
-| Object storage | - | MinIO (S3 API) | in use |
-| API contract | JSON | OpenAPI (`Documentation/openapi.json`), exported from FastAPI | in use |
-| LLM adapter | Python | provider-neutral chat and streaming interface | in use |
-| LLM model | - | configured per provider and request | in use |
-| CAD parser | Python | STEP library (e.g. OpenCascade / pythonOCC) | *planned* |
-| RAG approach | Python | vanilla RAG or ontology-based OG-RAG | *open* |
-| Embedding model | - | to be chosen with the RAG approach | *open* |
-| Agent access | Python | MCP endpoint `/mcp` | *open* |
-| Containers / CI | - | Docker Compose, GitHub Actions | in use |
+| Component               | Language   | Framework / Product                                                                 | Status    |
+|-------------------------|------------|-------------------------------------------------------------------------------------|-----------|
+| Frontend                | TypeScript | React                                                                               | in use    |
+| Frontend build          | TypeScript | Vite                                                                                | in use    |
+| Frontend styling        | CSS        | Tailwind CSS                                                                        | in use    |
+| UI components           | TypeScript | shadcn components (copied into the repo) on Base UI                                 | in use    |
+| Frontend data / routing | TypeScript | TanStack Query / Router / Form, Zod                                                 | in use    |
+| Frontend tests          | TypeScript | Vitest                                                                              | in use    |
+| Web server              | -          | Nginx                                                                               | in use    |
+| Backend                 | Python     | FastAPI, Uvicorn                                                                    | in use    |
+| Validation / config     | Python     | Pydantic, pydantic-settings                                                         | in use    |
+| Data access             | Python     | SQLAlchemy, psycopg                                                                 | in use    |
+| DB migrations           | Python     | Alembic                                                                             | in use    |
+| Object storage client   | Python     | boto3                                                                               | in use    |
+| Backend tests           | Python     | pytest                                                                              | in use    |
+| Python packaging        | -          | uv                                                                                  | in use    |
+| Relational + vector DB  | SQL        | PostgreSQL + pgvector                                                               | in use    |
+| Object storage          | -          | MinIO (S3 API)                                                                      | in use    |
+| API contract            | JSON       | OpenAPI (`Documentation/openapi.json`), exported from FastAPI                       | in use    |
+| LLM adapter             | Python     | provider-neutral chat and streaming interface                                       | in use    |
+| LLM model               | -          | configured per provider and request                                                 | in use    |
+| CAD parser              | Python     | Open CASCADE (`cadquery-ocp`)                                                       | in use    |
+| RAG approach            | Python     | ontology-grounded RAG, [`knowledge-retrieval.md`](knowledge-retrieval.md)           | *planned* |
+| Embedding model         | -          | `intfloat/multilingual-e5-base`, [`knowledge-retrieval.md`](knowledge-retrieval.md) | *planned* |
+| Agent access            | Python     | MCP endpoint `/mcp`                                                                 | *open*    |
+| Containers / CI         | -          | Docker Compose, GitHub Actions                                                      | in use    |
 
 <div class="page-break"></div>
 
@@ -177,8 +191,8 @@ in the SBOM (`Documentation/sbom`). *In use* means part of the current setup,
 browser. Nginx serves the frontend and forwards `/api/*` to the backend, so
 both share one origin and no CORS setup is needed. The FastAPI backend is the
 single entry point for all business logic: it stores files in MinIO, reads and
-writes PostgreSQL directly, parses uploaded CAD files, and answers questions
-through the RAG layer and the LLM adapter. AI agents may later use the same
+writes PostgreSQL directly, queues uploaded CAD files for the CAD file worker,
+and answers questions through the RAG layer and the LLM adapter. AI agents may later use the same
 functions through an MCP endpoint, which reuses the REST services instead of
 duplicating them. The REST API is described by an OpenAPI file exported from
 FastAPI; it is the contract between frontend and backend.
@@ -197,22 +211,26 @@ folders.
   can combine filters (part, project, document type) with similarity search,
   data stays consistent in one transaction, and there is one database to run
   and back up. LanceDB was considered; we can switch later if vector volume or
-  speed requires it, because only `src/rag` and `src/db` touch the vectors.
+  speed requires it.
 - **LLM adapter so Bosch can switch providers.** The backend calls one internal
-  interface (`chat`, `embed`) instead of a vendor SDK. Each provider - hosted
+  interface instead of a vendor SDK. Each provider - hosted
   models such as GPT or Claude, or open-source models such as Qwen running on
   Bosch's own hardware - is one implementation selected by configuration.
   Bosch can change the model for cost, data-protection or quality reasons
   without changing the rest of the code, and tests can use a fake provider.
-- **RAG layer kept open.** Vanilla RAG (embed, retrieve, generate) and
-  ontology-based RAG (OG-RAG) are both still options. The layer sits behind its
-  own module, so the decision does not affect the frontend, API or storage.
-- **One CAD parser inside the backend, STEP first.** The parser is a backend
-  module called when a file is uploaded; there is no separate import service
-  to deploy. STEP (ISO 10303) is the vendor-neutral format all major CAD tools
-  export, with open-source parsers. Other formats are added as further parsers
-  behind the same interface. If parsing large files becomes slow, the same
-  module can run as a background task without changing the architecture.
+  Embeddings do not go through it: the embedding model runs locally in the
+  backend.
+- **OG-RAG on a knowledge hypergraph over generic domain records.**
+  [`knowledge-retrieval.md`](knowledge-retrieval.md). The layer sits behind its
+  own module, so it does not affect the frontend or the API.
+- **CAD files processed by a worker, STEP first.** A separate `cad-file-worker`
+  container picks uploaded files from a queue in PostgreSQL, so large files
+  never block the API. It parses each file with Open CASCADE in a child process,
+  so a crash or hang of the C++ library does not kill the worker, imports the
+  assembly tree as records and stores a 3D model (GLB) for the viewer.
+  STEP (ISO 10303) is the vendor-neutral format all major CAD tools
+  export, with open-source parsers. Other formats can be added as further
+  parsers.
 - **MinIO for files.** CAD files and documents are large binaries and do not
   belong in the database. MinIO speaks the S3 API, so the same code works with
   any S3-compatible storage at Bosch. All data lives in Docker volumes on disk.

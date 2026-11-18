@@ -23,6 +23,7 @@ def test_record_classes_and_anchor_are_read():
     assert onto.record_classes == [
         "Machine",
         "AssemblyGroup",
+        "AssemblyInstance",
         "CadFile",
         "KnowledgeItem",
         "Guideline",
@@ -32,11 +33,14 @@ def test_record_classes_and_anchor_are_read():
     assert onto.guideline_classes == ["Guideline"]
     assert onto.properties[("AssemblyGroup", "name")].identity
     assert onto.properties[("KnowledgeItem", "appliesTo")].is_parent_link
+    assert onto.properties[("KnowledgeItem", "appliesToInstance")].is_parent_link
+    assert onto.properties[("AssemblyInstance", "instanceOf")].is_parent_link
     assert onto.properties[("CadFile", "partOf")].is_parent_link
     assert onto.properties[("Guideline", "sourceDocumentId")].provenance
     assert onto.get_identity_property_names() == {
         "Machine": ["identifier", "name"],
         "AssemblyGroup": ["identifier", "name"],
+        "AssemblyInstance": ["name"],
         "CadFile": [],
         "KnowledgeItem": [],
         "Guideline": [],
@@ -46,19 +50,26 @@ def test_record_classes_and_anchor_are_read():
 def test_file_classes_and_delete_with_parent_are_read():
     onto: Ontology = load_ontology()
     assert onto.file_classes == ["CadFile"]
-    # a parent link to the own class: groups inside groups
-    assert onto.properties[("AssemblyGroup", "partOf")].range == "AssemblyGroup"
-    assert onto.properties[("AssemblyGroup", "partOf")].delete_with_parent
-    assert onto.properties[("AssemblyGroup", "rootOf")].delete_with_parent
+    # a parent link to the own class: instances inside instances
+    assert onto.properties[("AssemblyInstance", "partOf")].range == "AssemblyInstance"
+    assert onto.properties[("AssemblyInstance", "partOf")].delete_with_parent
+    assert onto.properties[("AssemblyInstance", "rootOf")].delete_with_parent
+    assert onto.properties[("AssemblyGroup", "definedIn")].delete_with_parent
+    # deleting a group keeps its instances in the tree
+    assert not onto.properties[("AssemblyInstance", "instanceOf")].delete_with_parent
     assert onto.properties[("CadFile", "partOf")].delete_with_parent
     assert not onto.properties[("KnowledgeItem", "appliesTo")].delete_with_parent
     assert not onto.properties[("KnowledgeItem", "appliesToMachine")].delete_with_parent
+    assert not onto.properties[
+        ("KnowledgeItem", "appliesToInstance")
+    ].delete_with_parent
 
 
-def test_a_machine_has_one_cad_file():
+def test_a_machine_has_one_cad_file_and_one_root_instance():
     onto: Ontology = load_ontology()
     assert onto.properties[("CadFile", "partOf")].max_per_parent == 1
-    assert onto.properties[("AssemblyGroup", "partOf")].max_per_parent is None
+    assert onto.properties[("AssemblyInstance", "rootOf")].max_per_parent == 1
+    assert onto.properties[("AssemblyInstance", "partOf")].max_per_parent is None
 
 
 @pytest.mark.parametrize("limit", [0, -1, 1.5, "1", True])
@@ -76,8 +87,8 @@ def test_max_per_parent_must_be_a_positive_integer(limit: Json):
     ("file_class_ids", "expected"),
     [
         ([], {"Machine"}),
-        # appliesTo and appliesToMachine are parent links
-        (["og:KnowledgeItem"], {"Machine", "AssemblyGroup"}),
+        # appliesTo, appliesToMachine and appliesToInstance are parent links
+        (["og:KnowledgeItem"], {"Machine", "AssemblyGroup", "AssemblyInstance"}),
     ],
     ids=["CAD files", "knowledge items carry files too"],
 )
@@ -95,10 +106,9 @@ def test_labels_are_read():
     onto: Ontology = load_ontology()
     assert onto.class_labels["CadFile"].display_name == "CAD file"
     assert onto.class_labels["CadFile"].comment
-    assert onto.properties[("AssemblyProperties", "dimensions")].display_name == (
-        "dimensions"
-    )
-    assert onto.properties[("AssemblyProperties", "dimensions")].comment
+    assert onto.properties[("AssemblyProperties", "sizeX")].display_name == "size x"
+    assert onto.properties[("AssemblyProperties", "sizeX")].comment
+    assert onto.properties[("MachineProperties", "sizeX")].display_name == "size x"
 
 
 @pytest.mark.parametrize(
@@ -216,8 +226,9 @@ def test_labels_of_the_wrong_shape_are_refused(
 def test_search_modes_default_by_range():
     onto: Ontology = build_ontology_with({**NOTE, "og:search": []})
     assert onto.properties[("KnowledgeProperties", "statement")].search == ("semantic",)
-    assert onto.properties[("AssemblyProperties", "dimensions")].search == ("filter",)
-    assert onto.properties[("AssemblyGroup", "partOf")].search == ()
+    assert onto.properties[("AssemblyProperties", "sizeX")].search == ("filter",)
+    assert onto.properties[("AssemblyInstance", "partOf")].search == ()
+    assert onto.properties[("InstanceProperties", "occurrenceId")].search == ()
     assert onto.properties[("Machine", "note")].search == ()
     assert "lexical" in (onto.properties[("AssemblyGroup", "identifier")].search or ())
 

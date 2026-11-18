@@ -67,10 +67,16 @@ async def update_record(
                 ERROR_UNKNOWN_PROPERTY.format(cls=record.cls, field=field)
             )
 
-    # the generic records endpoint also accepts prefixed names such as og:name
+    return await ograg.upsert_record(
+        record_id, patch_input(record, changes), tx, expected_versions
+    )
+
+
+def patch_input(record: Record, changes: Fields) -> JsonObject:
+    """The record's input with ``changes`` applied as in ``update_record``"""
     node: Json = _merge_patch(_to_local_names(record.input), dict(changes))
     assert isinstance(node, dict)  # a patch object merged into an object
-    return await ograg.upsert_record(record_id, node, tx, expected_versions)
+    return node
 
 
 async def get_record(

@@ -3,12 +3,12 @@ from collections.abc import AsyncGenerator
 import httpx2
 
 from config.settings import LLMProviderSettings, Settings
+from services import LLMService as LLMServiceProtocol
 from services.llm.errors import (
     InvalidLLMRequestError,
     InvalidProviderError,
     ProviderDisabledError,
 )
-from services.llm.interface import LLMService as LLMServiceProtocol
 from services.llm.models import (
     ChatRequest,
     ChatResponse,

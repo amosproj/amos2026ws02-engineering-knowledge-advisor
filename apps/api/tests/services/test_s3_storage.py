@@ -5,11 +5,13 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from boto3.exceptions import S3UploadFailedError
 from botocore.exceptions import ClientError, EndpointConnectionError
 from pydantic import SecretStr
 
 import services.s3.storage as s3_storage
 from config.settings import Settings
+from services.catalog.files import MODEL_CONTENT_TYPE, get_cad_file_id, get_model_key
 from services.object_storage import ObjectStorageError, StoredObject
 from services.s3 import S3ObjectStorage
 
@@ -34,7 +36,7 @@ def client() -> MagicMock:
 def storage(client: MagicMock, monkeypatch: pytest.MonkeyPatch) -> S3ObjectStorage:
     storage = S3ObjectStorage(
         Settings(
-            ograg_ontology_path=Path("ontology.jsonld"),
+            ontology_path=Path("ontology.jsonld"),
             s3_endpoint_url="http://localhost:9000",
             s3_bucket="bucket",
             s3_access_key="key",
@@ -142,3 +144,101 @@ def test_the_upload_form_points_to_the_public_url(
     assert storage.create_upload_form("k", 3) == ("/storage/bucket", {"key": "k"})
     conditions = client.generate_presigned_post.call_args.kwargs["Conditions"]
     assert ["content-length-range", 3, 3] in conditions
+
+
+def test_uploading_a_file_uses_the_managed_upload(
+    storage: S3ObjectStorage, client: MagicMock, tmp_path: Path
+):
+    path: Path = tmp_path / "model.glb"
+    path.write_bytes(b"glTF")
+
+    storage.upload_file("files/x/model.glb", path, MODEL_CONTENT_TYPE)
+
+    client.upload_file.assert_called_once_with(
+        Filename=str(path),
+        Bucket="bucket",
+        Key="files/x/model.glb",
+        ExtraArgs={"ContentType": "model/gltf-binary"},
+    )
+
+
+def test_an_uploaded_file_keeps_its_content_encoding(
+    storage: S3ObjectStorage, client: MagicMock, tmp_path: Path
+):
+    path: Path = tmp_path / "model.glb.gz"
+    path.write_bytes(b"gz")
+
+    storage.upload_file("files/x/model.glb", path, MODEL_CONTENT_TYPE, "gzip")
+
+    client.upload_file.assert_called_once_with(
+        Filename=str(path),
+        Bucket="bucket",
+        Key="files/x/model.glb",
+        ExtraArgs={"ContentType": "model/gltf-binary", "ContentEncoding": "gzip"},
+    )
+
+
+@pytest.mark.parametrize(
+    "error",
+    [client_error(500), S3UploadFailedError("upload failed")],
+    ids=["client error", "managed upload error"],
+)
+def test_an_upload_failure_is_an_object_storage_error(
+    storage: S3ObjectStorage, client: MagicMock, tmp_path: Path, error: Exception
+):
+    client.upload_file.side_effect = error
+    with pytest.raises(ObjectStorageError):
+        storage.upload_file("k", tmp_path / "model.glb", MODEL_CONTENT_TYPE)
+
+
+def test_the_download_link_points_to_the_public_url(
+    storage: S3ObjectStorage, client: MagicMock
+):
+    client.generate_presigned_url.return_value = (
+        "http://localhost:9000/bucket/files/x/model.glb?X-Amz-Signature=abc"
+    )
+
+    url: str = storage.create_download_url("files/x/model.glb")
+
+    assert url == "/storage/bucket/files/x/model.glb?X-Amz-Signature=abc"
+    client.generate_presigned_url.assert_called_once_with(
+        "get_object",
+        Params={"Bucket": "bucket", "Key": "files/x/model.glb"},
+        ExpiresIn=300,
+    )
+
+
+def test_a_signing_failure_is_an_object_storage_error(
+    storage: S3ObjectStorage, client: MagicMock
+):
+    client.generate_presigned_url.side_effect = client_error(500)
+    with pytest.raises(ObjectStorageError):
+        storage.create_download_url("k")
+
+
+def test_the_model_sits_in_the_cad_file_folder():
+    key: str = get_model_key("CF-1")
+    assert key == "files/CF-1/model.glb"
+    assert get_cad_file_id(key) == "CF-1"
+
+
+def test_links_are_signed_with_signature_version_4(monkeypatch: pytest.MonkeyPatch):
+    configs: list[Any] = []
+
+    def client(*_: object, config: Any, **__: object) -> MagicMock:  # noqa: ANN401
+        configs.append(config)
+        return MagicMock()
+
+    monkeypatch.setattr(s3_storage.boto3, "client", client)
+    S3ObjectStorage(
+        Settings(
+            ontology_path=Path("ontology.jsonld"),
+            s3_endpoint_url="http://localhost:9000",
+            s3_bucket="bucket",
+            s3_access_key="key",
+            s3_secret_key=SecretStr("secret"),
+            s3_region="us-east-1",
+            s3_public_url="/storage/",
+        )
+    )
+    assert configs[0].signature_version == "s3v4"

@@ -65,7 +65,7 @@ npm sbom --sbom-format cyclonedx --sbom-type application --package-lock-only \
 The Python inventory comes straight from uv (0.13.5, pinned via `required-version` in `apps/api/pyproject.toml`):
 
 ```bash
-uv export --locked --format cyclonedx1.5 --preview-features sbom-export --directory apps/api
+uv export --locked --format cyclonedx1.5 --preview-features sbom-export --project apps/api
 ```
 
 `--locked` fails if `uv.lock` does not match `pyproject.toml`, so a stale lockfile cannot produce an SBOM.

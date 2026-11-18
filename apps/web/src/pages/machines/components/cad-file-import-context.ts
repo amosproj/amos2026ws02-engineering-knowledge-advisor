@@ -15,7 +15,6 @@ export type ImportTarget = {
     machineId: string
     file: File
     reuseId?: string
-    replaceId?: string
 }
 
 type CadFileImportContextValue = {

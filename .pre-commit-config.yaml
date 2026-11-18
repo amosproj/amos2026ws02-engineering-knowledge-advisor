@@ -36,7 +36,7 @@ repos:
 
       - id: pytest
         name: pytest
-        entry: uv run --directory apps/api pytest -q
+        entry: uv run --project apps/api/tests pytest -q
         language: system
         pass_filenames: false
         types_or: [python]

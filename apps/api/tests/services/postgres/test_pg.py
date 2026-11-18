@@ -1,6 +1,6 @@
 import asyncio
 import os
-from collections.abc import AsyncGenerator, Callable, Coroutine, Sequence
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import asynccontextmanager
 from enum import StrEnum
 from typing import Any
@@ -26,6 +26,7 @@ from db.session import create_sessionmaker
 from handler.exception_handler import register
 from handler.service_exception_handler import register as register_service
 from services import Lane, SearchMode, UnstorableValueError
+from services.cad.model import BoundingBox, CadDefinition, CadModel, CadOccurrence
 from services.catalog import CatalogService
 from services.ograg.ontology import Ontology
 from services.ograg.service import (
@@ -59,9 +60,9 @@ MACHINE: dict[str, Any] = {
 GROUP: dict[str, Any] = {
     "@type": "AssemblyGroup",
     "name": "Input tray",
-    "rootOf": MACHINE_ID,
+    "definedIn": MACHINE_ID,
 }
-ORPHAN: dict[str, Any] = {**GROUP, "rootOf": MISSING_MACHINE_ID}
+ORPHAN: dict[str, Any] = {**GROUP, "definedIn": MISSING_MACHINE_ID}
 ITEM_ID: str = "KI-1"
 ITEM: dict[str, Any] = {
     "@type": "KnowledgeItem",
@@ -74,31 +75,22 @@ ITEM: dict[str, Any] = {
 }
 # Async psycopg refuses Windows' default ProactorEventLoop.
 SELECTOR_LOOP: dict[str, Any] = {"loop_factory": asyncio.SelectorEventLoop}
-SELECT_OGRAG_TABLES: str = (
-    "SELECT tablename FROM pg_tables"
-    " WHERE schemaname = current_schema() AND tablename LIKE 'ograg\\_%'"
-)
 
 
 def run_async(check: Callable[[], Coroutine[Any, Any, None]]) -> None:
     asyncio.run(check(), loop_factory=asyncio.SelectorEventLoop)
 
 
-async def drop_ograg_tables(conn: AsyncConnection) -> None:
-    """Drops every ``ograg_*`` table, also ones the code no longer defines (left from an older schema)."""
-    names: Sequence[str] = (
-        (await conn.execute(text(SELECT_OGRAG_TABLES))).scalars().all()
-    )
-    for name in names:
+async def drop_tables(conn: AsyncConnection) -> None:
+    """Drops the tables of ``TableName``."""
+    for name in TableName:
         await conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
 
 
 async def create_fresh_tables(engine: AsyncEngine) -> Tables:
     tables: Tables = define_tables(MetaData())
     async with engine.begin() as conn:
-        # cad_uploads first: dropping ograg_records with CASCADE would only drop its foreign key
-        await conn.execute(text(f'DROP TABLE IF EXISTS "{TableName.CAD_UPLOADS}"'))
-        await drop_ograg_tables(conn)
+        await drop_tables(conn)
         await conn.run_sync(tables.metadata.create_all)
     return tables
 
@@ -240,6 +232,88 @@ def test_two_cad_files_written_at_once_take_one_place():
             with pytest.raises(ParentLimitError):
                 await second
             assert await service.store.get_record("CF-2") is None
+        finally:
+            await engine.dispose()
+
+    run_async(run_check)
+
+
+@pytest.mark.parametrize("batch_first", [True, False], ids=["batch", "single"])
+def test_two_roots_written_at_once_take_one_place(batch_first: bool):
+    async def run_check() -> None:
+        engine: AsyncEngine = create_async_engine(URL)
+        service: OgRagService = create_service_on(
+            engine, await create_fresh_tables(engine)
+        )
+        root: dict[str, Any] = {
+            "@type": "AssemblyInstance",
+            "name": "Root",
+            "instanceOf": GROUP_ID,
+            "rootOf": MACHINE_ID,
+        }
+        try:
+            await service.upsert_records({MACHINE_ID: MACHINE, GROUP_ID: GROUP})
+            async with AsyncSession(engine) as session, session.begin():
+                if batch_first:
+                    await service.upsert_records({"AI-1": root}, tx=session)
+                    second: asyncio.Task[list[str]] = asyncio.create_task(
+                        service.upsert_record("AI-2", root)
+                    )
+                else:
+                    await service.upsert_record("AI-1", root, tx=session)
+                    second = asyncio.create_task(service.upsert_records({"AI-2": root}))
+                await asyncio.sleep(0.5)
+                # waits for the machine's lock until the first root is committed
+                assert not second.done()
+            with pytest.raises(ParentLimitError):
+                await second
+            assert await service.store.get_record("AI-2") is None
+        finally:
+            await engine.dispose()
+
+    run_async(run_check)
+
+
+def test_an_import_waits_for_its_cad_file_to_move_to_another_machine():
+    async def run_check() -> None:
+        engine: AsyncEngine = create_async_engine(URL)
+        tables: Tables = await create_fresh_tables(engine)
+        service: OgRagService = create_service_on(engine, tables)
+        catalog = CatalogService(service, PgUploadStore(tables), MemoryStorage())
+        cad_file: dict[str, Any] = {"@type": "CadFile", "name": "cell.step"}
+        model = CadModel(
+            source_name="cell.step",
+            definitions={"frame": CadDefinition("frame", "Frame", None)},
+            occurrences=[CadOccurrence("frame", "frame", None, "Frame", None)],
+            bounding_box=BoundingBox((0, 0, 0), (1, 2, 3)),
+        )
+
+        async def import_tree() -> None:
+            async with AsyncSession(engine) as session, session.begin():
+                await catalog.import_cad_file_tree(session, "CF-1", model)
+
+        try:
+            await service.upsert_records(
+                {
+                    MACHINE_ID: MACHINE,
+                    OTHER_MACHINE_ID: {**MACHINE, "identifier": OTHER_MACHINE_ID},
+                    "CF-1": {**cad_file, "partOf": MACHINE_ID},
+                }
+            )
+            async with AsyncSession(engine) as session, session.begin():
+                await service.upsert_record(
+                    "CF-1", {**cad_file, "partOf": OTHER_MACHINE_ID}, tx=session
+                )
+                imported: asyncio.Task[None] = asyncio.create_task(import_tree())
+                await asyncio.sleep(0.5)
+                assert not imported.done()
+            await imported
+
+            machine = await service.store.get_record(OTHER_MACHINE_ID)
+            assert machine is not None
+            assert machine.input["properties"] == {"sizeX": 1, "sizeY": 2, "sizeZ": 3}
+            linking = await service.store.get_linking_records([MACHINE_ID])
+            assert linking == []
         finally:
             await engine.dispose()
 

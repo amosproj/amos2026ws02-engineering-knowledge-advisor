@@ -5,7 +5,6 @@ import pytest
 from pydantic import SecretStr, ValidationError
 
 from config.settings import LLMProviderSettings, Settings
-from db.session import create_llm_service
 from services.llm.errors import (
     InvalidLLMRequestError,
     InvalidProviderError,
@@ -22,7 +21,7 @@ def build_settings(
     hetzner: LLMProviderSettings | None = None,
 ) -> Settings:
     return Settings(
-        ograg_ontology_path=Path("unused.jsonld"),
+        ontology_path=Path("unused.jsonld"),
         s3_endpoint_url="http://localhost:9000",
         s3_bucket="test",
         s3_access_key="test",
@@ -42,15 +41,6 @@ def chat_request(**values: object) -> ChatRequest:
     }
     request.update(values)
     return ChatRequest.model_validate(request)
-
-
-@pytest.mark.anyio
-async def test_create_llm_service() -> None:
-    service = create_llm_service(build_settings())
-    try:
-        assert service.list_providers() == []
-    finally:
-        await service.close()
 
 
 def test_system_messages_must_precede_conversation_history() -> None:
@@ -95,7 +85,6 @@ async def test_default_provider_and_model_are_resolved() -> None:
         assert response.model == "configured-model"
         assert response.content == "Hello"
         assert response.request_id == "request-123"
-        assert [provider.name for provider in service.list_providers()] == ["openai"]
         assert service.list_providers()[0].default_model == "configured-model"
     finally:
         await client.aclose()

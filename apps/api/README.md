@@ -8,7 +8,7 @@ FastAPI backend. Requires Python 3.13 and [uv](https://docs.astral.sh/uv/).
 | ------------------------- | ------------------------------------------------------ | --------------- |
 | `API_PROFILE`             | `dev`, `prod`                                          | `dev`           |
 | `API_DATABASE_URL`        | `postgresql+psycopg://user:pw@host/db`                 | none (required) |
-| `API_OGRAG_ONTOLOGY_PATH` | JSON-LD ontology file                                  | none (required) |
+| `API_ONTOLOGY_PATH`       | JSON-LD ontology file                                  | none (required) |
 | `API_S3_ENDPOINT_URL`     | S3 endpoint, e.g. `http://minio:9000`                  | none (required) |
 | `API_S3_BUCKET`           | bucket of the uploaded files                           | none (required) |
 | `API_S3_ACCESS_KEY`       | S3 access key                                          | none (required) |
@@ -22,23 +22,48 @@ Settings are read in this order:
 2. `.env`
 3. defaults
 
-`.env` is used from the directory the backend is started from:
+`.env` is read from the process working directory. The repository-root commands below
+use `--project apps/api`, so they read the root `.env`.
 
-- start from `apps/api/` => `apps/api/.env`
-- start from repository root with `--directory` => `apps/api/.env`
-- start from repository root with `--project` => `.env` at root
+## Run
+
+From repository root:
+
+```sh
+uv run --project apps/api uvicorn main:app
+```
+
+On Windows, async psycopg needs a selector event loop. Add this flag to the command above:
+
+```sh
+uv run --project apps/api uvicorn main:app --loop asyncio:SelectorEventLoop
+```
+
+## Test & Lint
+
+From repository root:
+
+```sh
+uv run --project apps/api pre-commit              # lint + type check + tests
+uv run --project apps/api pytest                  # tests only
+uv run --project apps/api --env-file .env pytest  # tests only (with env vars)
+```
+
+Postgres tests `tests/test_pg.py` run only when the environment variable `API_TEST_DATABASE_URL` is set. Test database is wiped on test run.
 
 ## Database
 
 Postgres. Schema changes are Alembic migrations in `migrations/`:
 
 ```sh
-uv run --directory apps/api alembic upgrade head                                # apply
-uv run --directory apps/api alembic revision --autogenerate -m "what changed"   # review the file
-uv run --directory apps/api alembic check                                       # models and migrations agree
+uv run --project apps/api alembic -c apps/api/alembic.ini upgrade head                                # apply
+uv run --project apps/api alembic -c apps/api/alembic.ini revision --autogenerate -m "what changed"   # review the file
+uv run --project apps/api alembic -c apps/api/alembic.ini check                                       # models and migrations agree
 ```
 
-Text columns: `String` (`varchar` without a length) for ids and short values, `Text` for free form text. Postgres stores both the same way. To set a limit, use ``varchar(n)``. Table, column, index and constraint names live in `src/db/names.py`, tables in `src/db/tables.py`.
+Table, column, index and constraint names live in `src/db/names.py`. Tables live in `src/db/tables.py`.
+
+Text columns: `String` (`varchar` without a length) for ids and short values, `Text` for free form text. Postgres stores both the same way. To set a limit, use ``varchar(n)``.
 
 To rename a table or column:
 1. Change the enum value in `db/names.py`.
@@ -81,24 +106,25 @@ Send it back as `If-Match: "<version>"` with `PUT`, `PATCH` or `DELETE`. If some
 
 ## Files
 
-A record of a class marked `og:file` (CadFile) carries one file, upload state in `cad_uploads`, the file in S3 under
+A record of a class marked `og:file` (CadFile) carries one file, upload state in `uploads`, the file in S3 under
 `files/{id}/`. A machine has one CAD file (`og:maxPerParent`), a second one answers `409` with `max_per_parent`. The file bytes never pass the API:
 
 1. `POST /records` creates the record without file (status `empty`).
 2. `POST /records/{id}/upload-form` with `{"size": ...}` returns a presigned form.
 3. Client posts the file straight to S3 based on form, then `POST /records/{id}/complete`.
-4. Worker checks the file: `processing`, then `ready` or `failed`.
+4. Worker checks the file and imports its assembly tree: `processing`, then `ready` or `failed` with an error code.
+
+## Storage and background jobs
+
+Uploaded files are stored in S3 (MinIO in Docker). The `migrate` service applies the migrations, then creates the bucket if it does not exist yet (`python -m services.s3`).
+
+The `cad-file-worker` service (`python -m cad_file_worker`, code in `src/cad_file_worker/`) checks the uploaded STEP files, parses them in a child process and imports their assembly tree under the machine, and, every hour, deletes abandoned uploads and orphan objects, but their records stay. It touches `/tmp/cad-file-worker-heartbeat` every 10 s, and the container is reported unhealthy when the file is older than one minute.
 
 ## LLM integration
 
-The provider-neutral chat API, supported providers, environment settings, streaming
-format, error codes, and extension instructions are documented in
-[LLM integration](../../Documentation/architecture/llm-integration.md). Providers
-are disabled by default; configure credentials with environment variables or a
-deployment secret store.
+Providers are disabled by default. Configure credentials with environment variables or a deployment secret store.
 
-For example, to enable Google Gemini, add the following to the API environment
-(replace the key with a secret from your secret store):
+For example, to enable Google Gemini, add the following to the API environment (replace the key with a secret from your secret store):
 
 ```dotenv
 API_LLM_DEFAULT_PROVIDER=google
@@ -107,7 +133,7 @@ API_LLM_GOOGLE__API_KEY=<google-api-key>
 API_LLM_GOOGLE__DEFAULT_MODEL=gemini-2.0-flash
 ```
 
-Then send a chat request through the provider-neutral API:
+Then POST a request through the API:
 
 ```sh
 curl http://localhost:8080/api/v1/llm/chat \
@@ -121,54 +147,7 @@ curl http://localhost:8080/api/v1/llm/chat \
   }'
 ```
 
-See the [LLM integration guide](../../Documentation/architecture/llm-integration.md)
-for streaming, all provider settings, and error handling.
-
-## Run
-
-```sh
-uv run uvicorn main:app
-```
-
-Or from repository root using root `.env`:
-
-```sh
-uv run --project apps/api uvicorn main:app
-```
-
-Or from repository root using API's `.env`:
-
-```sh
-uv run --directory apps/api uvicorn main:app
-```
-
-On Windows, async psycopg needs a selector event loop. Add this flag to any of the above:
-
-```sh
-uv run uvicorn main:app --loop asyncio:SelectorEventLoop
-```
-
-## Storage and background jobs
-
-Uploaded files are stored in S3 (MinIO in Docker). The `migrate` service applies the migrations, then creates the bucket if it does not exist yet (`python -m services.s3`).
-
-The `cad-file-worker` service (`python -m cad_file_worker`, code in `src/cad_file_worker/`) checks the uploaded STEP files and, every hour, deletes abandoned uploads and orphan objects, but their records stay. It touches `/tmp/cad-file-worker-heartbeat` every 10 s, and the container is reported unhealthy when the file is older than one minute.
-
-## Test & Lint
-
-```sh
-uv run pre-commit                       # lint + type check + tests
-uv run pytest                           # tests only
-```
-
-Or from repository root:
-
-```sh
-uv run --directory apps/api pre-commit  # lint + type check + tests
-uv run --directory apps/api pytest      # tests only
-```
-
-Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. Test database is wiped on test run.
+See [LLM integration](../../Documentation/architecture/llm-integration.md) for chat API, supported providers, environment settings, streaming format, error codes, and extension instructions.
 
 ## Sample data for API tests:
 
@@ -183,11 +162,13 @@ Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. 
   "name": "Robot cell",
   "description": "Robot cell for loading anodised aluminium housings",
   "customer": "Example GmbH",
-  "properties": {"size": 12}
+  "properties": {"sizeX": 4.2, "sizeY": 3.1, "sizeZ": 2.5}
 }
 ```
 
-### AssemblyGroup
+### AssemblyGroup and AssemblyInstance
+A group is a design, an instance is one placement of it. The instances form the tree of the machine.
+
 `PUT /records/AG-IT-003`
 ```json
 {
@@ -195,8 +176,8 @@ Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. 
   "identifier": "AG-IT-003",
   "name": "Input tray",
   "description": "Drawer tray that feeds anodised housings to the robot",
-  "rootOf": "RC-01",
-  "properties": {"path": "RC-01/AG-IT-003", "dimensions": 800}
+  "definedIn": "RC-01",
+  "properties": {"sizeX": 0.8, "sizeY": 0.6, "sizeZ": 0.2}
 }
 ```
 `PUT /records/AG-IT-003-01`
@@ -205,8 +186,27 @@ Postgres tests `tests/test_pg.py` run only when `API_TEST_DATABASE_URL` is set. 
   "@type": "AssemblyGroup",
   "identifier": "AG-IT-003-01",
   "name": "Drawer slide",
-  "partOf": "AG-IT-003",
-  "properties": {"path": "RC-01/AG-IT-003/AG-IT-003-01"}
+  "definedIn": "RC-01"
+}
+```
+`PUT /records/AI-1`, the root instance (one per machine)
+```json
+{
+  "@type": "AssemblyInstance",
+  "name": "AG-IT-003:1",
+  "instanceOf": "AG-IT-003",
+  "rootOf": "RC-01",
+  "properties": {"path": "AG-IT-003:1"}
+}
+```
+`PUT /records/AI-2`, same for `AI-3` with `AG-IT-003-01:2`
+```json
+{
+  "@type": "AssemblyInstance",
+  "name": "AG-IT-003-01:1",
+  "instanceOf": "AG-IT-003-01",
+  "partOf": "AI-1",
+  "properties": {"path": "AG-IT-003:1/AG-IT-003-01:1"}
 }
 ```
 
@@ -260,6 +260,18 @@ After upload: `POST /records/CF-RC-01/complete`.
   "appliesToMachine": ["RC-01"]
 }
 ```
+`PUT /records/KI-3`, about one placement only
+```json
+{
+  "@type": "KnowledgeItem",
+  "itemType": "lesson learned",
+  "properties": {
+    "name": "Left drawer slide hits the fence",
+    "statement": "The left slide touches the safety fence when fully open."
+  },
+  "appliesToInstance": ["AI-2"]
+}
+```
 
 ### Guideline
 `PUT /records/GL-1`
@@ -277,5 +289,6 @@ After upload: `POST /records/CF-RC-01/complete`.
 - `GET /records?parentId=AG-IT-003`: records linking to `AG-IT-003`.
 - `GET /records/RC-01/tree`: tree from root.
 - `GET /records/KI-1/ancestors`: up to the root.
-- `DELETE /records/AG-IT-003`: deletes `AG-IT-003` and `AG-IT-003-01`, `KI-1` marked for review.
+- `DELETE /records/AI-1`: deletes `AI-1`, `AI-2` and `AI-3`, `KI-3` marked for review.
+- `DELETE /records/AG-IT-003-01`: its instances `AI-2` and `AI-3` stay in the tree without `instanceOf`, `KI-1` marked for review.
 - `GET /records/review`: every record maker for review.

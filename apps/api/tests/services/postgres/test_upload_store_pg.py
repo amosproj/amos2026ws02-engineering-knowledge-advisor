@@ -8,7 +8,8 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
-from sqlalchemy import MetaData, insert, text
+from sqlalchemy import MetaData, insert, select, text, update
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -17,8 +18,9 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from db import CommonColumn, RecordColumn, TableName, Tables, define_tables
+from db.names import UploadColumn
 from services.postgres.upload_store import PgUploadStore
-from services.uploads import Upload, UploadStatus
+from services.uploads import LockTimeoutError, Upload, UploadStatus
 
 URL: str = os.environ.get("API_TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif(
@@ -27,14 +29,15 @@ pytestmark = pytest.mark.skipif(
 )
 
 FIRST_ID: str = "file-1"
+MODEL_KEY: str = "files/file-1/model.glb"
 SECOND_ID: str = "file-2"
 MISSING_ID: str = "file-9"
 SIZE: int = 300
 SHA256: str = "a" * 64
 FILE_MISMATCH: str = "file_mismatch"
-SELECT_OGRAG_TABLES: str = (
-    "SELECT tablename FROM pg_tables"
-    " WHERE schemaname = current_schema() AND tablename LIKE 'ograg\\_%'"
+SELECT_LOCK_WAITS = text(
+    "SELECT count(*) FROM pg_stat_activity"
+    " WHERE datname = current_database() AND wait_event_type = 'Lock'"
 )
 
 type Sessions = async_sessionmaker[AsyncSession]
@@ -53,8 +56,7 @@ async def open_store(*file_ids: str) -> AsyncGenerator[tuple[PgUploadStore, Sess
     sessions: Sessions = async_sessionmaker(engine, expire_on_commit=False)
     try:
         async with engine.begin() as conn:
-            await conn.execute(text(f'DROP TABLE IF EXISTS "{TableName.CAD_UPLOADS}"'))
-            for name in (await conn.execute(text(SELECT_OGRAG_TABLES))).scalars():
+            for name in TableName:
                 await conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
             await conn.run_sync(tables.metadata.create_all)
         for file_id in file_ids:
@@ -138,11 +140,42 @@ def test_the_same_content_may_be_ready_twice():
         async with open_store(FIRST_ID, SECOND_ID) as (store, sessions):
             await finish(store, sessions, FIRST_ID, SECOND_ID)
             async with sessions() as session, session.begin():
-                await store.set_ready(FIRST_ID, SHA256, session)
-                await store.set_ready(SECOND_ID, SHA256, session)
+                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, session)
+                await store.set_ready(SECOND_ID, SHA256, None, session)
 
             for file_id in (FIRST_ID, SECOND_ID):
                 assert (await get_upload(store, sessions, file_id)).status == "ready"
+
+    run_async(run_check)
+
+
+def test_set_ready_stores_the_model_key_or_none():
+    async def run_check() -> None:
+        async with open_store(FIRST_ID, SECOND_ID) as (store, sessions):
+            await finish(store, sessions, FIRST_ID, SECOND_ID)
+            async with sessions() as session, session.begin():
+                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, session)
+                await store.set_ready(SECOND_ID, SHA256, None, session)
+
+            assert (await get_upload(store, sessions, FIRST_ID)).model_key == MODEL_KEY
+            assert (await get_upload(store, sessions, SECOND_ID)).model_key is None
+
+    run_async(run_check)
+
+
+def test_restarting_a_failed_upload_clears_the_model_key():
+    async def run_check() -> None:
+        async with open_store(FIRST_ID) as (store, sessions):
+            async with sessions() as session, session.begin():
+                await store.finish_upload(FIRST_ID, FILE_MISMATCH, session)
+                # a leftover key, e.g. written by an older worker
+                await session.execute(
+                    update(store.table).values({UploadColumn.MODEL_KEY: MODEL_KEY})
+                )
+                restarted: Upload | None = await store.start_upload(
+                    FIRST_ID, f"files/{FIRST_ID}/source.step", SIZE, session
+                )
+            assert restarted is not None and restarted.model_key is None
 
     run_async(run_check)
 
@@ -212,5 +245,50 @@ def test_an_upload_restarts_until_its_file_is_processed():
                     [FIRST_ID, SECOND_ID], session
                 )
             assert list(remaining) == [SECOND_ID]
+
+    run_async(run_check)
+
+
+async def wait_for_a_lock_wait(sessions: Sessions) -> None:
+    while True:
+        async with sessions() as session:
+            waiting: int = (await session.execute(SELECT_LOCK_WAITS)).scalar_one()
+        if waiting:
+            return
+        await asyncio.sleep(0.05)
+
+
+def test_a_deadlock_in_a_limited_wait_is_a_lock_timeout():
+    """The worker holds the upload and waits for the record a new upload form holds while waiting for the upload."""
+
+    async def run_check() -> None:
+        async with open_store(FIRST_ID) as (store, sessions):
+            await finish(store, sessions, FIRST_ID)
+            records = define_tables(MetaData()).records
+            lock_record = (
+                select(records)
+                .where(records.c[CommonColumn.ID] == FIRST_ID)
+                .with_for_update()
+            )
+
+            async def request_upload_form() -> None:
+                async with sessions() as session, session.begin():
+                    await session.execute(lock_record)
+                    async with store.limit_lock_wait(session):
+                        await store.start_upload(
+                            FIRST_ID, f"files/{FIRST_ID}/source.step", SIZE, session
+                        )
+
+            async with sessions() as worker, worker.begin():
+                assert await store.lock_next_to_process(worker) is not None
+                request: asyncio.Task[None] = asyncio.create_task(request_upload_form())
+                await wait_for_a_lock_wait(sessions)
+                # Postgres breaks the deadlock in the request, which waited first
+                await worker.execute(lock_record)
+                with pytest.raises(LockTimeoutError) as raised:
+                    await request
+            cause: BaseException | None = raised.value.__cause__
+            assert isinstance(cause, DBAPIError)
+            assert getattr(cause.orig, "sqlstate", None) == "40P01"
 
     run_async(run_check)

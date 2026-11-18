@@ -1,6 +1,5 @@
 """CAD file worker: checks uploaded STEP files and cleans up abandoned uploads and orphan objects.
 
-This will be also used to process other background jobs in the future, such as extracting the Tree structure from the STEP file.
 Run with `python -m cad_file_worker`. See the "Storage and background jobs" section of the api/README.
 """
 
@@ -15,7 +14,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from cad_file_worker.cleanup import delete_orphan_objects, expire_abandoned_uploads
-from cad_file_worker.processing import StopRequested, process_next_cad_upload
+from cad_file_worker.errors import StopRequested
+from cad_file_worker.processing import process_next_cad_upload
 from config.settings import Settings, get_settings
 from db.session import (
     create_catalog_service,
