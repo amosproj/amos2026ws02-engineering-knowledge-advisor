@@ -537,6 +537,7 @@ function Scene({
         const position = ISOMETRIC.clone().multiplyScalar(distance).add(sphere.center)
         const { x, y, z } = sphere.center
         void controls.current?.setLookAt(position.x, position.y, position.z, x, y, z, transition)
+        controls.current?.normalizeRotations()
     })
 
     useEffect(() => {
@@ -569,6 +570,7 @@ function Scene({
             .add(bounds.center)
         const { x, y, z } = bounds.center
         void controls.current.setLookAt(position.x, position.y, position.z, x, y, z, true)
+        controls.current.normalizeRotations()
     })
 
     useEffect(() => {
@@ -609,6 +611,7 @@ function Scene({
             target.z,
             true,
         )
+        controls.current.normalizeRotations()
         return null
     }
 
