@@ -2,9 +2,9 @@ import hashlib
 
 import pytest
 
-from cad_file_worker.step_file import scan_step_file
+from cad_file_worker.step_file import StepFileScan, scan_step_file
 
-STEP = b"ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n"
+STEP: bytes = b"ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n"
 
 
 def chunked(data: bytes, size: int = 7) -> list[bytes]:
@@ -12,7 +12,7 @@ def chunked(data: bytes, size: int = 7) -> list[bytes]:
 
 
 def test_hashes_the_whole_file_across_chunks():
-    scan = scan_step_file(chunked(STEP))
+    scan: StepFileScan = scan_step_file(chunked(STEP))
 
     assert scan.is_valid
     assert scan.sha256 == hashlib.sha256(STEP).hexdigest()

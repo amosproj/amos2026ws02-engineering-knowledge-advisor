@@ -293,8 +293,8 @@ async def query_records(
             for record, score in found
         ]
 
-    records = [record for record, score in found]
-    scores = [score for record, score in found]
+    records: list[Record] = [record for record, score in found]
+    scores: list[float] = [score for record, score in found]
     return await _to_views(catalog, session, records, include, scores)
 
 

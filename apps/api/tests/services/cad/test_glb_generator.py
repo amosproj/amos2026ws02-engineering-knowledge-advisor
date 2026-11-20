@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from OCP.TDF import TDF_Label
 from step_documents import DocumentBuilder, box, point
 
 from services.cad.errors import GlbGenerationError
@@ -47,10 +48,10 @@ def occurrence_nodes(gltf: dict[str, Any]) -> dict[str, Node]:
 def gripper() -> DocumentBuilder:
     """Cell > Gripper > Plate and a screw placed three times; Cell > Clamp."""
     builder = DocumentBuilder()
-    cell = builder.assembly("Cell")
-    gripper_assembly = builder.assembly("Gripper")
+    cell: TDF_Label = builder.assembly("Cell")
+    gripper_assembly: TDF_Label = builder.assembly("Gripper")
     builder.add(gripper_assembly, builder.part("Plate", box()))
-    screw = builder.part("Screw", box(2))
+    screw: TDF_Label = builder.part("Screw", box(2))
     for index in range(3):
         builder.add(gripper_assembly, screw, (index * 5, 0, 0))
     builder.add(cell, gripper_assembly, (100, 0, 0))
@@ -61,7 +62,7 @@ def gripper() -> DocumentBuilder:
 def test_node_tree_mirrors_occurrences(tmp_path: Path):
     model: CadModel = parse(gripper(), tmp_path)
 
-    gltf = generate(model, tmp_path)
+    gltf: dict[str, Any] = generate(model, tmp_path)
 
     links: set[tuple[str, str | None]] = {
         (
@@ -86,7 +87,7 @@ def test_every_node_has_its_occurrence_id_and_its_name(tmp_path: Path):
 def test_repeated_part_shares_its_geometry_with_distinct_occurrence_ids(tmp_path: Path):
     model: CadModel = parse(gripper(), tmp_path)
 
-    gltf = generate(model, tmp_path)
+    gltf: dict[str, Any] = generate(model, tmp_path)
 
     screws: list[Node] = [
         node for node in occurrence_nodes(gltf).values() if node["name"] == "Screw"
@@ -104,7 +105,7 @@ def test_repeated_part_shares_its_geometry_with_distinct_occurrence_ids(tmp_path
 
 def test_unnamed_part_keeps_its_node(tmp_path: Path):
     builder = DocumentBuilder()
-    cell = builder.assembly("Cell")
+    cell: TDF_Label = builder.assembly("Cell")
     builder.add(cell, builder.part(None, box()))
     model: CadModel = parse(builder, tmp_path)
 
@@ -116,16 +117,16 @@ def test_unnamed_part_keeps_its_node(tmp_path: Path):
 
 def test_points_lose_their_mesh_and_keep_the_ids_above_them(tmp_path: Path):
     builder = DocumentBuilder()
-    cell = builder.assembly("Cell")
+    cell: TDF_Label = builder.assembly("Cell")
     builder.add(cell, builder.part("Plate", box()))
-    marker = builder.part("Marker", point())
+    marker: TDF_Label = builder.part("Marker", point())
     builder.add(cell, marker)
-    markers = builder.assembly("Markers")
+    markers: TDF_Label = builder.assembly("Markers")
     builder.add(markers, marker)
     builder.add(cell, markers)
     model: CadModel = parse(builder, tmp_path)
 
-    gltf = generate(model, tmp_path)
+    gltf: dict[str, Any] = generate(model, tmp_path)
 
     assert set(occurrence_nodes(gltf)) == {occ.id for occ in model.occurrences}
     assert "Markers" in [occ.name for occ in model.occurrences]
@@ -140,13 +141,13 @@ def test_points_lose_their_mesh_and_keep_the_ids_above_them(tmp_path: Path):
 
 
 def test_parts_without_color_get_a_matte_material(tmp_path: Path):
-    gltf = generate(parse(gripper(), tmp_path), tmp_path)
+    gltf: dict[str, Any] = generate(parse(gripper(), tmp_path), tmp_path)
 
     for node, _ in walk(gltf):
         for primitive in (
             gltf["meshes"][node["mesh"]]["primitives"] if "mesh" in node else []
         ):
-            material = gltf["materials"][primitive["material"]]
+            material: dict[str, Any] = gltf["materials"][primitive["material"]]
             assert material["pbrMetallicRoughness"]["metallicFactor"] == 0
 
 
@@ -154,7 +155,7 @@ def test_non_ascii_names_survive(tmp_path: Path):
     builder = DocumentBuilder()
     builder.part("Stückliste Ø6", box())
 
-    gltf = generate(parse(builder, tmp_path), tmp_path)
+    gltf: dict[str, Any] = generate(parse(builder, tmp_path), tmp_path)
 
     assert [node["name"] for node, _ in walk(gltf)] == ["Stückliste Ø6"]
 
@@ -163,7 +164,7 @@ def test_geometry_is_in_meters(tmp_path: Path):
     builder = DocumentBuilder()
     builder.part("Plate", box(10))
 
-    gltf = generate(parse(builder, tmp_path), tmp_path)
+    gltf: dict[str, Any] = generate(parse(builder, tmp_path), tmp_path)
 
     (mesh,) = gltf["meshes"]
     (primitive,) = mesh["primitives"]

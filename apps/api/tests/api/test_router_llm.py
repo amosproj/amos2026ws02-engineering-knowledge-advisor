@@ -1,7 +1,9 @@
 from collections.abc import AsyncIterator
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from httpx2 import Response
 
 from api.router_llm import llm_router
 from handler import exception_handler, service_exception_handler
@@ -56,7 +58,7 @@ def build_client() -> TestClient:
 
 def test_chat_endpoint_returns_normalized_response() -> None:
     with build_client() as client:
-        response = client.post(
+        response: Response = client.post(
             "/api/v1/llm/chat",
             json={
                 "provider": "openai",
@@ -76,15 +78,15 @@ def test_chat_endpoint_returns_normalized_response() -> None:
 
 def test_provider_and_model_endpoints_do_not_expose_secrets() -> None:
     with build_client() as client:
-        providers = client.get("/api/v1/llm/providers")
-        models = client.get("/api/v1/llm/models?provider=openai")
+        providers: Response = client.get("/api/v1/llm/providers")
+        models: Response = client.get("/api/v1/llm/models?provider=openai")
     assert providers.json() == [{"name": "openai", "default_model": "test-model"}]
     assert models.json() == [{"provider": "openai", "model": "test-model"}]
 
 
 def test_stream_endpoint_uses_sse_and_normalized_chunks() -> None:
     with build_client() as client:
-        response = client.post(
+        response: Response = client.post(
             "/api/v1/llm/chat/stream",
             json={
                 "provider": "openai",
@@ -101,16 +103,16 @@ def test_stream_endpoint_uses_sse_and_normalized_chunks() -> None:
 
 
 def test_stream_openapi_declares_server_sent_events() -> None:
-    response = build_app().openapi()["paths"]["/api/v1/llm/chat/stream"]["post"][
-        "responses"
-    ]["200"]
+    response: dict[str, Any] = build_app().openapi()["paths"][
+        "/api/v1/llm/chat/stream"
+    ]["post"]["responses"]["200"]
 
     assert "text/event-stream" in response["content"]
 
 
 def test_invalid_chat_body_uses_problem_response() -> None:
     with build_client() as client:
-        response = client.post(
+        response: Response = client.post(
             "/api/v1/llm/chat",
             json={
                 "provider": "openai",
@@ -124,7 +126,7 @@ def test_invalid_chat_body_uses_problem_response() -> None:
 
 def test_provider_errors_use_problem_responses() -> None:
     with build_client() as client:
-        response = client.post(
+        response: Response = client.post(
             "/api/v1/llm/chat",
             json={
                 "provider": "openai",

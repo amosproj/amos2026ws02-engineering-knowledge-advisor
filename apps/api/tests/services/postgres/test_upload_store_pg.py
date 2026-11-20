@@ -5,10 +5,9 @@ import os
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import asynccontextmanager
 from datetime import timedelta
-from typing import Any
 
 import pytest
-from sqlalchemy import MetaData, insert, select, text, update
+from sqlalchemy import MetaData, Select, Table, TextClause, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -35,7 +34,7 @@ MISSING_ID: str = "file-9"
 SIZE: int = 300
 SHA256: str = "a" * 64
 FILE_MISMATCH: str = "file_mismatch"
-SELECT_LOCK_WAITS = text(
+SELECT_LOCK_WAITS: TextClause = text(
     "SELECT count(*) FROM pg_stat_activity"
     " WHERE datname = current_database() AND wait_event_type = 'Lock'"
 )
@@ -43,7 +42,7 @@ SELECT_LOCK_WAITS = text(
 type Sessions = async_sessionmaker[AsyncSession]
 
 
-def run_async(check: Callable[[], Coroutine[Any, Any, None]]) -> None:
+def run_async(check: Callable[[], Coroutine[object, object, None]]) -> None:
     asyncio.run(check(), loop_factory=asyncio.SelectorEventLoop)
 
 
@@ -264,8 +263,8 @@ def test_a_deadlock_in_a_limited_wait_is_a_lock_timeout():
     async def run_check() -> None:
         async with open_store(FIRST_ID) as (store, sessions):
             await finish(store, sessions, FIRST_ID)
-            records = define_tables(MetaData()).records
-            lock_record = (
+            records: Table = define_tables(MetaData()).records
+            lock_record: Select = (
                 select(records)
                 .where(records.c[CommonColumn.ID] == FIRST_ID)
                 .with_for_update()

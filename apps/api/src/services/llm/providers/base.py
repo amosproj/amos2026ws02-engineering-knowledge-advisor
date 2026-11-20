@@ -104,7 +104,7 @@ class HTTPProvider:
         params: Mapping[str, str] | None = None,
     ) -> httpx2.Response:
         try:
-            response = await self.client.post(
+            response: httpx2.Response = await self.client.post(
                 url,
                 json=self._request_payload(request, model),
                 headers=dict(headers or {}),
@@ -125,7 +125,7 @@ class HTTPProvider:
         params: Mapping[str, str] | None = None,
     ) -> httpx2.Response:
         try:
-            response = await self.client.get(
+            response: httpx2.Response = await self.client.get(
                 url,
                 headers=dict(headers or {}),
                 params=dict(params or {}),
@@ -224,9 +224,9 @@ class HTTPProvider:
     def _usage(value: object) -> TokenUsage | None:
         if not isinstance(value, dict):
             return None
-        prompt = value.get("prompt_tokens", value.get("input_tokens"))
-        completion = value.get("completion_tokens", value.get("output_tokens"))
-        total = value.get("total_tokens")
+        prompt: object = value.get("prompt_tokens", value.get("input_tokens"))
+        completion: object = value.get("completion_tokens", value.get("output_tokens"))
+        total: object = value.get("total_tokens")
         return TokenUsage(
             prompt_tokens=prompt if isinstance(prompt, int) else None,
             completion_tokens=completion if isinstance(completion, int) else None,

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from datetime import timedelta
-from typing import Any, override
+from typing import override
 
 from sqlalchemy import (
     Column,
@@ -65,7 +65,7 @@ class PgUploadStore(UploadStore):
     async def start_upload(
         self, file_id: str, source_key: str, size_bytes: int, tx: AsyncSession
     ) -> Upload | None:
-        restarted: dict[UploadColumn, Any] = {
+        restarted: dict[UploadColumn, object] = {
             UploadColumn.STATUS: UploadStatus.UPLOADING,
             UploadColumn.ERROR_CODE: None,
             UploadColumn.SHA256: None,
@@ -270,7 +270,7 @@ class PgUploadStore(UploadStore):
         )
 
     async def _set_values(
-        self, file_id: str, values: dict[UploadColumn, Any], tx: AsyncSession
+        self, file_id: str, values: dict[UploadColumn, object], tx: AsyncSession
     ) -> None:
         await tx.execute(
             update(self.table)

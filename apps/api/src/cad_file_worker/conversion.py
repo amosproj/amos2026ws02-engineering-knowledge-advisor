@@ -6,6 +6,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from multiprocessing.context import SpawnContext
 from pathlib import Path
 
 from cad_file_worker.errors import ConversionTimeoutError, StopRequested
@@ -52,7 +53,7 @@ def convert_step_file(
     """
     result_path: Path = glb_path.with_name(TEMP_RESULT_FILE_NAME)
     result_path.unlink(missing_ok=True)
-    context = multiprocessing.get_context("spawn")
+    context: SpawnContext = multiprocessing.get_context("spawn")
     process = context.Process(target=_convert, args=(step_path, glb_path, result_path))
     process.start()
     deadline: float = time.monotonic() + timeout

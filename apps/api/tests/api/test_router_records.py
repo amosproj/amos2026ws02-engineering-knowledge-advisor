@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, Iterator, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator, Sequence
 from dataclasses import replace
 from typing import Any
 
@@ -17,9 +17,9 @@ from handler.exception_handler import register
 from handler.service_exception_handler import register as register_service
 from services import ConflictError, Record, Tx
 from services.catalog import CatalogService
-from services.object_storage import ObjectStorageError
+from services.object_storage import ObjectStorage, ObjectStorageError
 from services.ograg.service import DeleteResult, OgRagService
-from services.uploads import Upload, UploadStatus
+from services.uploads import Upload, UploadStatus, UploadStore
 
 PROBLEM_JSON: str = "application/problem+json"
 FASTAPI_DEFAULT_200: str = (
@@ -480,8 +480,12 @@ def test_a_list_reads_its_includes_once_for_all_records(
         put_record(client, f"CF-{number}", {**CAD_FILE, "partOf": f"RC-{number}"})
     client.post(f"{RECORDS_URL}/CF-1/upload-form", json={"size": 300})
     calls: list[str] = []
-    get_linking_records = service.store.get_linking_records
-    get_uploads = catalog.uploads.get_uploads
+    get_linking_records: Callable[..., Awaitable[list[Record]]] = (
+        service.store.get_linking_records
+    )
+    get_uploads: Callable[..., Awaitable[dict[str, Upload]]] = (
+        catalog.uploads.get_uploads
+    )
 
     async def count_linking(target_ids: Sequence[str], tx: Tx) -> list[Record]:
         calls.append("get_linking_records")
@@ -587,7 +591,7 @@ def test_a_file_record_is_uploaded_with_a_form_and_completed(
 ):
     seed_machine_and_group(service)
     put_record(client, "CF-1", CAD_FILE)
-    storage = catalog.storage
+    storage: ObjectStorage = catalog.storage
     assert isinstance(storage, MemoryStorage)
 
     not_asked: Response = client.post(f"{RECORDS_URL}/CF-1/complete")
@@ -681,7 +685,7 @@ def test_delete_passes_its_options_and_returns_the_marked_ids(
 
 def test_writes_run_in_the_requests_session(client: TestClient, service: OgRagService):
     seen: list[Tx | None] = []
-    save = service.store.save_records
+    save: Callable[..., Awaitable[None]] = service.store.save_records
 
     async def recording_save(records: Sequence[Record], tx: Tx | None = None) -> None:
         seen.append(tx)
@@ -710,7 +714,7 @@ def add_cad_file(
     if status is None:
         return
     client.post(f"{RECORDS_URL}/CF-1/upload-form", json={"size": 300})
-    uploads = catalog.uploads
+    uploads: UploadStore = catalog.uploads
     assert isinstance(uploads, MemoryUploadStore)
     uploads.uploads["CF-1"] = replace(
         uploads.uploads["CF-1"],

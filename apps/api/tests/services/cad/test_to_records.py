@@ -6,8 +6,8 @@ from services.cad.model import BoundingBox, CadDefinition, CadModel, CadOccurren
 from services.cad.to_records import CadRecords, to_records
 from services.ograg.service import OgRagService
 
-MACHINE_ID = "machine"
-UNIT_BOX = BoundingBox((0, 0, 0), (0.01, 0.01, 0.01))
+MACHINE_ID: str = "machine"
+UNIT_BOX: BoundingBox = BoundingBox((0, 0, 0), (0.01, 0.01, 0.01))
 
 
 def frame_model() -> CadModel:

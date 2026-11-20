@@ -4,20 +4,20 @@ from starlette.exceptions import HTTPException
 
 from api.router_records import RESPONSE_DETAIL_422_INVALID_REQUEST
 from logger import logger
-from model.problem import ProblemException, ProblemResponse
+from model.problem import Problem, ProblemException, ProblemResponse
 
 LOG_UNHANDLED: str = "Unhandled exception"
 
 
 async def handle_problem(request: Request, exc: ProblemException) -> ProblemResponse:
-    problem = exc.problem
+    problem: Problem = exc.problem
     if problem.instance is None:
         problem = problem.model_copy(update={"instance": request.url.path})
     return ProblemResponse(problem, headers=exc.headers)
 
 
 async def handle_http(request: Request, exc: HTTPException) -> ProblemResponse:
-    detail = exc.detail if isinstance(exc.detail, str) else None
+    detail: str | None = exc.detail if isinstance(exc.detail, str) else None
     return ProblemResponse.from_status(
         exc.status_code, detail, instance=request.url.path, headers=exc.headers
     )

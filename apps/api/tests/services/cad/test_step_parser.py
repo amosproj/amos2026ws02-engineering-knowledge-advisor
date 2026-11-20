@@ -1,5 +1,6 @@
 import logging
 import math
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -286,7 +287,9 @@ def test_unresolved_component_warns_and_keeps_valid_siblings(
     builder.add(assembly, builder.part("Visible", box()))
     unresolved: TDF_Label = builder.add(assembly, builder.part("Missing", box(20)))
     unresolved_entry: str = label_entry(unresolved)
-    resolve = document_walker.DocumentWalker._resolve
+    resolve: Callable[[document_walker.DocumentWalker, TDF_Label], TDF_Label | None] = (
+        document_walker.DocumentWalker._resolve
+    )
 
     def resolve_with_missing(
         self: document_walker.DocumentWalker, label: TDF_Label

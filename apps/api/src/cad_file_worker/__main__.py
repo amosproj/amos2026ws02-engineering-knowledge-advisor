@@ -28,12 +28,12 @@ from services import ConflictError
 from services.catalog import CatalogService
 from services.object_storage import ObjectStorageError
 
-PROCESSING_POLL_SECONDS = 2
-RETRY_PAUSE_SECONDS = 30
-CLEANUP_INTERVAL_SECONDS = 60 * 60
+PROCESSING_POLL_SECONDS: int = 2
+RETRY_PAUSE_SECONDS: int = 30
+CLEANUP_INTERVAL_SECONDS: int = 60 * 60
 
 HEARTBEAT_FILE: Path = Path("/tmp/cad-file-worker-heartbeat")
-HEARTBEAT_INTERVAL_SECONDS = 10
+HEARTBEAT_INTERVAL_SECONDS: int = 10
 
 TRANSIENT_ERRORS: tuple[type[Exception], ...] = (
     ObjectStorageError,
@@ -68,7 +68,7 @@ async def run() -> None:
         settings, create_ograg_service(settings, engine)
     )
     heartbeat: Heartbeat = Heartbeat(HEARTBEAT_FILE)
-    next_cleanup = 0.0
+    next_cleanup: float = 0.0
     try:
         while not stopping.is_set():
             heartbeat.beat()

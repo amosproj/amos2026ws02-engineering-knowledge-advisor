@@ -24,17 +24,17 @@ from services.object_storage import ObjectStorageError
 from services.ograg.service import ParentLimitError, RecordError
 from services.uploads import Upload, UploadStore
 
-CHUNK_SIZE = 8 * 1024 * 1024
-MAX_PROCESSING_SECONDS = 30 * 60
-MAX_CONVERSION_SECONDS = 30 * 60
+CHUNK_SIZE: int = 8 * 1024 * 1024
+MAX_PROCESSING_SECONDS: int = 30 * 60
+MAX_CONVERSION_SECONDS: int = 30 * 60
 # gzip's default (9) is several times slower for a few percent less
-GZIP_LEVEL = 6
+GZIP_LEVEL: int = 6
 
-UPLOAD_NOT_FOUND = "upload_not_found"
-INVALID_STEP_FILE = "invalid_step_file"
-PARSE_ERROR = "parse_error"
-IMPORT_ERROR = "import_error"
-PROCESSING_TIMEOUT = "processing_timeout"
+UPLOAD_NOT_FOUND: str = "upload_not_found"
+INVALID_STEP_FILE: str = "invalid_step_file"
+PARSE_ERROR: str = "parse_error"
+IMPORT_ERROR: str = "import_error"
+PROCESSING_TIMEOUT: str = "processing_timeout"
 
 
 async def process_next_cad_upload(

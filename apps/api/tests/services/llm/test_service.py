@@ -10,7 +10,7 @@ from services.llm.errors import (
     InvalidProviderError,
     ProviderDisabledError,
 )
-from services.llm.models import ChatMessage, ChatRequest
+from services.llm.models import ChatMessage, ChatRequest, ChatResponse, ModelInfo
 from services.llm.service import ConfiguredLLMService
 
 
@@ -80,7 +80,7 @@ async def test_default_provider_and_model_are_resolved() -> None:
         client,
     )
     try:
-        response = await service.complete(chat_request())
+        response: ChatResponse = await service.complete(chat_request())
         assert response.provider == "openai"
         assert response.model == "configured-model"
         assert response.content == "Hello"
@@ -110,7 +110,7 @@ async def test_provider_selection_and_models_are_exposed_without_credentials() -
         client,
     )
     try:
-        models = await service.list_models("openai")
+        models: list[ModelInfo] = await service.list_models("openai")
         assert [model.model for model in models] == ["model-a", "model-b"]
         assert "must-not-be-returned" not in repr(service.list_providers())
     finally:
@@ -173,7 +173,9 @@ async def test_hetzner_provider_is_resolved_and_model_can_be_selected() -> None:
         client,
     )
     try:
-        result = await service.complete(chat_request(model="Qwen/Qwen3.8-27B"))
+        result: ChatResponse = await service.complete(
+            chat_request(model="Qwen/Qwen3.8-27B")
+        )
         assert result.provider == "hetzner"
         assert result.model == "Qwen/Qwen3.8-27B"
         assert result.content == "Hello"

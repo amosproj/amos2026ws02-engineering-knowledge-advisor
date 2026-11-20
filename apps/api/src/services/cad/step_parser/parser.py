@@ -22,7 +22,7 @@ _codepage_lock = threading.Lock()
 
 
 def is_utf8(path: Path) -> bool:
-    decoder = codecs.getincrementaldecoder("utf-8")()
+    decoder: codecs.IncrementalDecoder = codecs.getincrementaldecoder("utf-8")()
     with path.open("rb") as file:
         try:
             while chunk := file.read(READ_CHUNK_SIZE):

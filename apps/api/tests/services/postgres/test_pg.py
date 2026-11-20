@@ -25,7 +25,7 @@ from db import TableName, Tables, define_tables
 from db.session import create_sessionmaker
 from handler.exception_handler import register
 from handler.service_exception_handler import register as register_service
-from services import Lane, SearchMode, UnstorableValueError
+from services import Lane, Record, SearchMode, UnstorableValueError
 from services.cad.model import BoundingBox, CadDefinition, CadModel, CadOccurrence
 from services.catalog import CatalogService
 from services.ograg.ontology import Ontology
@@ -77,7 +77,7 @@ ITEM: dict[str, Any] = {
 SELECTOR_LOOP: dict[str, Any] = {"loop_factory": asyncio.SelectorEventLoop}
 
 
-def run_async(check: Callable[[], Coroutine[Any, Any, None]]) -> None:
+def run_async(check: Callable[[], Coroutine[object, object, None]]) -> None:
     asyncio.run(check(), loop_factory=asyncio.SelectorEventLoop)
 
 
@@ -113,7 +113,7 @@ def test_enum_members_are_written_as_their_value(member: StrEnum):
         engine: AsyncEngine = create_async_engine(URL)
         try:
             async with engine.connect() as conn:
-                written = await conn.scalar(
+                written: str | None = await conn.scalar(
                     text("SELECT CAST(:v AS text)"), {"v": member}
                 )
             assert written == member.value
@@ -309,10 +309,12 @@ def test_an_import_waits_for_its_cad_file_to_move_to_another_machine():
                 assert not imported.done()
             await imported
 
-            machine = await service.store.get_record(OTHER_MACHINE_ID)
+            machine: Record | None = await service.store.get_record(OTHER_MACHINE_ID)
             assert machine is not None
             assert machine.input["properties"] == {"sizeX": 1, "sizeY": 2, "sizeZ": 3}
-            linking = await service.store.get_linking_records([MACHINE_ID])
+            linking: list[Record] = await service.store.get_linking_records(
+                [MACHINE_ID]
+            )
             assert linking == []
         finally:
             await engine.dispose()
