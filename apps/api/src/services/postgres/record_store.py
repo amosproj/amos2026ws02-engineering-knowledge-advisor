@@ -295,7 +295,7 @@ class PgRecordStore(RecordStore):
         return [
             {
                 CommonColumn.RECORD_ID: rec.id,
-                LinkColumn.POSITION: position,
+                CommonColumn.POSITION: position,
                 LinkColumn.PROPERTY_NAME: link.property_name,
                 LinkColumn.TARGET_ID: link.target_id,
             }
@@ -360,7 +360,7 @@ class PgRecordStore(RecordStore):
                 )
                 .order_by(
                     self.links.c[CommonColumn.RECORD_ID],
-                    self.links.c[LinkColumn.POSITION],
+                    self.links.c[CommonColumn.POSITION],
                 )
             )
             for record_id, prop_name, target_id in await conn.execute(stmt):

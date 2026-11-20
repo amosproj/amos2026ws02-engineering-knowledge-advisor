@@ -4,7 +4,12 @@ import pytest
 from helpers import S3_ENV
 from pydantic import ValidationError
 
-from config.settings import Settings, get_settings
+from config.settings import (
+    DEFAULT_EMBEDDING_DIMENSIONS,
+    SearchSettings,
+    Settings,
+    get_settings,
+)
 
 ONTOLOGY_PATH: str = "ontology.jsonld"
 
@@ -109,3 +114,66 @@ def test_empty_optional_llm_environment_values_are_ignored(
     assert settings.llm_openai.api_key is None
     assert settings.llm_openai.base_url is None
     assert settings.llm_openai.default_model is None
+
+
+def test_embedding_dim_defaults_to_embedding_model(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv("API_EMBEDDING_DIMENSIONS", raising=False)
+    assert Settings().embedding_dimensions == DEFAULT_EMBEDDING_DIMENSIONS  # pyright: ignore[reportCallIssue]
+
+
+def test_embedding_dim_come_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("API_EMBEDDING_DIMENSIONS", "1024")
+    assert Settings().embedding_dimensions == 1024  # pyright: ignore[reportCallIssue]
+
+
+@pytest.mark.parametrize("dimensions", ["0", "-42", "asdf"])
+def test_embedding_dim_must_be_positive(
+    monkeypatch: pytest.MonkeyPatch, dimensions: str
+):
+    monkeypatch.setenv("API_EMBEDDING_DIMENSIONS", dimensions)
+    with pytest.raises(ValidationError):
+        Settings()  # pyright: ignore[reportCallIssue]
+
+
+def test_search_settings_have_defaults():
+    assert Settings().search == SearchSettings()  # pyright: ignore[reportCallIssue]
+
+
+def test_search_settings_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("API_SEARCH__TOP_K", "5")
+    monkeypatch.setenv("API_SEARCH__MAX_EDGES", "4")
+    monkeypatch.setenv("API_SEARCH__CANDIDATE_POOL", "20")
+    monkeypatch.setenv("API_SEARCH__MIN_SIMILARITY", "0.8")
+    monkeypatch.setenv("API_SEARCH__LEXICAL_MIN_SIMILARITY", "0.5")
+    settings = Settings()  # pyright: ignore[reportCallIssue]
+    assert settings.search == SearchSettings(
+        top_k=5,
+        max_edges=4,
+        candidate_pool=20,
+        min_similarity=0.8,
+        lexical_min_similarity=0.5,
+    )
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("API_SEARCH__TOP_K", "0"),
+        ("API_SEARCH__MAX_EDGES", "-1"),
+        ("API_SEARCH__CANDIDATE_POOL", "asdf"),
+        ("API_SEARCH__MIN_SIMILARITY", "1.5"),
+        ("API_SEARCH__LEXICAL_MIN_SIMILARITY", "-0.1"),
+    ],
+)
+def test_search_settings_reject_out_of_range(
+    monkeypatch: pytest.MonkeyPatch, name: str, value: str
+):
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ValidationError):
+        Settings()  # pyright: ignore[reportCallIssue]
