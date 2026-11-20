@@ -6,7 +6,7 @@ import pytest
 from fakes import build_ontology_with, load_document, load_ontology
 from helpers import assert_mentions
 
-from services import Json, SearchMode
+from services import JsonValue, SearchMode
 from services.ograg.ontology import Ontology, OntologyError, Property
 
 # text property added to Machine, tests set its og:search
@@ -73,7 +73,7 @@ def test_a_machine_has_one_cad_file_and_one_root_instance():
 
 
 @pytest.mark.parametrize("limit", [0, -1, 1.5, "1", True])
-def test_max_per_parent_must_be_a_positive_integer(limit: Json):
+def test_max_per_parent_must_be_a_positive_integer(limit: JsonValue):
     document: dict[str, Any] = load_document()
     for item in document["@graph"]:
         if item["@id"] == "og:partOf" and item["domain"] == "og:CadFile":
@@ -200,7 +200,7 @@ def test_a_property_listing_several_domains_is_added_to_each():
     ids=["listed twice", "defined again", "empty list", "not a text", "number"],
 )
 def test_a_property_defined_twice_or_with_a_bad_domain_is_refused(
-    domain: Json, keywords: tuple[str, ...]
+    domain: JsonValue, keywords: tuple[str, ...]
 ):
     name: str = "og:name" if "name" in keywords else "og:note"
     with pytest.raises(OntologyError) as raised:
@@ -385,7 +385,7 @@ def test_guideline_when_naming_properties_its_class_lacks_is_refused():
     ],
 )
 def test_guideline_when_of_the_wrong_shape_is_refused(
-    conditions: Json, keywords: tuple[str, ...]
+    conditions: JsonValue, keywords: tuple[str, ...]
 ):
     document: dict[str, Any] = load_document()
     for item in document["@graph"]:

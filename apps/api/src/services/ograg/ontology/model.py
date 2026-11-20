@@ -4,7 +4,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from services import Json, JsonObject, Lane, Link
+from services import JsonObject, JsonValue, Lane, Link
 from services.ograg.ontology import validation
 from services.ograg.ontology.description import (
     ClassDescription,
@@ -25,19 +25,21 @@ from services.ograg.ontology.parsing import (
 from services.ograg.ontology.property import EdgeType, Property
 
 
-def _matches_all(graph: Mapping[str, Json], conditions: dict[str, list[str]]) -> bool:
+def _matches_all(
+    graph: Mapping[str, JsonValue], conditions: dict[str, list[str]]
+) -> bool:
     """Whether every property in ``conditions`` has allowed values in ``graph``.
     ``False`` if ``conditions`` contains a property that has a ``None`` value in ``graph``.
     """
     for prop_name, allowed in conditions.items():
-        value: Json = graph.get(prop_name)
-        values: list[Json] = [] if value is None else to_list(value)
+        value: JsonValue = graph.get(prop_name)
+        values: list[JsonValue] = [] if value is None else to_list(value)
         if not values or not all(_is_allowed(val, allowed) for val in values):
             return False
     return True
 
 
-def _is_allowed(value: Json, allowed: list[str]) -> bool:
+def _is_allowed(value: JsonValue, allowed: list[str]) -> bool:
     """Whether a ``value`` is in ``allowed``."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return value in allowed
@@ -84,7 +86,7 @@ class Ontology:
         return cls.from_jsonld(read_document(path))
 
     @classmethod
-    def from_jsonld(cls, document: Mapping[str, Json]) -> Ontology:
+    def from_jsonld(cls, document: Mapping[str, JsonValue]) -> Ontology:
         """Builds ontology from ``document``, a parsed JSON-LD document.
 
         Raises:
@@ -164,7 +166,7 @@ class Ontology:
         """Returns every class with its properties as clients see them, sorted by class name."""
         return {cls: self._describe_class(cls) for cls in sorted(self.classes)}
 
-    def get_links(self, graph: Mapping[str, Json]) -> list[Link]:
+    def get_links(self, graph: Mapping[str, JsonValue]) -> list[Link]:
         """Returns one ``Link`` per target id of a validated record.
 
         Args:
@@ -180,7 +182,7 @@ class Ontology:
                 ]
         return found
 
-    def get_lane(self, graph: Mapping[str, Json]) -> Lane:
+    def get_lane(self, graph: Mapping[str, JsonValue]) -> Lane:
         """Returns the lane for the given record's facts. ``guideline`` when record's values all match its class's ``og:guidelineWhen``, else ``fact``.
         Every record of a class marked ``og:guideline`` takes the ``guideline`` lane.
 
@@ -238,7 +240,7 @@ class Ontology:
         )
 
     def validate_node(
-        self, node: Mapping[str, Json], expected_type: str | None = None
+        self, node: Mapping[str, JsonValue], expected_type: str | None = None
     ) -> tuple[JsonObject, list[str]]:
         """Returns cleaned ``node`` validated on the ontology, and warnings about what was dropped.
 

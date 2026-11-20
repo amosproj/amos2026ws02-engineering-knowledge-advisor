@@ -264,6 +264,21 @@ def test_deleting_a_parent_deletes_its_dependents_and_marks_the_rest(
     assert [rec["@id"] for rec in get_all_records(client)] == [ITEM_ID]
 
 
+def test_put_strips_strings(client: TestClient):
+    assert put_record(client, MACHINE_ID, MACHINE).status_code == 200
+    assert put_record(client, GROUP_ID, {**GROUP, "name": " Tray "}).status_code == 200
+    stored: dict[str, Any] = client.get(f"{RECORDS_URL}/{GROUP_ID}").json()
+    assert stored == {**GROUP, "name": "Tray", "@id": GROUP_ID}
+
+
+def test_refuse_record_with_only_blank_strings(client: TestClient):
+    blank_item: dict[str, Any] = {
+        "@type": "KnowledgeItem",
+        "properties": {"name": "  "},
+    }
+    assert_problem(put_record(client, ITEM_ID, blank_item), 422)
+
+
 def test_post_creates_a_record_with_a_generated_id(client: TestClient):
     response: Response = client.post(RECORDS_URL, json={**MACHINE, "@id": "ignored"})
     assert response.status_code == 201
