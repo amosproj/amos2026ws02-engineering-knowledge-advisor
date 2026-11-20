@@ -16,6 +16,7 @@ import {
     DialogTrigger,
 } from '@components'
 import { SubscribeForm } from '@components/forms/subscribe-form'
+import { cn } from 'cn'
 
 export type FormDialogControls = {
     close: () => void
@@ -30,6 +31,8 @@ type FormDialogProps = {
     trigger?: React.ReactElement
     open?: boolean
     onOpenChange?: (open: boolean) => void
+    // Room for a form laid out in two columns
+    wide?: boolean
     // The form, mounted again on each opening so it starts from fresh values
     children: (dialog: FormDialogControls) => React.ReactNode
 }
@@ -40,6 +43,7 @@ export function FormDialog({
     trigger,
     open: controlledOpen,
     onOpenChange,
+    wide = false,
     children,
 }: FormDialogProps) {
     const [ownOpen, setOwnOpen] = useState(false)
@@ -54,7 +58,12 @@ export function FormDialog({
     return (
         <Dialog open={open} onOpenChange={(nextOpen) => !busy && setOpen(nextOpen)}>
             {trigger ? <DialogTrigger render={trigger} /> : null}
-            <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-lg">
+            <DialogContent
+                className={cn(
+                    'flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden',
+                    wide ? 'sm:max-w-3xl' : 'sm:max-w-lg',
+                )}
+            >
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
