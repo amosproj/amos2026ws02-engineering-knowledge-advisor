@@ -93,7 +93,9 @@ class ProblemResponse(JSONResponse):
         elif fields:
             problem = Problem.model_validate({**problem.model_dump(), **fields})
 
-        status = problem.status if problem.status is not None else self.default_status
+        status: int = (
+            problem.status if problem.status is not None else self.default_status
+        )
         problem = problem.model_copy(update={"status": status})
 
         self.problem = problem

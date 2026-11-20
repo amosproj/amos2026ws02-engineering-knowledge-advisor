@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -17,12 +17,17 @@ from services.s3 import S3ObjectStorage
 
 
 def client_error(status: int) -> ClientError:
-    response: Any = {
-        "Error": {"Code": str(status)},
-        "ResponseMetadata": {"HTTPStatusCode": status},
-    }
     return ClientError(
-        response,
+        {
+            "Error": {"Code": str(status)},
+            "ResponseMetadata": {
+                "RequestId": "request",
+                "HostId": "host",
+                "HTTPStatusCode": status,
+                "HTTPHeaders": {},
+                "RetryAttempts": 0,
+            },
+        },
         "operation",
     )
 
@@ -69,7 +74,7 @@ def test_reading_closes_the_object_also_when_stopped_early_or_failing(
     body = MagicMock()
     body.iter_chunks.return_value = iter([b"a", b"b"])
     client.get_object.return_value = {"Body": body}
-    chunks = storage.read_object("k", 10)
+    chunks: Generator[bytes] | None = storage.read_object("k", 10)
     assert chunks is not None
     assert next(chunks) == b"a"
     chunks.close()
@@ -106,7 +111,7 @@ def test_a_failing_listing_page_is_an_object_storage_error(
         raise client_error(503)
 
     client.get_paginator.return_value.paginate.return_value = pages()
-    listing = storage.list_objects("machines/")
+    listing: Iterator[list[StoredObject]] = storage.list_objects("machines/")
 
     assert next(listing) == [StoredObject("a", modified)]
     with pytest.raises(ObjectStorageError):
@@ -142,7 +147,9 @@ def test_the_upload_form_points_to_the_public_url(
 ):
     client.generate_presigned_post.return_value = {"url": "x", "fields": {"key": "k"}}
     assert storage.create_upload_form("k", 3) == ("/storage/bucket", {"key": "k"})
-    conditions = client.generate_presigned_post.call_args.kwargs["Conditions"]
+    conditions: dict[str, Any] = client.generate_presigned_post.call_args.kwargs[
+        "Conditions"
+    ]
     assert ["content-length-range", 3, 3] in conditions
 
 

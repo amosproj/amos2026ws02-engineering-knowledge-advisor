@@ -29,7 +29,7 @@ async def expire_abandoned_uploads(
             ABANDONED_UPLOAD_AGE, session
         )
 
-    expired = 0
+    expired: int = 0
     for cad_file_id in cad_file_ids:
         if stopping.is_set():
             break
@@ -68,7 +68,7 @@ async def delete_orphan_objects(
     """
     cutoff: datetime = datetime.now(UTC) - ORPHAN_OBJECT_AGE
     pages: Iterator[list[StoredObject]] = catalog.storage.list_objects(FILES_PREFIX)
-    deleted = 0
+    deleted: int = 0
     # listing fetches the pages lazily, so each page is fetched off the event loop
     while (
         not stopping.is_set()

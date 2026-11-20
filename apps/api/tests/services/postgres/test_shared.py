@@ -12,7 +12,7 @@ from services.postgres import transaction
 from services.postgres.shared import Conditions, Statements
 from services.postgres.transaction import PgTx
 
-TABLE = Table(
+TABLE: Table = Table(
     "items",
     MetaData(),
     Column("id", String, primary_key=True),
@@ -57,7 +57,7 @@ def compile_insert(rows: list[dict[str, Any]]) -> SQLCompiler:
 @pytest.mark.parametrize("values", [[], ["R-1"], MANY_IDS])
 def test_match_any_sends_one_array_parameter(values: list[str]):
     compiled: SQLCompiler = compile_where(values)
-    params: Mapping[str, Any] = compiled.params
+    params: Mapping[str, object] = compiled.params
     assert "= ANY (" in str(compiled)
     assert list(params.values()) == [values]
 
@@ -72,7 +72,7 @@ def test_match_any_sql_is_the_same_for_every_list_length():
 @pytest.mark.parametrize("rows", [ROWS[:1], ROWS])
 def test_unnest_insert_sends_one_array_per_column(rows: list[dict[str, Any]]):
     compiled: SQLCompiler = compile_insert(rows)
-    params: Mapping[str, Any] = compiled.params
+    params: Mapping[str, object] = compiled.params
     sql: str = str(compiled)
     assert sql.startswith("INSERT INTO items (id, position) SELECT")
     assert "FROM unnest(" in sql

@@ -528,7 +528,7 @@ class OgRagService:
             record.cls, link.property_name
         ].range
         if actual_cls != expected_cls:
-            problem = (
+            problem: str = (
                 LINK_NOT_FOUND
                 if actual_cls is None
                 else LINK_WRONG_CLASS.format(cls=actual_cls)

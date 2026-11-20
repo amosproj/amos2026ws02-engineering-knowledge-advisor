@@ -172,15 +172,15 @@ class MemoryRecordStore(RecordStore):
         limit: int | None = None,
         tx: Tx | None = None,
     ) -> list[tuple[Record, float]]:
-        records = await self.get_all_records()
+        records: list[Record] = await self.get_all_records()
         if cls is not None:
             records = [rec for rec in records if rec.cls == cls]
-        query_lower = query.lower()
+        query_lower: str = query.lower()
         matched: list[tuple[Record, float]] = []
         for rec in records:
-            graph_text = str(rec.graph).lower()
+            graph_text: str = str(rec.graph).lower()
             if query_lower in graph_text:
-                score = 1.0 / (1 + abs(graph_text.find(query_lower)))
+                score: float = 1.0 / (1 + abs(graph_text.find(query_lower)))
                 matched.append((rec, score))
         matched.sort(key=lambda item: item[1], reverse=True)
         if limit is not None:

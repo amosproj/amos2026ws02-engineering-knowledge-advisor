@@ -1,6 +1,7 @@
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
+from typing import Any
 
 import httpx2
 import pytest
@@ -17,7 +18,7 @@ from services.llm.errors import (
     StreamingInterruptedError,
     UnsupportedModelError,
 )
-from services.llm.models import ChatMessage, ChatRequest, ChatStreamChunk
+from services.llm.models import ChatMessage, ChatRequest, ChatResponse, ChatStreamChunk
 from services.llm.providers import (
     AnthropicProvider,
     AzureOpenAIProvider,
@@ -157,9 +158,11 @@ async def test_providers_normalize_completions(
         return httpx2.Response(200, json=body)
 
     client = httpx2.AsyncClient(transport=httpx2.MockTransport(handle))
-    provider = provider_type(build_config(), client)
+    provider: HTTPProvider = provider_type(build_config(), client)
     try:
-        result = await provider.complete(build_request(), "requested-model")
+        result: ChatResponse = await provider.complete(
+            build_request(), "requested-model"
+        )
     finally:
         await client.aclose()
 
@@ -176,7 +179,7 @@ async def test_providers_normalize_completions(
         assert "model" not in json.loads(sent[0].content)
     elif name == "anthropic":
         assert sent[0].headers["x-api-key"] == "test-key"
-        payload = json.loads(sent[0].content)
+        payload: dict[str, Any] = json.loads(sent[0].content)
         assert payload["system"] == "be concise"
         assert payload["messages"][0]["role"] == "user"
     elif name == "google":
@@ -221,7 +224,7 @@ async def test_provider_model_lists_are_normalized(
     client = httpx2.AsyncClient(
         transport=httpx2.MockTransport(lambda request: httpx2.Response(200, json=body))
     )
-    provider = provider_type(build_config(), client)
+    provider: HTTPProvider = provider_type(build_config(), client)
     try:
         assert await provider.list_models() == expected
     finally:
@@ -247,8 +250,8 @@ async def test_hetzner_uses_documented_base_url_for_chat_and_models() -> None:
         client,
     )
     try:
-        result = await provider.complete(build_request(), "model-a")
-        models = await provider.list_models()
+        result: ChatResponse = await provider.complete(build_request(), "model-a")
+        models: list[str] = await provider.list_models()
     finally:
         await client.aclose()
 
@@ -266,7 +269,9 @@ async def test_hetzner_uses_documented_base_url_for_chat_and_models() -> None:
 def test_hetzner_preserves_an_explicit_output_token_limit() -> None:
     provider = HetznerProvider(build_config(), httpx2.AsyncClient())
     try:
-        payload = provider._request_payload(build_request(max_tokens=512), "model")
+        payload: dict[str, object] = provider._request_payload(
+            build_request(max_tokens=512), "model"
+        )
     finally:
         asyncio.run(provider.client.aclose())
 
@@ -276,7 +281,7 @@ def test_hetzner_preserves_an_explicit_output_token_limit() -> None:
 def test_anthropic_merges_adjacent_messages_of_the_same_role() -> None:
     provider = AnthropicProvider(build_config(), httpx2.AsyncClient())
     try:
-        payload = provider._request_payload(
+        payload: dict[str, object] = provider._request_payload(
             build_request(
                 messages=[
                     ChatMessage(role="user", content="first"),
@@ -346,7 +351,7 @@ async def test_provider_stream_chunks_are_normalized(
     client = httpx2.AsyncClient(
         transport=httpx2.MockTransport(lambda request: httpx2.Response(200, text=body))
     )
-    provider = provider_type(build_config(), client)
+    provider: HTTPProvider = provider_type(build_config(), client)
     try:
         chunks: list[ChatStreamChunk] = [
             chunk async for chunk in provider.stream(build_request(), "model")
@@ -361,7 +366,7 @@ async def test_provider_stream_chunks_are_normalized(
 
 @pytest.mark.anyio
 async def test_mistral_stream_omits_empty_chunks_but_keeps_answer_and_finish() -> None:
-    body = (
+    body: str = (
         'data: {"choices":[{"delta":{"role":"assistant","content":""},'
         '"finish_reason":null}]}\n\n'
         'data: {"choices":[{"delta":{"content":""},"finish_reason":null}]}\n\n'
@@ -374,7 +379,9 @@ async def test_mistral_stream_omits_empty_chunks_but_keeps_answer_and_finish() -
     )
     provider = MistralProvider(build_config(), client)
     try:
-        chunks = [chunk async for chunk in provider.stream(build_request(), "model")]
+        chunks: list[ChatStreamChunk] = [
+            chunk async for chunk in provider.stream(build_request(), "model")
+        ]
     finally:
         await client.aclose()
 
@@ -388,7 +395,7 @@ def test_hetzner_stream_omits_private_reasoning_chunks(
 ) -> None:
     provider = HetznerProvider(build_config(), httpx2.AsyncClient())
     try:
-        reasoning_chunk = provider._parse_stream_data(
+        reasoning_chunk: ChatStreamChunk | None = provider._parse_stream_data(
             json.dumps(
                 {
                     "choices": [
@@ -403,22 +410,22 @@ def test_hetzner_stream_omits_private_reasoning_chunks(
             build_request(),
             "model",
         )
-        initial_chunk = provider._parse_stream_data(
+        initial_chunk: ChatStreamChunk | None = provider._parse_stream_data(
             '{"choices":[{"delta":{"role":"assistant","content":""},"finish_reason":null}]}',
             build_request(),
             "model",
         )
-        usage_only_chunk = provider._parse_stream_data(
+        usage_only_chunk: ChatStreamChunk | None = provider._parse_stream_data(
             '{"choices":[],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}',
             build_request(),
             "model",
         )
-        answer_chunk = provider._parse_stream_data(
+        answer_chunk: ChatStreamChunk | None = provider._parse_stream_data(
             '{"choices":[{"delta":{"content":"Answer"},"finish_reason":null}]}',
             build_request(),
             "model",
         )
-        finish_chunk = provider._parse_stream_data(
+        finish_chunk: ChatStreamChunk | None = provider._parse_stream_data(
             '{"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}',
             build_request(),
             "model",
@@ -551,9 +558,11 @@ async def test_closing_stream_cancels_the_upstream_request() -> None:
         )
     )
     provider = OpenAIProvider(build_config(), client)
-    iterator = provider.stream(build_request(), "model")
+    iterator: AsyncGenerator[ChatStreamChunk] = provider.stream(
+        build_request(), "model"
+    )
     try:
-        first = await anext(iterator)
+        first: ChatStreamChunk = await anext(iterator)
         assert first.content == "first"
         await iterator.aclose()
         assert upstream.closed

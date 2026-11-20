@@ -11,7 +11,6 @@ from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 import pytest
 from fakes import load_ontology
@@ -131,7 +130,7 @@ class Worker:
     def __init__(self, sessions: Sessions, catalog: CatalogService) -> None:
         self.sessions: Sessions = sessions
         self.catalog: CatalogService = catalog
-        storage = catalog.storage
+        storage: ObjectStorage = catalog.storage
         assert isinstance(storage, ContentStorage)
         self.storage: ContentStorage = storage
         self.machine_id: str = ""
@@ -201,7 +200,7 @@ class Worker:
         return sorted(found.values(), key=lambda rec: (rec.cls, rec.id))
 
 
-def run_async(check: Callable[[], Coroutine[Any, Any, None]]) -> None:
+def run_async(check: Callable[[], Coroutine[object, object, None]]) -> None:
     asyncio.run(check(), loop_factory=asyncio.SelectorEventLoop)
 
 
@@ -351,7 +350,7 @@ def test_a_machine_with_an_assembly_tree_refuses_the_import():
 def test_a_glb_failure_still_makes_the_file_ready(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ):
-    convert = processing.convert_step_file
+    convert: Callable[..., Conversion] = processing.convert_step_file
 
     def convert_without_glb(
         step_path: Path,
@@ -404,7 +403,7 @@ def test_an_upload_failure_still_makes_the_file_ready(
             assert upload is not None
             assert (upload.status, upload.model_key) == ("ready", None)
             assert not await worker.process()
-            errors = [
+            errors: list[logging.LogRecord] = [
                 entry
                 for entry in caplog.records
                 if entry.levelno == logging.ERROR and file_id in entry.getMessage()
@@ -447,7 +446,7 @@ def test_abandoned_uploads_are_dropped_and_their_records_kept(
 
             assert await worker.get_upload(abandoned_id) is None
             async with worker.sessions() as session:
-                kept = await worker.catalog.get_record(session, abandoned_id)
+                kept: Record = await worker.catalog.get_record(session, abandoned_id)
             assert kept.id == abandoned_id
             assert await worker.get_status(abandoned_id) is None
             queued: Upload | None = await worker.get_upload(queued_id)

@@ -173,7 +173,7 @@ class Ontology:
         cls: str = get_type(graph)
         found: list[Link] = []
         for key, value in graph.items():
-            prop = self.properties.get((cls, key))
+            prop: Property | None = self.properties.get((cls, key))
             if prop is not None and self.is_link(prop):
                 found += [
                     Link(prop.name, str(target_id)) for target_id in to_list(value)

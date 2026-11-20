@@ -14,7 +14,7 @@ from cad_file_worker.errors import ConversionTimeoutError, StopRequested
 from services.cad.errors import StepImportError
 from services.cad.model import CadModel
 
-TIMEOUT = 60
+TIMEOUT: int = 60
 
 
 def _crash(*_: object) -> None:

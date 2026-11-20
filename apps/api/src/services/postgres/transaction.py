@@ -11,7 +11,9 @@ from services import ConflictError, UnstorableValueError
 type PgTx = AsyncSession | AsyncConnection
 BATCH_SIZE: int = 10_000
 UNSTORABLE: str = "failed to store"
-SQL_STATE = {  # https://www.postgresql.org/docs/current/errcodes-appendix.html
+SQL_STATE: dict[
+    str, str
+] = {  # https://www.postgresql.org/docs/current/errcodes-appendix.html
     "40P01": "deadlock_detected",
     "40001": "serialization_failure",
     "23503": "foreign_key_violation",

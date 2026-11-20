@@ -83,7 +83,7 @@ class FakeStorage(ObjectStorage):
     def delete_folders_quietly(self, prefixes: list[str]) -> None:
         with self.sync_engine.connect() as conn:
             for prefix in prefixes:
-                committed = conn.scalar(
+                committed: str | None = conn.scalar(
                     text("SELECT status FROM uploads WHERE source_key LIKE :prefix"),
                     {"prefix": prefix + "%"},
                 )

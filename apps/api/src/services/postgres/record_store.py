@@ -123,9 +123,9 @@ class PgRecordStore(RecordStore):
         limit: int | None = None,
         tx: PgTx | None = None,
     ) -> list[tuple[Record, float]]:
-        graph_text = cast(self.table.c[RecordColumn.GRAPH], Text)
-        similarity = func.similarity(graph_text, query)
-        condition = similarity > 0
+        graph_text: ColumnElement[str] = cast(self.table.c[RecordColumn.GRAPH], Text)
+        similarity: ColumnElement[float] = func.similarity(graph_text, query)
+        condition: ColumnElement[bool] = similarity > 0
 
         async with get_transaction(self.engine, tx) as conn:
             if cls is not None:
@@ -159,7 +159,7 @@ class PgRecordStore(RecordStore):
         if limit is not None:
             stmt = stmt.limit(limit)
         rows: Sequence[RowMapping] = (await conn.execute(stmt)).mappings().all()
-        records = await self._rows_to_records(conn, rows)
+        records: list[Record] = await self._rows_to_records(conn, rows)
         return [(record, row["similarity"]) for row, record in zip(rows, records)]
 
     @override
@@ -257,7 +257,7 @@ class PgRecordStore(RecordStore):
             set_={**replaced, RecordColumn.UPDATED_AT: func.now()},
         )
 
-    def _to_row(self, record: Record) -> dict[str, Any]:
+    def _to_row(self, record: Record) -> dict[str, object]:
         return {
             CommonColumn.ID: record.id,
             RecordColumn.CLS: record.cls,
@@ -285,12 +285,12 @@ class PgRecordStore(RecordStore):
         )
 
         # insert new links
-        rows: list[dict[str, Any]] = self._to_link_rows(records)
+        rows: list[dict[str, object]] = self._to_link_rows(records)
         if rows:
             await conn.execute(Statements.build_unnest_insert(self.links, rows))
 
     @staticmethod
-    def _to_link_rows(records: Sequence[Record]) -> list[dict[str, Any]]:
+    def _to_link_rows(records: Sequence[Record]) -> list[dict[str, object]]:
         """Returns one row per record link. ``position`` keeps their order."""
         return [
             {

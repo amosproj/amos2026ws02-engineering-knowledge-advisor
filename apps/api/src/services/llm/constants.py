@@ -1,1 +1,1 @@
-STREAM_DONE = "[DONE]"
+STREAM_DONE: str = "[DONE]"
