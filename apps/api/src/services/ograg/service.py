@@ -6,8 +6,8 @@ from dataclasses import dataclass, field, replace
 
 from services import (
     ConflictError,
-    Json,
     JsonObject,
+    JsonValue,
     Link,
     Record,
     RecordStore,
@@ -109,7 +109,7 @@ class OgRagService:
     async def upsert_record(
         self,
         record_id: str,
-        node: Mapping[str, Json],
+        node: Mapping[str, JsonValue],
         tx: Tx | None = None,
         expected_versions: Collection[str] | None = None,
     ) -> list[str]:
@@ -145,7 +145,7 @@ class OgRagService:
         return warnings
 
     async def upsert_records(
-        self, nodes: Mapping[str, Mapping[str, Json]], tx: Tx | None = None
+        self, nodes: Mapping[str, Mapping[str, JsonValue]], tx: Tx | None = None
     ) -> list[str]:
         """Validates ``nodes`` and update-or-inserts them as records, all or none, with the checks of ``upsert_record``.
 
@@ -247,7 +247,7 @@ class OgRagService:
                     raise
         raise AssertionError(ERROR_UNREACHABLE)
 
-    def _get_record_class(self, node: Mapping[str, Json]) -> str:
+    def _get_record_class(self, node: Mapping[str, JsonValue]) -> str:
         """Returns ``node``'s record class (defaults to anchor class).
 
         Raises:
@@ -263,7 +263,7 @@ class OgRagService:
         return cls
 
     def _get_submitted(
-        self, record_id: str, cls: str, node: Mapping[str, Json]
+        self, record_id: str, cls: str, node: Mapping[str, JsonValue]
     ) -> JsonObject:
         """Returns unvalidated ``node``, with ``cls`` and ``record_id``, to be kept as stored input."""
         return {**node, JSONLD_TYPE: cls, JSONLD_ID: record_id}
@@ -287,7 +287,7 @@ class OgRagService:
             record_id, cls, graph, submitted, self.ontology.version, links
         ), warnings
 
-    def _check_identity(self, cls: str, graph: Mapping[str, Json]) -> None:
+    def _check_identity(self, cls: str, graph: Mapping[str, JsonValue]) -> None:
         """
         Raises:
             RecordError: ``cls`` has identity properties, but none holds a non-blank value in ``graph``.
@@ -670,20 +670,22 @@ class OgRagService:
 
     @staticmethod
     def _drop_links_to(
-        node: Mapping[str, Json], link_names: set[str], target_id: str
+        node: Mapping[str, JsonValue], link_names: set[str], target_id: str
     ) -> JsonObject:
         """Returns ``node`` with ``target_id`` removed from its links. An empty link is deleted."""
         kept_node: JsonObject = {}
         for key, value in node.items():
             if get_local_name(key) in link_names:
-                kept: list[Json] = [
+                kept: list[JsonValue] = [
                     val
                     for val in to_list(value)
                     if str(get_link_target_id(val)) != target_id
                 ]
                 if not kept:
                     continue
-                value: Json | list[Json] = kept if isinstance(value, list) else kept[0]
+                value: JsonValue | list[JsonValue] = (
+                    kept if isinstance(value, list) else kept[0]
+                )
             kept_node[key] = value
         return kept_node
 

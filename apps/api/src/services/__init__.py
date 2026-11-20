@@ -4,7 +4,7 @@ Import interfaces from here (``from services import RecordStore``). They are def
 
 | Module                    | Interfaces                                                                   |
 |---------------------------|------------------------------------------------------------------------------|
-| ``services.json_types``   | ``Json``, ``JsonObject`` (parsed JSON)                                       |
+| ``services.json_types``   | ``JsonValue``, ``JsonObject`` (parsed JSON)                                  |
 | ``services.database``     | ``Tx``, ``ConflictError``, ``UnstorableValueError`` (shared by all stores)   |
 | ``services.records``      | ``RecordStore``                                                              |
 | ``services.search``       | ``SearchMode``                                                               |
@@ -20,8 +20,8 @@ from services.database import ConflictError as ConflictError
 from services.database import Tx as Tx
 from services.database import UnstorableValueError as UnstorableValueError
 from services.hypergraph import Lane as Lane
-from services.json_types import Json as Json
 from services.json_types import JsonObject as JsonObject
+from services.json_types import JsonValue as JsonValue
 from services.llm_service import LLMService as LLMService
 from services.records import Link as Link
 from services.records import Record as Record

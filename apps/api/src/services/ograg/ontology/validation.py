@@ -4,7 +4,7 @@ import math
 from collections.abc import Generator, Mapping
 from typing import TYPE_CHECKING
 
-from services import Json, JsonObject
+from services import JsonObject, JsonValue
 from services.ograg.ontology.names import (
     JSONLD_ID,
     JSONLD_TYPE,
@@ -33,7 +33,7 @@ WARNING_DROPPED_VALUE: str = "dropped {domain}.{name} {shown!r}: {reason}"
 
 
 def validate_node(
-    ontology: Ontology, node: Mapping[str, Json], expected_type: str | None = None
+    ontology: Ontology, node: Mapping[str, JsonValue], expected_type: str | None = None
 ) -> tuple[JsonObject, list[str]]:
     """Returns cleaned ``node`` validated on ``ontology``, and warnings about drops."""
     return _NodeValidator(ontology).validate(node, expected_type)
@@ -88,7 +88,7 @@ class _NodeValidator:
         self.ontology: Ontology = ontology
 
     def validate(
-        self, node: Mapping[str, Json], expected_type: str | None
+        self, node: Mapping[str, JsonValue], expected_type: str | None
     ) -> tuple[JsonObject, list[str]]:
         """Returns ``(cleaned node, drops)`` pair."""
         node_type: str = get_type(node, expected_type or "")
@@ -115,15 +115,15 @@ class _NodeValidator:
                 )
                 continue
 
-            kept: list[Json] = self._get_kept_values(to_list(value), prop, drops)
+            kept: list[JsonValue] = self._get_kept_values(to_list(value), prop, drops)
             if kept:
                 clean[prop.name] = kept if isinstance(value, list) else kept[0]
 
         return clean, drops
 
     def _get_kept_values(
-        self, values: list[Json], prop: Property, warnings: list[str]
-    ) -> list[Json]:
+        self, values: list[JsonValue], prop: Property, warnings: list[str]
+    ) -> list[JsonValue]:
         """Returns ``values`` of ``prop`` that fit the ontology, adds to ``warnings`` for each drop."""
         kept: Generator[str | int | float | JsonObject | None] = (
             self._get_kept_value(val, prop, warnings) for val in values
@@ -131,7 +131,7 @@ class _NodeValidator:
         return [val for val in kept if val is not None]
 
     def _get_kept_value(
-        self, value: Json, prop: Property, warnings: list[str]
+        self, value: JsonValue, prop: Property, warnings: list[str]
     ) -> str | int | float | JsonObject | None:
         """Returns ``value`` as kept, or ``None`` when it is dropped, adds to ``warnings`` if dropped."""
         if self.ontology.is_link(prop):
@@ -141,8 +141,10 @@ class _NodeValidator:
         return self._get_literal_value(value, prop, warnings)
 
     @staticmethod
-    def _get_link_value(value: Json, prop: Property, warnings: list[str]) -> str | None:
-        target_id: Json = get_link_target_id(value)
+    def _get_link_value(
+        value: JsonValue, prop: Property, warnings: list[str]
+    ) -> str | None:
+        target_id: JsonValue = get_link_target_id(value)
         if isinstance(target_id, (dict, list)) or target_id is None or target_id == "":
             warnings.append(
                 WARNING_DROPPED_LINK.format(domain=prop.domain, name=prop.name)
@@ -151,7 +153,7 @@ class _NodeValidator:
         return str(target_id)
 
     def _get_nested_value(
-        self, value: Json, prop: Property, warnings: list[str]
+        self, value: JsonValue, prop: Property, warnings: list[str]
     ) -> JsonObject | None:
         if not isinstance(value, dict):
             warnings.append(
@@ -167,7 +169,7 @@ class _NodeValidator:
 
     @staticmethod
     def _get_literal_value(
-        value: Json, prop: Property, warnings: list[str]
+        value: JsonValue, prop: Property, warnings: list[str]
     ) -> str | int | float | None:
         """Returns ``value`` as number for number properties, else text. ``None`` if dropped."""
         if isinstance(value, (dict, list)):
@@ -175,6 +177,8 @@ class _NodeValidator:
                 WARNING_DROPPED_STRUCTURED.format(domain=prop.domain, name=prop.name)
             )
             return None
+        if isinstance(value, str):
+            value = value.strip()
         if value is None or value == "":
             return None
 
