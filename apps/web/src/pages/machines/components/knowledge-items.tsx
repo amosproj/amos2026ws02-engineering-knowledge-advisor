@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useStore } from '@tanstack/react-form'
 import { Add01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 
@@ -314,6 +315,11 @@ function KnowledgeFormBody({ instanceId, item, bucket, dialog }: KnowledgeFormBo
         },
     })
 
+    // Input that differs from what the dialog opened with
+    const unsaved = useStore(form.store, (state) => !state.isDefaultValue)
+    const { setUnsaved } = dialog
+    useEffect(() => setUnsaved(unsaved), [unsaved, setUnsaved])
+
     return (
         <form.AppForm>
             <form.Subscribe selector={(state) => state.isSubmitting}>
@@ -398,7 +404,7 @@ function KnowledgeFormBody({ instanceId, item, bucket, dialog }: KnowledgeFormBo
                         <FormDialogFooter
                             error={error}
                             submitLabel={item ? 'Save' : 'Add'}
-                            onCancel={dialog.close}
+                            onCancel={dialog.cancel}
                         />
                     </DialogForm>
                 )}
