@@ -45,6 +45,39 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RecordNode"
+              },
+              "examples": {
+                "knowledgeItem": {
+                  "summary": "Knowledge item on an assembly instance",
+                  "description": "``appliesToInstance`` holds the id of an assembly instance (tree node). Knowledge about the whole machine goes on the root instance.",
+                  "value": {
+                    "@type": "KnowledgeItem",
+                    "itemType": "lesson learned",
+                    "properties": {
+                      "statement": "Chamfer the nest so parts slide in without jamming."
+                    },
+                    "appliesToInstance": "3f2a9c1e5b7d4e8f9a0b1c2d3e4f5a6b"
+                  }
+                },
+                "knowledgeItemAllFields": {
+                  "summary": "Knowledge item with every field",
+                  "description": "All ``KnowledgeProperties`` fields, plus ``itemType`` and ``reference``.",
+                  "value": {
+                    "@type": "KnowledgeItem",
+                    "itemType": "requirement",
+                    "reference": "DIN EN ISO 13849",
+                    "properties": {
+                      "name": "Cycle time of system",
+                      "statement": "The cell processes one part in 45 s.",
+                      "reasoning": "The customer's line runs at 80 parts per hour.",
+                      "condition": "Parts up to 200 x 150 x 80 mm.",
+                      "consequence": "A slower cell becomes the bottleneck of the line.",
+                      "recommendation": "Keep the chisel path under 30 s.",
+                      "confidence": "established practice"
+                    },
+                    "appliesToInstance": "3f2a9c1e5b7d4e8f9a0b1c2d3e4f5a6b"
+                  }
+                }
               }
             }
           }
@@ -226,6 +259,39 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RecordNode"
+              },
+              "examples": {
+                "knowledgeItem": {
+                  "summary": "Knowledge item on an assembly instance",
+                  "description": "``appliesToInstance`` holds the id of an assembly instance (tree node). Knowledge about the whole machine goes on the root instance.",
+                  "value": {
+                    "@type": "KnowledgeItem",
+                    "itemType": "lesson learned",
+                    "properties": {
+                      "statement": "Chamfer the nest so parts slide in without jamming."
+                    },
+                    "appliesToInstance": "3f2a9c1e5b7d4e8f9a0b1c2d3e4f5a6b"
+                  }
+                },
+                "knowledgeItemAllFields": {
+                  "summary": "Knowledge item with every field",
+                  "description": "All ``KnowledgeProperties`` fields, plus ``itemType`` and ``reference``.",
+                  "value": {
+                    "@type": "KnowledgeItem",
+                    "itemType": "requirement",
+                    "reference": "DIN EN ISO 13849",
+                    "properties": {
+                      "name": "Cycle time of system",
+                      "statement": "The cell processes one part in 45 s.",
+                      "reasoning": "The customer's line runs at 80 parts per hour.",
+                      "condition": "Parts up to 200 x 150 x 80 mm.",
+                      "consequence": "A slower cell becomes the bottleneck of the line.",
+                      "recommendation": "Keep the chisel path under 30 s.",
+                      "confidence": "established practice"
+                    },
+                    "appliesToInstance": "3f2a9c1e5b7d4e8f9a0b1c2d3e4f5a6b"
+                  }
+                }
               }
             }
           }
@@ -317,6 +383,17 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RecordChanges"
+              },
+              "examples": {
+                "knowledgeItem": {
+                  "summary": "Change a knowledge item",
+                  "description": "Nested ``properties`` merge key by key; ``null`` removes a value. Send the version in ``If-Match: \"<version>\"``.",
+                  "value": {
+                    "properties": {
+                      "statement": "Chamfer the nest by 0.5 mm."
+                    }
+                  }
+                }
               }
             }
           }

@@ -13,6 +13,7 @@ from fastapi import (
     Response,
     status,
 )
+from fastapi.openapi.models import Example
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.router_builder import ApiRouterBuilder
@@ -93,6 +94,63 @@ PRECONDITION_FAILED: dict[int | str, dict[str, Any]] = {
     412: {"model": Problem, "description": RESPONSE_DETAIL_412},
 }
 
+EXAMPLE_INSTANCE_ID: str = "3f2a9c1e5b7d4e8f9a0b1c2d3e4f5a6b"
+
+# shown in the API docs on the request body of POST and PUT
+RECORD_EXAMPLES: dict[str, Example] = {
+    "knowledgeItem": Example(
+        summary="Knowledge item on an assembly instance",
+        description=(
+            "``appliesToInstance`` holds the id of an assembly instance (tree node). "
+            "Knowledge about the whole machine goes on the root instance."
+        ),
+        value={
+            "@type": "KnowledgeItem",
+            "itemType": "lesson learned",
+            "properties": {
+                "statement": "Chamfer the nest so parts slide in without jamming."
+            },
+            "appliesToInstance": EXAMPLE_INSTANCE_ID,
+        },
+    ),
+    "knowledgeItemAllFields": Example(
+        summary="Knowledge item with every field",
+        description="All ``KnowledgeProperties`` fields, plus ``itemType`` and ``reference``.",
+        value={
+            "@type": "KnowledgeItem",
+            "itemType": "requirement",
+            "reference": "DIN EN ISO 13849",
+            "properties": {
+                "name": "Cycle time of system",
+                "statement": "The cell processes one part in 45 s.",
+                "reasoning": "The customer's line runs at 80 parts per hour.",
+                "condition": "Parts up to 200 x 150 x 80 mm.",
+                "consequence": "A slower cell becomes the bottleneck of the line.",
+                "recommendation": "Keep the chisel path under 30 s.",
+                "confidence": "established practice",
+            },
+            "appliesToInstance": EXAMPLE_INSTANCE_ID,
+        },
+    ),
+}
+
+# shown in the API docs on the request body of PATCH
+CHANGE_EXAMPLES: dict[str, Example] = {
+    "knowledgeItem": Example(
+        summary="Change a knowledge item",
+        description=(
+            "Nested ``properties`` merge key by key; ``null`` removes a value. "
+            'Send the version in ``If-Match: "<version>"``.'
+        ),
+        value={
+            "properties": {
+                "statement": "Chamfer the nest by 0.5 mm.",
+                "condition": None,
+            }
+        },
+    ),
+}
+
 
 v1_records_router: APIRouter = (
     ApiRouterBuilder().version("v1").add_tags(["records"]).build()
@@ -153,7 +211,7 @@ RecordId = Annotated[
     },
 )
 async def post_record(
-    node: Annotated[RecordNode, Body()],
+    node: Annotated[RecordNode, Body(openapi_examples=RECORD_EXAMPLES)],
     catalog: Catalog,
     session: Session,
     response: Response,
@@ -183,7 +241,7 @@ async def post_record(
 )
 async def put_record(
     record_id: RecordId,
-    node: Annotated[RecordNode, Body()],
+    node: Annotated[RecordNode, Body(openapi_examples=RECORD_EXAMPLES)],
     service: Service,
     catalog: Catalog,
     session: Session,
@@ -218,7 +276,7 @@ async def put_record(
 )
 async def patch_record(
     record_id: RecordId,
-    changes: Annotated[RecordChanges, Body()],
+    changes: Annotated[RecordChanges, Body(openapi_examples=CHANGE_EXAMPLES)],
     catalog: Catalog,
     session: Session,
     expected_versions: ExpectedVersions,
@@ -256,7 +314,11 @@ async def get_records(
         ),
     ] = None,
 ) -> Records | list[RecordView]:
-    """All validated records by id. WARNING: reads EVERY record."""
+    """All validated records by id. WARNING: reads EVERY record.
+
+    An element's knowledge items are listed with ``cls=KnowledgeItem&parentId=<instanceId>``,
+    the root instance standing for the whole machine.
+    """
     found: list[Record] = await catalog.get_records(session, cls, parent_id)
     if not include:
         return Records([to_node(rec) for rec in found])
