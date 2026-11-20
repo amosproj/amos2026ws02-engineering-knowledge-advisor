@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from services import Json, JsonObject, SearchMode
+from services import JsonObject, JsonValue, SearchMode
 from services.ograg.ontology.description import ClassLabel
 from services.ograg.ontology.names import (
     CLASS,
@@ -105,13 +105,13 @@ def read_document(path: str | Path) -> JsonObject:
         json.JSONDecodeError: file is not JSON.
         OntologyError: file holds no JSON object.
     """
-    document: Json = json.loads(Path(path).read_text("utf-8"))
+    document: JsonValue = json.loads(Path(path).read_text("utf-8"))
     if not isinstance(document, dict):
         raise OntologyError(ERROR_DOCUMENT_NOT_OBJECT)
     return document
 
 
-def parse_document(document: Mapping[str, Json]) -> Declarations:
+def parse_document(document: Mapping[str, JsonValue]) -> Declarations:
     """Returns the checked declarations of ``document``, a parsed JSON-LD ontology.
 
     Raises:
@@ -124,19 +124,19 @@ def parse_document(document: Mapping[str, Json]) -> Declarations:
     return declared
 
 
-def get_version(document: Mapping[str, Json]) -> str:
+def get_version(document: Mapping[str, JsonValue]) -> str:
     """Returns content hash of ``document``. Equal documents have equal versions."""
     data: bytes = json.dumps(document, sort_keys=True).encode()
     return hashlib.sha256(data).hexdigest()[:VERSION_LENGTH]
 
 
-def _get_graph_items(document: Mapping[str, Json]) -> list[JsonObject]:
+def _get_graph_items(document: Mapping[str, JsonValue]) -> list[JsonObject]:
     """Returns items of ontology's ``@graph``.
 
     Raises:
         OntologyError: ``@graph`` is missing, or not a list of objects.
     """
-    graph: Json = document.get(JSONLD_GRAPH)
+    graph: JsonValue = document.get(JSONLD_GRAPH)
     if not isinstance(graph, list):
         raise OntologyError(ERROR_GRAPH_NOT_OBJECTS)
     items: list[JsonObject] = [item for item in graph if isinstance(item, dict)]
@@ -145,7 +145,7 @@ def _get_graph_items(document: Mapping[str, Json]) -> list[JsonObject]:
     return items
 
 
-def _get_texts(value: Json) -> list[str] | None:
+def _get_texts(value: JsonValue) -> list[str] | None:
     """Returns ``value`` if it is a list of strings, else ``None``."""
     if not isinstance(value, list):
         return None
@@ -153,7 +153,7 @@ def _get_texts(value: Json) -> list[str] | None:
     return strings if len(strings) == len(value) else None
 
 
-def _get_required_name(item: Mapping[str, Json], key: str, missing: str) -> str:
+def _get_required_name(item: Mapping[str, JsonValue], key: str, missing: str) -> str:
     """Returns local name of ``item[key]``.
 
     Args:
@@ -169,7 +169,7 @@ def _get_required_name(item: Mapping[str, Json], key: str, missing: str) -> str:
     return get_local_name(str(item[key]))
 
 
-def _get_domains(name: str, item: Mapping[str, Json]) -> list[str]:
+def _get_domains(name: str, item: Mapping[str, JsonValue]) -> list[str]:
     """Returns the local names of the classes in ``item``'s domain: one class or a list of classes.
 
     Raises:
@@ -177,7 +177,7 @@ def _get_domains(name: str, item: Mapping[str, Json]) -> list[str]:
     """
     if DOMAIN not in item:
         raise OntologyError(ERROR_PROPERTY_WITHOUT_KEY.format(name=name, key=DOMAIN))
-    domain: Json = item[DOMAIN]
+    domain: JsonValue = item[DOMAIN]
     names: list[str] | None = (
         [domain] if isinstance(domain, str) else _get_texts(domain)
     )
@@ -186,7 +186,7 @@ def _get_domains(name: str, item: Mapping[str, Json]) -> list[str]:
     return [get_local_name(cls) for cls in names]
 
 
-def _get_label(item: Mapping[str, Json], name: str, key: str) -> str:
+def _get_label(item: Mapping[str, JsonValue], name: str, key: str) -> str:
     """Returns the text ``item[key]``, or ``""`` if ``item`` has no ``key``.
 
     Args:
@@ -197,7 +197,7 @@ def _get_label(item: Mapping[str, Json], name: str, key: str) -> str:
     Raises:
         OntologyError: ``item[key]`` is not a text.
     """
-    value: Json = item.get(key, "")
+    value: JsonValue = item.get(key, "")
     if not isinstance(value, str):
         raise OntologyError(
             ERROR_LABEL_NOT_TEXT.format(name=name, key=key, found=value)
@@ -258,7 +258,7 @@ class Declarations:
     def guideline_classes(self) -> list[str]:
         return self.flags[OG_GUIDELINE]
 
-    def read(self, item: Mapping[str, Json]) -> None:
+    def read(self, item: Mapping[str, JsonValue]) -> None:
         """Parses ``item``, one class or property item of the ontology ``@graph``.
 
         Raises:
@@ -280,7 +280,7 @@ class Declarations:
         elif kind == PROPERTY:
             self._parse_property(name, item)
 
-    def _parse_class(self, name: str, item: Mapping[str, Json]) -> None:
+    def _parse_class(self, name: str, item: Mapping[str, JsonValue]) -> None:
         self.classes.add(name)
         self.class_labels[name] = ClassLabel(
             display_name=_get_label(item, name, DISPLAY_NAME),
@@ -294,7 +294,9 @@ class Declarations:
                 name, item[OG_GUIDELINE_WHEN]
             )
 
-    def _parse_guideline_when(self, cls: str, conditions: Json) -> dict[str, list[str]]:
+    def _parse_guideline_when(
+        self, cls: str, conditions: JsonValue
+    ) -> dict[str, list[str]]:
         if not isinstance(conditions, dict):
             raise OntologyError(
                 ERROR_GUIDELINE_WHEN_NOT_OBJECT.format(cls=cls, found=conditions)
@@ -311,17 +313,17 @@ class Declarations:
             parsed[prop_name] = texts
         return parsed
 
-    def _parse_property(self, name: str, item: Mapping[str, Json]) -> None:
+    def _parse_property(self, name: str, item: Mapping[str, JsonValue]) -> None:
         """Adds the property ``name`` to each class of ``item``'s domain."""
         for domain in _get_domains(name, item):
             self._parse_property_of(domain, name, item)
 
     def _parse_property_of(
-        self, domain: str, name: str, item: Mapping[str, Json]
+        self, domain: str, name: str, item: Mapping[str, JsonValue]
     ) -> None:
         missing: str = ERROR_PROPERTY_WITHOUT_KEY
-        search: Json = item.get(OG_SEARCH)
-        allowed: Json = item.get(ENUM) or item.get(OG_ALLOWED_VALUES) or []
+        search: JsonValue = item.get(OG_SEARCH)
+        allowed: JsonValue = item.get(ENUM) or item.get(OG_ALLOWED_VALUES) or []
         if not isinstance(allowed, list):
             raise OntologyError(
                 ERROR_ALLOWED_VALUES_NOT_LIST.format(
@@ -352,7 +354,7 @@ class Declarations:
         self.properties[(prop.domain, prop.name)] = prop
 
     def _parse_edge_type(
-        self, domain: str, name: str, item: Mapping[str, Json]
+        self, domain: str, name: str, item: Mapping[str, JsonValue]
     ) -> EdgeType | None:
         """
         Raises:
@@ -362,7 +364,7 @@ class Declarations:
             raise OntologyError(
                 ERROR_PARENT_LINK_REPLACED.format(domain=domain, name=name)
             )
-        found: Json = item.get(OG_EDGE_TYPE)
+        found: JsonValue = item.get(OG_EDGE_TYPE)
         if found is None:
             return None
         if not isinstance(found, str) or found not in EDGE_TYPE_NAMES:
@@ -377,13 +379,13 @@ class Declarations:
         return EdgeType(found)
 
     def _parse_max_per_parent(
-        self, domain: str, name: str, item: Mapping[str, Json]
+        self, domain: str, name: str, item: Mapping[str, JsonValue]
     ) -> int | None:
         """
         Raises:
             OntologyError: ``og:maxPerParent`` is not a positive integer.
         """
-        found: Json = item.get(OG_MAX_PER_PARENT)
+        found: JsonValue = item.get(OG_MAX_PER_PARENT)
         if found is None:
             return None
         if isinstance(found, bool) or not isinstance(found, int) or found < 1:
@@ -395,7 +397,7 @@ class Declarations:
         return found
 
     def _parse_search_modes(
-        self, domain: str, name: str, modes: Json
+        self, domain: str, name: str, modes: JsonValue
     ) -> tuple[SearchMode, ...]:
         texts: list[str] | None = _get_texts(modes)
         if texts is None:

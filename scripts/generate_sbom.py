@@ -84,6 +84,9 @@ LICENSE_OVERRIDES = {
     "python-dateutil": "Apache-2.0 AND BSD-3-Clause",
     # Ships LICENSE-APACHE and LICENSE-MIT, but the License field names only MIT.
     "uvloop": "Apache-2.0 OR MIT",
+    "cycler": "BSD-3-Clause",
+    "kiwisolver": "BSD-3-Clause",
+    "vtk": "BSD-3-Clause",
 }
 
 SPDX_ID = re.compile(r"^[A-Za-z0-9.+-]+$")

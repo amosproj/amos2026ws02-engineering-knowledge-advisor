@@ -18,7 +18,7 @@ from collections.abc import (
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
-from services import Json, JsonObject, Record, Tx
+from services import JsonObject, JsonValue, Record, Tx
 from services.cad.model import CadModel
 from services.cad.to_records import CadRecords, to_records
 from services.catalog import records
@@ -320,7 +320,7 @@ class CatalogService:
         return await self._walk(session, record_id, depth, get_parents_by_child_id)
 
     async def create_record(
-        self, session: Tx, node: Mapping[str, Json]
+        self, session: Tx, node: Mapping[str, JsonValue]
     ) -> CreatedRecord:
         """Stores ``node`` as a new record with a generated id. A file record starts without upload.
 

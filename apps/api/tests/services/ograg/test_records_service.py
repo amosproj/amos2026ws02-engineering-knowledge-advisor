@@ -5,7 +5,7 @@ import pytest
 from fakes import MemoryRecordStore, build_ontology_with, load_ontology, make_service
 from helpers import assert_mentions
 
-from services import ConflictError, Json, Record, Tx, UnstorableValueError
+from services import ConflictError, JsonValue, Record, Tx, UnstorableValueError
 from services.ograg.service import (
     DeleteResult,
     OgRagService,
@@ -53,7 +53,7 @@ RELATES_TO: dict[str, Any] = {
 }
 
 
-def instance(name: str, parent_ids: Json) -> dict[str, Any]:
+def instance(name: str, parent_ids: JsonValue) -> dict[str, Any]:
     return {
         "@type": "AssemblyInstance",
         "name": name,
@@ -305,7 +305,7 @@ async def test_a_cad_file_moves_only_to_a_machine_without_one():
     ids=["through the tree", "itself", "one of several parents"],
 )
 async def test_an_instance_cannot_become_its_own_ancestor(
-    record_id: str, parent_ids: list[Json]
+    record_id: str, parent_ids: list[JsonValue]
 ):
     service: OgRagService = await create_loaded_service()
     await service.upsert_record("AI-2", instance("Gripper", INSTANCE_ID))

@@ -1,13 +1,13 @@
 """Types for parsed JSON objects. Used for nodes and ontology items.
-Parameters a function only reads take ``Mapping[str, Json]`` and not ``dict[str, Json]``.
+Parameters a function only reads take ``Mapping[str, JsonValue]`` and not ``dict[str, JsonValue]``.
 """
 
 from typing import Annotated
 
 from pydantic import Field
 
-type Json = Annotated[
-    str | int | float | bool | None | list[Json] | dict[str, Json],
+type JsonValue = Annotated[
+    str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue],
     Field(description="Any JSON value."),
 ]
-type JsonObject = Annotated[dict[str, Json], Field(description="JSON object.")]
+type JsonObject = Annotated[dict[str, JsonValue], Field(description="JSON object.")]

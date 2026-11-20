@@ -4,7 +4,7 @@ import pytest
 from fakes import load_ontology
 from helpers import assert_mentions
 
-from services import Json, Link
+from services import JsonValue, Link
 from services.ograg.ontology import Ontology
 
 GROUP_ID: str = "AG-1"
@@ -15,7 +15,7 @@ GROUP_NAME: str = "Gripper"
 UNSTORABLE_NAME: str = "nul \x00 byte"
 
 
-def validate_payload(payload: Json) -> tuple[dict[str, Any], list[str]]:
+def validate_payload(payload: JsonValue) -> tuple[dict[str, Any], list[str]]:
     return load_ontology().validate_node(
         {
             "@type": "AssemblyGroup",
@@ -80,7 +80,7 @@ def test_allowed_values_are_matched_ignoring_case_and_others_dropped():
         }
     )
     # the ontology's spelling, also in a nested node
-    nested: Json = graph["properties"]
+    nested: JsonValue = graph["properties"]
     assert isinstance(nested, dict) and nested["confidence"] == "rule of thumb"
     assert "itemType" not in graph
     assert len(warnings) == 1
@@ -89,12 +89,20 @@ def test_allowed_values_are_matched_ignoring_case_and_others_dropped():
 
 @pytest.mark.parametrize(
     ("payload", "stored"),
-    [(12, 12), ("12", 12), (12.5, 12.5), ("0.5", 0.5), (-3, -3), ("1e3", 1000.0)],
+    [
+        (12, 12),
+        ("12", 12),
+        (" 12 ", 12),
+        (12.5, 12.5),
+        ("0.5", 0.5),
+        (-3, -3),
+        ("1e3", 1000.0),
+    ],
 )
-def test_numbers_are_stored_as_numbers(payload: Json, stored: float):
+def test_numbers_are_stored_as_numbers(payload: JsonValue, stored: float):
     graph, warnings = validate_payload(payload)
     assert warnings == []
-    kept: Json = graph["properties"]["sizeX"]
+    kept: JsonValue = graph["properties"]["sizeX"]
     assert kept == stored and type(kept) is type(stored)
 
 
@@ -103,8 +111,28 @@ def test_text_that_looks_like_a_number_stays_text():
     assert graph["name"] == "12"
 
 
+def test_strip_text():
+    graph, warnings = load_ontology().validate_node(
+        {"@type": "Machine", "name": f" {MACHINE_NAME}\n"}
+    )
+    assert (graph["name"], warnings) == (MACHINE_NAME, [])
+
+
+@pytest.mark.parametrize("blank", ["  ", "\n\t", ["", " "]])
+def test_drop_blank_text(blank: JsonValue):
+    graph, warnings = load_ontology().validate_node(
+        {
+            "@type": "KnowledgeItem",
+            "itemType": "requirement",
+            "properties": {"name": blank},
+        }
+    )
+    assert "properties" not in graph  # nothing else was left in it
+    assert warnings == []
+
+
 @pytest.mark.parametrize("payload", ["12 kg", "12,5", "nan", "inf", True])
-def test_a_number_property_drops_what_is_no_number(payload: Json):
+def test_a_number_property_drops_what_is_no_number(payload: JsonValue):
     graph, warnings = validate_payload(payload)
     assert "properties" not in graph  # nothing else was left in it
     assert len(warnings) == 1
