@@ -118,9 +118,7 @@ def test_strip_text():
     assert (graph["name"], warnings) == (MACHINE_NAME, [])
 
 
-@pytest.mark.parametrize(
-    "blank", ["  ", "\n\t", ["", " "]]
-)
+@pytest.mark.parametrize("blank", ["  ", "\n\t", ["", " "]])
 def test_drop_blank_text(blank: JsonValue):
     graph, warnings = load_ontology().validate_node(
         {
