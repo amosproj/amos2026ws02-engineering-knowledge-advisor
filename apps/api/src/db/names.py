@@ -5,11 +5,20 @@ class TableName(StrEnum):
     RECORDS = "records"
     LINKS = "record_links"
     UPLOADS = "uploads"
+    VECTORS = "ograg_vectors"
+    HYPERNODES = "ograg_hypernodes"
+    FACTS = "ograg_facts"
+    FACT_NODES = "ograg_fact_nodes"
 
 
 class CommonColumn(StrEnum):
     ID = "id"
     RECORD_ID = "record_id"
+    NODE_ID = "node_id"
+    ANCHOR_ID = "anchor_id"
+    LANE = "lane"
+    VALUE = "value"
+    POSITION = "position"
 
 
 class SystemColumn(StrEnum):
@@ -29,9 +38,30 @@ class RecordColumn(StrEnum):
 
 
 class LinkColumn(StrEnum):
-    POSITION = "position"
     PROPERTY_NAME = "property_name"
     TARGET_ID = "target_id"
+
+
+class VectorColumn(StrEnum):
+    KIND = "kind"
+    MODEL = "model"
+    EMBEDDING = "embedding"
+
+
+class HypernodeColumn(StrEnum):
+    KEY = "key"
+    KEY_VID = "key_vid"
+    VALUE_VID = "value_vid"
+    LEXICAL = "lexical"
+
+
+class FactColumn(StrEnum):
+    SORT_KEY = "sort_key"
+    TEXT = "text"
+
+
+class FactNodeColumn(StrEnum):
+    FACT_ID = "fact_id"
 
 
 class UploadColumn(StrEnum):

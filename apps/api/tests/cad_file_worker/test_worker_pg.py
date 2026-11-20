@@ -14,7 +14,8 @@ from pathlib import Path
 
 import pytest
 from fakes import load_ontology
-from sqlalchemy import MetaData, text
+from helpers import recreate_tables
+from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -27,7 +28,8 @@ from cad_file_worker import cleanup, processing
 from cad_file_worker.cleanup import delete_orphan_objects, expire_abandoned_uploads
 from cad_file_worker.conversion import Conversion
 from cad_file_worker.processing import process_next_cad_upload
-from db import TableName, Tables, define_tables
+from config.settings import DEFAULT_EMBEDDING_DIMENSIONS
+from db import Tables, define_tables
 from logger import logger
 from services import Record
 from services.catalog import CatalogService, PresignedForm, TreeNode
@@ -208,12 +210,10 @@ def run_async(check: Callable[[], Coroutine[object, object, None]]) -> None:
 async def open_worker() -> AsyncGenerator[Worker]:
     """Fresh tables with a machine."""
     engine: AsyncEngine = create_async_engine(URL)
-    tables: Tables = define_tables(MetaData())
+    tables: Tables = define_tables(DEFAULT_EMBEDDING_DIMENSIONS, MetaData())
     try:
         async with engine.begin() as conn:
-            for name in TableName:
-                await conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
-            await conn.run_sync(tables.metadata.create_all)
+            await recreate_tables(conn, tables)
         ontology: Ontology = load_ontology()
         ograg = OgRagService(
             ontology,

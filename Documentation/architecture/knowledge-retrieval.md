@@ -46,11 +46,16 @@
 
 - [arXiv:2412.15235](https://arxiv.org/abs/2412.15235), [GitHub: `microsoft/ograg2`](https://github.com/microsoft/ograg2)
 - unit of retrieval is an ontology-shaped fact
-- facts carry identity information of what the fact is about
+- facts also carry identity information of what the fact is about
 - set cover chooses facts that together cover all the matched keys and values of the request
 - **Additions to paper:**
-  * deterministic refusal to answer if nothing passes a similarity threshold
-  * LLM **MUST** cite a fact, or declare request query uncovered, otherwise refusal
+  * **Gate 1:**
+    - before LLM inference
+    - deterministic refusal to answer if nothing passes a similarity threshold
+  * **Gate 2:**
+    - after LLM inference
+    - answer must cite at least one given fact
+    - probabilistic refusal if LLM declares the request not covered, or cites no given fact
 
 ### CiteGuard-RAG
 
