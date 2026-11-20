@@ -9,18 +9,18 @@ import pytest
 from fakes import MemoryStorage, load_ontology
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from helpers import assert_mentions
+from helpers import assert_mentions, recreate_tables
 from httpx2 import Response
 from record_store_checks import CHECK_IDS, CHECKS, IDENTITY_PROPERTY_NAMES, Check
 from sqlalchemy import MetaData, text
 from sqlalchemy.ext.asyncio import (
-    AsyncConnection,
     AsyncEngine,
     AsyncSession,
     create_async_engine,
 )
 
 from api.router_records import v1_records_router
+from config.settings import DEFAULT_EMBEDDING_DIMENSIONS
 from db import TableName, Tables, define_tables
 from db.session import create_sessionmaker
 from handler.exception_handler import register
@@ -37,6 +37,7 @@ from services.ograg.service import (
 )
 from services.postgres.record_store import PgRecordStore
 from services.postgres.upload_store import PgUploadStore
+from services.vectors import VectorKind
 
 URL: str = os.environ.get("API_TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif(
@@ -81,17 +82,10 @@ def run_async(check: Callable[[], Coroutine[object, object, None]]) -> None:
     asyncio.run(check(), loop_factory=asyncio.SelectorEventLoop)
 
 
-async def drop_tables(conn: AsyncConnection) -> None:
-    """Drops the tables of ``TableName``."""
-    for name in TableName:
-        await conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
-
-
 async def create_fresh_tables(engine: AsyncEngine) -> Tables:
-    tables: Tables = define_tables(MetaData())
+    tables: Tables = define_tables(DEFAULT_EMBEDDING_DIMENSIONS, MetaData())
     async with engine.begin() as conn:
-        await drop_tables(conn)
-        await conn.run_sync(tables.metadata.create_all)
+        await recreate_tables(conn, tables)
     return tables
 
 
@@ -105,7 +99,7 @@ def create_service_on(engine: AsyncEngine, tables: Tables) -> OgRagService:
 
 @pytest.mark.parametrize(
     "member",
-    [*Lane, *SearchMode],
+    [*Lane, *SearchMode, *VectorKind],
     ids=lambda member: f"{type(member).__name__}.{member.name}",
 )
 def test_enum_members_are_written_as_their_value(member: StrEnum):

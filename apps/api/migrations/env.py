@@ -10,9 +10,9 @@ https://alembic.sqlalchemy.org/en/latest/autogenerate.html
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import Engine, create_engine, pool
+from sqlalchemy import Engine, MetaData, create_engine, pool
 
-from config.settings import get_settings
+from config.settings import Settings, get_settings
 from db import ModelBase, get_tables
 from db.session import get_database_url
 
@@ -20,9 +20,11 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-get_tables()  # registers tables on the metadata
-target_metadata = ModelBase.metadata
-URL = config.get_main_option("sqlalchemy.url") or get_database_url(get_settings())
+target_metadata: MetaData = ModelBase.metadata
+
+settings: Settings = get_settings()
+get_tables(settings.embedding_dimensions)  # registers tables on the metadata
+URL: str = config.get_main_option("sqlalchemy.url") or get_database_url(settings)
 
 
 def run_migrations_offline() -> None:
