@@ -260,6 +260,9 @@ function MachineView({ machineId }: { machineId: string }) {
                 setIsolatedId(node.id)
                 frame(node)
                 break
+            case 'exitIsolation':
+                setIsolatedId(undefined)
+                break
             case 'zoom':
                 frame(node)
                 break
