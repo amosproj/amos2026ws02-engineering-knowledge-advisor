@@ -1,4 +1,4 @@
-import { featureEdges, mergeEdges } from '../models/sketch-edges-model'
+import { featureEdges, mergeEdges } from './sketch-edges-model'
 
 export type GeometryItem = { id: number; positions: Float32Array; index: Uint32Array | null }
 
