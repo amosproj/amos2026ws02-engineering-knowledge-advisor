@@ -23,7 +23,7 @@ from sqlalchemy.sql.dml import ReturningDelete
 
 from db.names import CommonColumn, LinkColumn, RecordColumn, SystemColumn
 from db.tables import Tables
-from services import Json, Link, Record, RecordLinkedError, RecordStore
+from services import JsonValue, Link, Record, RecordLinkedError, RecordStore
 from services.postgres.shared import Conditions, Statements
 from services.postgres.transaction import PgTx, get_batches, get_transaction
 from services.records import ERROR_STILL_LINKED
@@ -272,8 +272,8 @@ class PgRecordStore(RecordStore):
         """Returns the id of ``record`` and its identity values, items of lists included, case folded. ``find_record_ids`` looks them up."""
         values: list[str] = [record.id.casefold()]
         for prop_name in self.identity_property_names.get(record.cls, []):
-            value: Json = record.graph.get(prop_name)
-            items: list[Json] = value if isinstance(value, list) else [value]
+            value: JsonValue = record.graph.get(prop_name)
+            items: list[JsonValue] = value if isinstance(value, list) else [value]
             values += [str(item).casefold() for item in items if item is not None]
         return list(dict.fromkeys(values))
 
