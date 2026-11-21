@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight01Icon, MoreHorizontalIcon } from '@hugeicons/core-free-icons'
+import {
+    ArrowRight01Icon,
+    MoreHorizontalIcon,
+    ViewIcon,
+    ViewOffSlashIcon,
+} from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { cn } from 'cn'
 
@@ -15,14 +20,14 @@ import {
 import {
     ancestorIds,
     isWithin,
-    occurrencesOf,
     visibleRows,
     type AssemblyIndex,
     type AssemblyNode,
     type TreeRow,
 } from '../models/assembly-tree-model'
 
-export type TreeAction = 'hide' | 'show' | 'showAll' | 'isolate' | 'zoom' | 'selectParent'
+export type TreeAction =
+    'hide' | 'show' | 'showAll' | 'isolate' | 'exitIsolation' | 'zoom' | 'selectParent'
 
 type HiddenState = 'self' | 'inherited' | undefined
 
@@ -30,11 +35,8 @@ type AssemblyTreeProps = {
     tree: AssemblyIndex
     selectedId: string | undefined
     revealRequest: number
-    /** False while the tree is collapsed or behind the details. */
     visible: boolean
-    /** Instances hidden on their own, their descendants are hidden with them. */
     hidden: ReadonlySet<string>
-    /** The rows outside the isolated instance fade out. */
     isolatedId: string | undefined
     onSelect: (node: AssemblyNode) => void
     onAction: (node: AssemblyNode, action: TreeAction) => void
@@ -50,12 +52,13 @@ export function AssemblyTree({
     onSelect,
     onAction,
 }: AssemblyTreeProps) {
-    const { root, parentIds } = tree
+    const { root, parentIds, inModel } = tree
     const treeRef = useRef<HTMLDivElement>(null)
     const [expandedIds, setExpandedIds] = useState(() => new Set([root.id]))
     const [focusedId, setFocusedId] = useState(root.id)
     const [revealed, setRevealed] = useState(revealRequest)
     const [menuId, setMenuId] = useState<string>()
+
     // Row focused when the menu closes, the parent after "Select parent"
     const menuFocusId = useRef<string>(undefined)
 
@@ -116,8 +119,20 @@ export function AssemblyTree({
             ? (treeRef.current?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`) ?? null)
             : null
 
+    // Rows come after their parent, so each one inherits the state computed for it
+    const hiddenStates = new Map<string, HiddenState>()
+    for (const { node, parentId } of rows) {
+        const inherited = parentId !== undefined && hiddenStates.get(parentId) !== undefined
+        hiddenStates.set(
+            node.id,
+            hidden.has(node.id) ? 'self' : inherited ? 'inherited' : undefined,
+        )
+    }
+
+    const toggleHidden = (node: AssemblyNode) =>
+        onAction(node, hiddenStates.get(node.id) ? 'show' : 'hide')
+
     const onKeyDown = (event: React.KeyboardEvent, index: number) => {
-        // Keys from the menu, rendered in a portal, bubble through the row too
         if (event.target !== event.currentTarget) return
         const { node, parentId } = rows[index]
         const expanded = expandedIds.has(node.id)
@@ -154,20 +169,16 @@ export function AssemblyTree({
                 if (!event.shiftKey) return
                 openMenu(node)
                 break
+            case 'h':
+            case 'H':
+                if (event.repeat || event.ctrlKey || event.altKey || event.metaKey) return
+                if (!inModel.has(node.id)) return
+                toggleHidden(node)
+                break
             default:
                 return
         }
         event.preventDefault()
-    }
-
-    // Rows come after their parent, so each one inherits the state computed for it
-    const hiddenStates = new Map<string, HiddenState>()
-    for (const { node, parentId } of rows) {
-        const inherited = parentId !== undefined && hiddenStates.get(parentId) !== undefined
-        hiddenStates.set(
-            node.id,
-            hidden.has(node.id) ? 'self' : inherited ? 'inherited' : undefined,
-        )
     }
 
     return (
@@ -180,20 +191,23 @@ export function AssemblyTree({
                 const isRoot = parentId === undefined
                 const isolatedOut =
                     isolatedId !== undefined && !isWithin(parentIds, node.id, isolatedId)
+                const nodeInModel = inModel.has(node.id)
                 return (
                     <div
                         key={node.id}
                         role="treeitem"
+                        aria-label={node.name}
                         data-id={node.id}
                         aria-level={level}
                         aria-posinset={position}
                         aria-setsize={setSize}
                         aria-expanded={hasChildren ? expanded : undefined}
                         aria-selected={selected}
-                        aria-keyshortcuts="Shift+F10"
+                        aria-keyshortcuts={nodeInModel ? 'Shift+F10 H' : 'Shift+F10'}
                         tabIndex={node.id === tabStopId ? 0 : -1}
                         className={cn(
-                            'group hover:bg-foreground/5 focus-visible:ring-ring flex h-7 cursor-pointer items-center gap-1 rounded-md pr-0.5 outline-none focus-visible:ring-2',
+                            'group hover:bg-foreground/5 focus-visible:ring-ring flex h-7 cursor-pointer items-center gap-1 pr-0.5 outline-none focus-visible:ring-2 focus-visible:ring-inset',
+                            index % 2 === 1 && 'bg-foreground/[0.03]',
                             selected && 'bg-foreground/10 hover:bg-foreground/10',
                             hiddenState && 'text-muted-foreground',
                             isolatedOut && 'opacity-40',
@@ -242,24 +256,50 @@ export function AssemblyTree({
                         >
                             {node.name}
                         </span>
-                        {hasChildren ? (
-                            <span className="text-muted-foreground shrink-0 tabular-nums">
-                                ({node.children.length})
-                            </span>
-                        ) : null}
-                        <RowMenu
-                            node={node}
-                            open={menuId === node.id}
-                            hiddenState={hiddenState}
-                            canShowAll={hidden.size > 0}
-                            isRoot={isRoot}
-                            onOpenChange={(open) => {
-                                if (open) openMenu(node)
-                                else setMenuId(undefined)
-                            }}
-                            onAction={(action) => runAction(node, action)}
-                            finalFocus={() => rowElement(menuFocusId.current)}
-                        />
+                        <div className="ml-auto flex shrink-0 items-center">
+                            {nodeInModel ? (
+                                <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    tabIndex={-1}
+                                    aria-label={`${hiddenState ? 'Show' : 'Hide'} ${node.name}`}
+                                    title={`${hiddenState ? 'Show' : 'Hide'} ${node.name}`}
+                                    className={cn(
+                                        hiddenState === undefined &&
+                                            'opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100',
+                                        hiddenState === 'inherited' &&
+                                            'opacity-50 hover:opacity-100',
+                                    )}
+                                    onClick={(event) => {
+                                        event.stopPropagation()
+                                        focusRow(rows[index])
+                                        toggleHidden(node)
+                                    }}
+                                >
+                                    <HugeiconsIcon
+                                        icon={hiddenState ? ViewOffSlashIcon : ViewIcon}
+                                        strokeWidth={2}
+                                    />
+                                </Button>
+                            ) : (
+                                <span className="size-6" />
+                            )}
+                            <RowMenu
+                                node={node}
+                                open={menuId === node.id}
+                                hiddenState={hiddenState}
+                                inModel={nodeInModel}
+                                isolated={node.id === isolatedId}
+                                canShowAll={hidden.size > 0}
+                                isRoot={isRoot}
+                                onOpenChange={(open) => {
+                                    if (open) openMenu(node)
+                                    else setMenuId(undefined)
+                                }}
+                                onAction={(action) => runAction(node, action)}
+                                finalFocus={() => rowElement(menuFocusId.current)}
+                            />
+                        </div>
                     </div>
                 )
             })}
@@ -271,6 +311,8 @@ type RowMenuProps = {
     node: AssemblyNode
     open: boolean
     hiddenState: HiddenState
+    inModel: boolean
+    isolated: boolean
     canShowAll: boolean
     isRoot: boolean
     onOpenChange: (open: boolean) => void
@@ -282,18 +324,22 @@ function RowMenu({
     node,
     open,
     hiddenState,
+    inModel,
+    isolated,
     canShowAll,
     isRoot,
     onOpenChange,
     onAction,
     finalFocus,
 }: RowMenuProps) {
-    const inModel = open && occurrencesOf(node).length > 0
     const items: { action: TreeAction; label: string; disabled?: boolean }[] = [
-        hiddenState
-            ? { action: 'show', label: 'Show' }
-            : { action: 'hide', label: 'Hide', disabled: !inModel },
-        { action: 'isolate', label: 'Isolate', disabled: !inModel || hiddenState !== undefined },
+        isolated
+            ? { action: 'exitIsolation', label: 'Exit isolation' }
+            : {
+                  action: 'isolate',
+                  label: 'Isolate',
+                  disabled: !inModel || hiddenState !== undefined,
+              },
         { action: 'zoom', label: 'Zoom to', disabled: !inModel || hiddenState !== undefined },
         { action: 'selectParent', label: 'Select parent', disabled: isRoot },
     ]
@@ -304,7 +350,7 @@ function RowMenu({
                 data-row-menu
                 tabIndex={-1}
                 aria-label={`Actions of ${node.name}`}
-                className="ml-auto opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 data-popup-open:opacity-100 pointer-coarse:opacity-100"
+                className="opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 data-popup-open:opacity-100 pointer-coarse:opacity-100"
                 render={<Button variant="ghost" size="icon-xs" />}
             >
                 <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} />
