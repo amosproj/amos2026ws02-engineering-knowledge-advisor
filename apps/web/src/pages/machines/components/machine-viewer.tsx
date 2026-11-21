@@ -13,10 +13,12 @@ import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
 import {
     Box3,
     Color,
+    MathUtils,
     Mesh,
     PerspectiveCamera,
     PMREMGenerator,
     Sphere,
+    Spherical,
     Texture,
     Vector3,
     type Material,
@@ -59,12 +61,21 @@ import {
 import type { NavigationSpeed } from '@pages/settings/models/settings-model'
 
 const { ACTION } = CameraControlsImpl
-const ACTIONS: Record<MouseAction, 0 | 1 | 2 | 16> = {
+// Panning and zooming shift the view on screen without moving the orbit target: the model
+// keeps rotating around its own center, or around the framed parts
+const ACTIONS: Record<MouseAction, 0 | 1 | 8 | 16> = {
     rotate: ACTION.ROTATE,
-    pan: ACTION.TRUCK,
+    pan: ACTION.OFFSET,
     zoom: ACTION.DOLLY,
     none: ACTION.NONE,
 }
+const DOLLY_ACTIONS =
+    ACTION.DOLLY |
+    ACTION.TOUCH_DOLLY |
+    ACTION.TOUCH_DOLLY_TRUCK |
+    ACTION.TOUCH_DOLLY_SCREEN_PAN |
+    ACTION.TOUCH_DOLLY_OFFSET |
+    ACTION.TOUCH_DOLLY_ROTATE
 const ISOMETRIC = new Vector3(1, 0.8, 1).normalize()
 const FOV = 45
 const SPEED_FACTORS: Record<NavigationSpeed, number> = { slow: 0.5, normal: 1, fast: 2 }
@@ -73,6 +84,8 @@ const HIGHLIGHT = new Color('#2563eb')
 const SKETCH_COLORS = { light: '#8f8f8f', dark: '#6e6e6e' }
 // Pointer travel in pixels beyond which a press is a camera drag, not a click
 const CLICK_TOLERANCE = 4
+// Trackpad pinch delta per wheel notch, as camera-controls reads it
+const PINCH_DELTA = /Mac/.test(navigator.userAgent) ? 10 : 30
 
 const loader = new GLTFLoader()
 
@@ -481,6 +494,138 @@ function Scene({
         }
     }, [get, dragged])
 
+    useEffect(() => {
+        const cameraControls = controls.current
+        if (!cameraControls) return
+        cameraControls.touches.two = ACTION.TOUCH_DOLLY_OFFSET
+        cameraControls.touches.three = ACTION.TOUCH_OFFSET
+    }, [])
+
+    useEffect(() => {
+        const cameraControls = controls.current
+        if (!cameraControls) return
+        const camera = get().camera
+        const target = new Vector3()
+        // Pan speed follows the distance to the target, which a large screen shift inflates
+        const fitPanSpeed = () => {
+            const distance = camera.position.distanceTo(cameraControls.getTarget(target, false))
+            cameraControls.truckSpeed =
+                distance > 0 ? (2 * speed * cameraControls.distance) / distance : 2 * speed
+        }
+        fitPanSpeed()
+        cameraControls.addEventListener('update', fitPanSpeed)
+        return () => cameraControls.removeEventListener('update', fitPanSpeed)
+    }, [get, speed])
+
+    useEffect(() => {
+        const cameraControls = controls.current
+        if (!cameraControls || !settings.zoomToCursor) return
+        const internals = cameraControls as unknown as { _isUserControllingOffset: boolean }
+        const camera = get().camera as PerspectiveCamera
+        const element = get().gl.domElement
+        const pointers = new Map<number, { x: number; y: number }>()
+        const spherical = new Spherical()
+        const offset = new Vector3()
+        const axis = new Vector3()
+        const targetRadius = () => cameraControls.getSpherical(spherical, true).radius
+        let press = { x: 0, y: 0 }
+        let cursor = { x: 0, y: 0 }
+        let wheeled = false
+        let radius = targetRadius()
+
+        // Keeps the point under the cursor in place while the distance to the target changes
+        const shiftView = (change: number, x: number, y: number) => {
+            const rect = element.getBoundingClientRect()
+            const center = camera.getWorldDirection(axis).add(camera.position).project(camera)
+            const screenX = ((x - rect.left) / rect.width) * 2 - 1 - center.x
+            const screenY = -((y - rect.top) / rect.height) * 2 + 1 - center.y
+            const halfHeight = Math.tan(MathUtils.degToRad(camera.getEffectiveFOV() / 2))
+            cameraControls.getFocalOffset(offset, true)
+            void cameraControls.setFocalOffset(
+                offset.x + screenX * halfHeight * camera.aspect * change,
+                offset.y - screenY * halfHeight * change,
+                offset.z,
+                true,
+            )
+        }
+        const followPointers = () => {
+            let x = 0
+            let y = 0
+            for (const point of pointers.values()) {
+                x += point.x / pointers.size
+                y += point.y / pointers.size
+            }
+            cursor = { x, y }
+        }
+        const onWheel = (event: WheelEvent) => {
+            cursor = { x: event.clientX, y: event.clientY }
+            wheeled = true
+            radius = targetRadius()
+            if (!event.ctrlKey) return
+            // camera-controls zooms the lens on a trackpad pinch: dolly instead, like the wheel
+            event.preventDefault()
+            event.stopImmediatePropagation()
+            const scale = Math.pow(0.95, (-event.deltaY / PINCH_DELTA) * cameraControls.dollySpeed)
+            void cameraControls.dollyTo(radius * scale, true)
+            shiftView(radius - targetRadius(), cursor.x, cursor.y)
+            radius = targetRadius()
+            invalidate()
+        }
+        const onDown = (event: PointerEvent) => {
+            pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+            press = { x: event.clientX, y: event.clientY }
+            wheeled = false
+            followPointers()
+        }
+        const onMove = (event: PointerEvent) => {
+            if (!pointers.has(event.pointerId)) return
+            pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+            wheeled = false
+            followPointers()
+        }
+        const onUp = (event: PointerEvent) => {
+            pointers.delete(event.pointerId)
+            followPointers()
+            radius = targetRadius()
+        }
+        const onControlStart = () => {
+            radius = targetRadius()
+            if ((cameraControls.currentAction & DOLLY_ACTIONS) === 0) return
+            // camera-controls stops the zoom where it is: stop the screen shift with it
+            cameraControls.getFocalOffset(offset, false)
+            void cameraControls.setFocalOffset(offset.x, offset.y, offset.z, false)
+        }
+        const onControl = () => {
+            const next = targetRadius()
+            const change = radius - next
+            radius = next
+            if (change === 0) return
+            const dragDolly = !wheeled && (cameraControls.currentAction & ACTION.DOLLY) !== 0
+            const { x, y } = dragDolly ? press : cursor
+            shiftView(change, x, y)
+            // Same damping as the user zoom, otherwise the point drifts during the animation
+            internals._isUserControllingOffset = true
+        }
+
+        // Capture phase runs before camera-controls handles the event
+        element.addEventListener('wheel', onWheel, { capture: true, passive: false })
+        element.addEventListener('pointerdown', onDown, { capture: true })
+        window.addEventListener('pointermove', onMove, { capture: true })
+        window.addEventListener('pointerup', onUp, { capture: true })
+        window.addEventListener('pointercancel', onUp, { capture: true })
+        cameraControls.addEventListener('controlstart', onControlStart)
+        cameraControls.addEventListener('control', onControl)
+        return () => {
+            element.removeEventListener('wheel', onWheel, { capture: true })
+            element.removeEventListener('pointerdown', onDown, { capture: true })
+            window.removeEventListener('pointermove', onMove, { capture: true })
+            window.removeEventListener('pointerup', onUp, { capture: true })
+            window.removeEventListener('pointercancel', onUp, { capture: true })
+            cameraControls.removeEventListener('controlstart', onControlStart)
+            cameraControls.removeEventListener('control', onControl)
+        }
+    }, [get, invalidate, settings.zoomToCursor])
+
     const shown = useMemo(
         () => shownMeshes(model, view.hidden, view.isolated),
         [model, view.hidden, view.isolated],
@@ -537,6 +682,7 @@ function Scene({
         const position = ISOMETRIC.clone().multiplyScalar(distance).add(sphere.center)
         const { x, y, z } = sphere.center
         void controls.current?.setLookAt(position.x, position.y, position.z, x, y, z, transition)
+        void controls.current?.setFocalOffset(0, 0, 0, transition)
         controls.current?.normalizeRotations()
     })
 
@@ -561,15 +707,14 @@ function Scene({
             visibleWidth,
             size.height,
         )
-        const target = controls.current.getTarget(new Vector3(), false)
-        const position = camera.position
-            .clone()
-            .sub(target)
-            .normalize()
+        const position = camera
+            .getWorldDirection(new Vector3())
+            .negate()
             .multiplyScalar(distance)
             .add(bounds.center)
         const { x, y, z } = bounds.center
         void controls.current.setLookAt(position.x, position.y, position.z, x, y, z, true)
+        void controls.current.setFocalOffset(0, 0, 0, true)
         controls.current.normalizeRotations()
     })
 
@@ -600,7 +745,7 @@ function Scene({
                 ? event.object.position.clone().normalize()
                 : event.face?.normal.clone()
         if (!controls.current || !direction) return null
-        const target = controls.current.getTarget(new Vector3(), false)
+        const target = controls.current.getTarget(new Vector3(), true)
         const position = direction.multiplyScalar(controls.current.distance).add(target)
         void controls.current.setLookAt(
             position.x,
@@ -611,6 +756,7 @@ function Scene({
             target.z,
             true,
         )
+        void controls.current.setFocalOffset(0, 0, 0, true)
         controls.current.normalizeRotations()
         return null
     }
@@ -622,10 +768,8 @@ function Scene({
             <CameraControls
                 ref={controls}
                 makeDefault
-                dollyToCursor={settings.zoomToCursor}
                 azimuthRotateSpeed={speed}
                 polarRotateSpeed={speed}
-                truckSpeed={2 * speed}
                 dollySpeed={settings.invertZoom ? -speed : speed}
             />
             {settings.showViewCube ? (
