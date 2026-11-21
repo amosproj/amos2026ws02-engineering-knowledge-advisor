@@ -3,7 +3,6 @@ import { Vector3, type PerspectiveCamera, type Sphere } from 'three'
 
 import type { MouseAction } from '../models/mouse-profile-model'
 
-/** Canvas pixels hidden by the floating panels on each side. */
 export type ViewInset = { left: number; right: number }
 
 export type ViewSize = { width: number; height: number }
@@ -47,7 +46,7 @@ export class CameraRig {
     }
 
     setInset(inset: ViewInset, size: ViewSize) {
-        const shift = (inset.left - inset.right) / 2
+        const shift = inset.left / 2
         this.camera.setViewOffset(size.width, size.height, -shift, 0, size.width, size.height)
         this.controls.setViewport(shift, 0, size.width, size.height)
     }
@@ -79,6 +78,7 @@ export class CameraRig {
             ISOMETRIC.clone().multiplyScalar(distance).add(sphere.center),
             sphere.center,
             transition,
+            this.detailsShift(distance, inset, size),
         )
     }
 
@@ -89,7 +89,7 @@ export class CameraRig {
             .negate()
             .multiplyScalar(distance)
             .add(bounds.center)
-        this.lookAt(position, bounds.center, true)
+        this.lookAt(position, bounds.center, true, this.detailsShift(distance, inset, size))
     }
 
     lookFrom(direction: Vector3) {
@@ -98,7 +98,7 @@ export class CameraRig {
         this.lookAt(position, target, true)
     }
 
-    private lookAt(position: Vector3, target: Vector3, transition: boolean) {
+    private lookAt(position: Vector3, target: Vector3, transition: boolean, shift = 0) {
         void this.controls.setLookAt(
             position.x,
             position.y,
@@ -108,8 +108,14 @@ export class CameraRig {
             target.z,
             transition,
         )
-        void this.controls.setFocalOffset(0, 0, 0, transition)
+        void this.controls.setFocalOffset(shift, 0, 0, transition)
         this.controls.normalizeRotations()
+    }
+
+    private detailsShift(distance: number, inset: ViewInset, size: ViewSize) {
+        const worldPerPixel =
+            (2 * distance * Math.tan((this.camera.fov * Math.PI) / 360)) / size.height
+        return (inset.right / 2) * worldPerPixel
     }
 
     private fitDistance(radius: number, inset: ViewInset, size: ViewSize) {
