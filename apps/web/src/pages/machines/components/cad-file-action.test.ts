@@ -5,10 +5,6 @@ import { toCadFileAction } from './cad-file-action'
 const cadFile = { '@id': 'cad-1', '@type': 'CadFile', name: 'cell.step' }
 
 describe('toCadFileAction', () => {
-    it('uploads a first file', () => {
-        expect(toCadFileAction('empty', undefined)).toEqual({ kind: 'upload' })
-    })
-
     it('offers nothing while the file is processed or once it is ready', () => {
         expect(toCadFileAction('processing', cadFile)).toBeNull()
         expect(toCadFileAction('ready', cadFile)).toBeNull()

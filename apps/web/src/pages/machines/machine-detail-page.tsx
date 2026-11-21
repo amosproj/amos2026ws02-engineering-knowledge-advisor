@@ -57,7 +57,7 @@ import {
 } from './models/assembly-tree-model'
 import { findCadFile } from './models/machine-model'
 import { readPanelLayout, savePanelLayout, updatePanelLayout } from './models/panel-layout-model'
-import type { ViewInset } from './models/viewer-camera-model'
+import type { ViewInset } from './utils/camera-rig'
 import {
     assemblyTreeQuery,
     machineQuery,
