@@ -1,12 +1,18 @@
 import * as React from 'react'
 import { getVisibleFieldErrors } from '@utils/field-errors'
-import { Field, FieldDescription, FieldError, FieldLabel } from '../atomic/molecules'
+import { Field, FieldDescription, FieldError } from '../atomic/molecules'
 import { FileUpload, type FileUploadProps } from '../atomic/organisms/file-upload'
+import { FormLabel } from './form-label'
 import { useFieldContext } from './form-context'
 
-type FileUploadFieldProps = Pick<FileUploadProps, 'id' | 'accept' | 'maxSize' | 'disabled'> & {
+type FileUploadFieldProps = Pick<
+    FileUploadProps,
+    'id' | 'accept' | 'maxSize' | 'disabled' | 'aria-describedby'
+> & {
     label: string
     description?: string
+    optional?: boolean
+    info?: string
 }
 
 export type FileUploadFormProps = FileUploadFieldProps &
@@ -16,8 +22,11 @@ export function FileUploadForm({
     id,
     label,
     description,
+    optional,
+    info,
     mode,
     maxFiles,
+    'aria-describedby': ariaDescribedBy,
     ...props
 }: FileUploadFormProps) {
     const field = useFieldContext<File | File[] | null>()
@@ -26,6 +35,7 @@ export function FileUploadForm({
     const generatedId = React.useId()
     const zoneId = id ?? `${generatedId}-zone`
     const descriptionId = description ? `${zoneId}-description` : undefined
+    const infoId = info ? `${zoneId}-info` : undefined
 
     const errors = getVisibleFieldErrors(field.state.meta.errors, field.state.meta.isTouched)
     const fieldErrorId = errors.length > 0 ? `${zoneId}-field-error` : undefined
@@ -35,12 +45,20 @@ export function FileUploadForm({
         id: zoneId,
         invalid: errors.length > 0,
         onBlur: field.handleBlur,
-        'aria-describedby': [descriptionId, fieldErrorId].filter(Boolean).join(' ') || undefined,
+        'aria-describedby':
+            [ariaDescribedBy, descriptionId, infoId, fieldErrorId].filter(Boolean).join(' ') ||
+            undefined,
     }
 
     return (
         <Field data-invalid={errors.length > 0}>
-            <FieldLabel htmlFor={zoneId}>{label}</FieldLabel>
+            <FormLabel
+                htmlFor={zoneId}
+                label={label}
+                optional={optional}
+                info={info}
+                infoId={infoId}
+            />
             {mode === 'multiple' ? (
                 <FileUpload
                     {...uploadProps}

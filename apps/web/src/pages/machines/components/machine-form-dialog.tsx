@@ -154,7 +154,8 @@ function MachineFormBody({ machine, dialog }: MachineFormBodyProps) {
                                     {(field) => (
                                         <field.FileUploadForm
                                             label="STEP file"
-                                            description="Optional, it can also be uploaded later."
+                                            optional
+                                            info="It can also be uploaded later."
                                             mode="single"
                                             accept={STEP_FILE_ACCEPT}
                                             maxSize={STEP_FILE_MAX_SIZE}
