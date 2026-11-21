@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Alert02Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import { cn } from 'cn'
 
 import {
     Alert,
@@ -26,11 +27,10 @@ export type FormDialogControls = {
 type FormDialogProps = {
     title: string
     description: string
-    // Opens the dialog when clicked. Without it, open the dialog with `open`.
     trigger?: React.ReactElement
     open?: boolean
     onOpenChange?: (open: boolean) => void
-    // The form, mounted again on each opening so it starts from fresh values
+    wide?: boolean
     children: (dialog: FormDialogControls) => React.ReactNode
 }
 
@@ -40,6 +40,7 @@ export function FormDialog({
     trigger,
     open: controlledOpen,
     onOpenChange,
+    wide = false,
     children,
 }: FormDialogProps) {
     const [ownOpen, setOwnOpen] = useState(false)
@@ -54,7 +55,12 @@ export function FormDialog({
     return (
         <Dialog open={open} onOpenChange={(nextOpen) => !busy && setOpen(nextOpen)}>
             {trigger ? <DialogTrigger render={trigger} /> : null}
-            <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-lg">
+            <DialogContent
+                className={cn(
+                    'flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-lg',
+                    wide && 'md:max-w-[min(48rem,calc(100%-2rem))]',
+                )}
+            >
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
