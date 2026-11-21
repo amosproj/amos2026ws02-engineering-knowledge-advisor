@@ -1,0 +1,252 @@
+{
+  "format": "eka-seed-knowledge/v1",
+  "description": "Seed knowledge set for the Bosch example machine (#89). Read by the import (#90). Elements are referenced by the assembly group identifier (CAD definition name), which stays the same across imports; the import resolves it to the record id.",
+  "machine": {
+    "identifier": "TEF1006U001-G00_802",
+    "cadFile": "TEF1006U001-G00_802.stp"
+  },
+  "sources": {
+    "kr-2026-10-26": {
+      "title": "AMOS Konstruktionsreview, 26.10.2026 (Teams transcript)",
+      "file": "AMOS_ Konstruktionsreview_Transscipt.docx",
+      "language": "de"
+    }
+  },
+  "items": [
+    {
+      "id": "seed-01",
+      "appliesToMachine": true,
+      "itemType": "requirement",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["1:03", "2:08"]},
+      "properties": {
+        "name": "Purpose of the station",
+        "statement": "The station takes 3D-printed parts, clamps them automatically on the robot, removes the support structures by chiselling and returns the part to the operator.",
+        "reasoning": "Based on a prior process-pipeline study and in-house post-processing experience.",
+        "confidence": "established practice"
+      }
+    },
+    {
+      "id": "seed-02",
+      "appliesToMachine": true,
+      "itemType": "requirement",
+      "author": "Tobias Kober",
+      "source": {"id": "kr-2026-10-26", "at": ["5:41"]},
+      "properties": {
+        "name": "Transportable cell",
+        "statement": "The cell must be transportable.",
+        "confidence": "established practice"
+      }
+    },
+    {
+      "id": "seed-03",
+      "appliesToMachine": true,
+      "itemType": "design decision",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["16:04"]},
+      "properties": {
+        "name": "Process sequence",
+        "statement": "The operator requests the drawer and places the part in a fixture. The gripper picks it at 3 pins spaced 120 degrees apart, the robot runs the chisel (or dry-ice) process, then puts the part back in the drawer.",
+        "confidence": "rule of thumb"
+      }
+    },
+    {
+      "id": "seed-04",
+      "appliesToMachine": true,
+      "itemType": "consideration",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["16:59", "17:16", "17:32"]},
+      "properties": {
+        "name": "Single-part operation",
+        "statement": "The cell handles one part at a time, not a double system.",
+        "condition": "If the cycle time requires it.",
+        "recommendation": "Add a buffer or a double drawer. Alternative: the robot comes to an opened door and the operator clips the part in.",
+        "confidence": "rule of thumb"
+      }
+    },
+    {
+      "id": "seed-05",
+      "appliesToMachine": true,
+      "itemType": "consideration",
+      "author": "Tobias Kober",
+      "source": {"id": "kr-2026-10-26", "at": ["25:19", "26:06", "26:49", "27:31"]},
+      "properties": {
+        "name": "Referencing the part before chiselling",
+        "statement": "Each part gets one attempt: if it sits 1 cm off, the chisel destroys it.",
+        "recommendation": "Derive reference points from the CAD and the 3-point fixture and check them with a touch probe before chiselling. Alternatives are a laser profile scanner or a camera; the camera is costly and suits high volumes.",
+        "consequence": "A mispositioned part is destroyed.",
+        "confidence": "unverified"
+      }
+    },
+    {
+      "id": "seed-06",
+      "appliesTo": ["TEF1006U001-G01_801"],
+      "itemType": "design decision",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["2:44", "2:53", "3:19"]},
+      "properties": {
+        "name": "Welded steel base frame",
+        "statement": "The base frame is welded from 160 x 160 mm square hollow sections with a 6 mm wall.",
+        "reasoning": "Chosen for the robot dynamics. It also seals better against dust underneath than a light frame.",
+        "confidence": "established practice"
+      }
+    },
+    {
+      "id": "seed-07",
+      "appliesTo": ["TEF1006U001-G01_801"],
+      "itemType": "consideration",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["3:37", "4:41", "4:59"]},
+      "properties": {
+        "name": "Base plate weight",
+        "statement": "The dimensions are a first sketch. With a 30 mm base plate over the whole area the frame weighs about 2.5 t.",
+        "recommendation": "Use a solid plate only under the robot and sheet metal elsewhere.",
+        "reasoning": "Weight is a cost driver.",
+        "confidence": "unverified"
+      }
+    },
+    {
+      "id": "seed-08",
+      "appliesTo": ["TEF1006U001-G01_801"],
+      "itemType": "design decision",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["5:18"]},
+      "properties": {
+        "name": "Width under truck limit",
+        "statement": "The frame is about 2.45 m wide. Length can vary.",
+        "reasoning": "Stays under the 2.50 m truck width that needs no special transport permit.",
+        "confidence": "established practice"
+      }
+    },
+    {
+      "id": "seed-09",
+      "appliesTo": ["TEF1006U001-G02_801"],
+      "itemType": "design decision",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["6:14", "6:22", "6:25"]},
+      "properties": {
+        "name": "Control cabinet size",
+        "statement": "Standard cabinet, 2 x 800 mm wide and 600 mm deep. It holds PLC, safety and robot control, with a water cooling unit on top.",
+        "reasoning": "600 mm depth so the robot controller fits.",
+        "confidence": "established practice"
+      }
+    },
+    {
+      "id": "seed-10",
+      "appliesTo": ["TEF1006U001-G02_801"],
+      "itemType": "design decision",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["6:44"]},
+      "properties": {
+        "name": "Cabinet copied from Station 75",
+        "statement": "The cabinet was copied from Station 75, which was twice the size, and cut down as a placeholder.",
+        "confidence": "rule of thumb"
+      }
+    },
+    {
+      "id": "seed-11",
+      "appliesTo": ["TEF1006U001-G02_801"],
+      "itemType": "design decision",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["6:06", "7:08"]},
+      "properties": {
+        "name": "Cabinet on the base plate",
+        "statement": "The cabinet is mounted on the base plate.",
+        "reasoning": "The cell ships as one unit with nothing to reconnect.",
+        "confidence": "established practice"
+      }
+    },
+    {
+      "id": "seed-12",
+      "appliesTo": ["TEF1006U001-G05_801"],
+      "itemType": "design decision",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["9:40", "10:02"]},
+      "properties": {
+        "name": "Chisel on a Schunk column system",
+        "statement": "The chisel assembly is mounted on a Schunk column system. Height and lateral offset are adjustable, and a second tool can be clamped on.",
+        "reasoning": "Flexible for a prototype.",
+        "confidence": "rule of thumb"
+      }
+    },
+    {
+      "id": "seed-13",
+      "appliesTo": ["TEF1006U001-G05_801"],
+      "itemType": "design decision",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["10:06", "10:57"]},
+      "properties": {
+        "name": "Hopper into a KLT drawer",
+        "statement": "Removed supports fall through a hopper into a standard KLT bin in a drawer.",
+        "reasoning": "Concept taken from a Bamberg station for breaking off sprues.",
+        "confidence": "established practice"
+      }
+    },
+    {
+      "id": "seed-14",
+      "appliesTo": ["TEF1006U001-G05_801"],
+      "itemType": "consideration",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["10:12"]},
+      "properties": {
+        "name": "Hopper not sealed",
+        "statement": "The hopper connects the cell interior to the outside. Sealing, for example with a door, is not designed yet.",
+        "consequence": "Dust and particles can leave the cell.",
+        "confidence": "unverified"
+      }
+    },
+    {
+      "id": "seed-15",
+      "appliesTo": ["TEF1006U001-G05_801"],
+      "itemType": "lesson learned",
+      "author": "Julian Ortner",
+      "source": {"id": "kr-2026-10-26", "at": ["30:07", "30:31", "30:54", "31:08", "31:37", "39:37"]},
+      "properties": {
+        "name": "Pneumatic chisel too weak",
+        "statement": "The pneumatic tool seen at Fraunhofer is made for fine filing work in tool and mould making (about 130 l/min of air, variants at 9,000 and 3,000 strokes per minute). It pushed the supports off instead of chiselling them.",
+        "recommendation": "Check the impact energy (FEM) and ask Fraunhofer why they chose it. Prefer an electric tool for an all-electric cell.",
+        "confidence": "rule of thumb"
+      }
+    },
+    {
+      "id": "seed-16",
+      "appliesTo": ["TEF1006U001-G25_800"],
+      "itemType": "design decision",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["15:17", "15:33", "15:43"]},
+      "properties": {
+        "name": "HMI from the SFP test bench",
+        "statement": "Standard Beckhoff screen with a function bar on a cantilever arm, taken from the SFP test bench. A standard status light sits on top.",
+        "confidence": "established practice"
+      }
+    },
+    {
+      "id": "seed-17",
+      "appliesTo": ["TEF1006U001-G20_801"],
+      "itemType": "consideration",
+      "author": "Christoph Gesell",
+      "source": {"id": "kr-2026-10-26", "at": ["18:48", "19:38", "21:54", "22:22"]},
+      "properties": {
+        "name": "Calculated robot paths",
+        "statement": "Paths are calculated for each part, not taught, so a calculation error could drive the robot into the guarding.",
+        "recommendation": "Keep fixed moves (pick and place) as separate programs and reject generated points outside an allowed window with an error message.",
+        "consequence": "Collision with the guarding.",
+        "confidence": "rule of thumb"
+      }
+    },
+    {
+      "id": "seed-18",
+      "appliesTo": ["TEF1006U001-G20_801"],
+      "itemType": "consideration",
+      "author": "Julian Ortner",
+      "source": {"id": "kr-2026-10-26", "at": ["20:28", "21:24", "23:21"]},
+      "properties": {
+        "name": "Limit the robot workspace",
+        "statement": "Use KUKA safety technology to limit the workspace of a large robot. It costs extra validation and a reference run about once per shift.",
+        "reasoning": "The customer's site layout is unknown.",
+        "condition": "A recommendation from the accident-insurance body (BG) might allow skipping it if no workstation is nearby. Decide in the project phase.",
+        "confidence": "rule of thumb"
+      }
+    }
+  ]
+}
