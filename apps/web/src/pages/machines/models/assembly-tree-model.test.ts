@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import type { RecordTree } from '../query/machine-api'
 import {
     ancestorIds,
-    formatDimensions,
     indexAssembly,
     isHidden,
     occurrencesOf,
@@ -141,23 +140,5 @@ describe('visibleRows', () => {
             ['c', 'a', 3, '1/1'],
             ['b', 'root', 2, '2/2'],
         ])
-    })
-})
-
-describe('formatDimensions', () => {
-    it('converts meters to millimeters', () => {
-        const group = {
-            '@id': 'g',
-            name: 'Frame',
-            properties: { sizeX: 1.25, sizeY: 0.0805, sizeZ: 2 },
-        }
-
-        expect(formatDimensions(group)).toMatch(/^1.?250 × 80[.,]5 × 2.?000 mm$/)
-    })
-
-    it('returns undefined when a size is missing', () => {
-        expect(
-            formatDimensions({ '@id': 'g', name: 'Frame', properties: { sizeX: 1 } }),
-        ).toBeUndefined()
     })
 })
