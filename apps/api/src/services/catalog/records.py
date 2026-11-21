@@ -234,18 +234,14 @@ def _to_local_names(value: JsonValue) -> JsonValue:
 
 def _merge_patch(target: JsonValue, patch: JsonValue) -> JsonValue:
     """Returns ``target`` changed by ``patch`` (RFC 7396): objects merge key by key, anything else replaces.
-
-    ``None`` or blank text removes a key; a nested object left empty is removed too. Texts are stripped.
-    """
+    ``None`` values are dropped."""
     if not isinstance(patch, dict):
-        return patch.strip() if isinstance(patch, str) else patch
+        return patch
     merged: JsonObject = dict(target) if isinstance(target, dict) else {}
     for raw_key, value in patch.items():
         key: str = get_local_name(raw_key)
-        if value is None or (isinstance(value, str) and not value.strip()):
+        if value is None:
             merged.pop(key, None)
             continue
         merged[key] = _merge_patch(merged.get(key), _to_local_names(value))
-        if merged[key] == {}:
-            del merged[key]
     return merged

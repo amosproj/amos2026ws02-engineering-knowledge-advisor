@@ -74,7 +74,7 @@ def _get_allowed_value(text: str, prop: Property) -> str:
         return text
 
     match: str | None = {val.casefold(): val for val in prop.allowed}.get(
-        text.strip().casefold()
+        text.casefold()
     )
     if match is None:
         raise ValueError(ERROR_NOT_ALLOWED.format(allowed=", ".join(prop.allowed)))
@@ -145,6 +145,8 @@ class _NodeValidator:
         value: JsonValue, prop: Property, warnings: list[str]
     ) -> str | None:
         target_id: JsonValue = get_link_target_id(value)
+        if isinstance(target_id, str):
+            target_id = target_id.strip()
         if isinstance(target_id, (dict, list)) or target_id is None or target_id == "":
             warnings.append(
                 WARNING_DROPPED_LINK.format(domain=prop.domain, name=prop.name)

@@ -144,3 +144,35 @@ def test_text_is_kept_as_given_the_store_decides_what_it_can_store():
         {"@type": "Machine", "name": UNSTORABLE_NAME}
     )
     assert (graph["name"], warnings) == (UNSTORABLE_NAME, [])
+
+
+def test_strip_nested_text_and_lists():
+    graph, warnings = load_ontology().validate_node(
+        {
+            "@type": "KnowledgeItem",
+            "properties": {
+                "statement": " Chamfer the nest. ",
+                "condition": [" Small parts ", "  ", "Thin walls"],
+            },
+        }
+    )
+    nested: JsonValue = graph["properties"]
+    assert isinstance(nested, dict) and warnings == []
+    assert nested["statement"] == "Chamfer the nest."
+    assert nested["condition"] == ["Small parts", "Thin walls"]
+
+
+def test_strip_links():
+    graph, warnings = load_ontology().validate_node(
+        {
+            "@type": "KnowledgeItem",
+            "properties": {"statement": "Chamfer the nest."},
+            "appliesTo": [f" {GROUP_ID} ", {"@id": f"{OTHER_GROUP_ID}  "}],
+            "appliesToMachine": "  ",
+        },
+        "KnowledgeItem",
+    )
+    assert graph["appliesTo"] == [GROUP_ID, OTHER_GROUP_ID]
+    assert "appliesToMachine" not in graph
+    assert len(warnings) == 1
+    assert_mentions(warnings[0], "appliesToMachine")

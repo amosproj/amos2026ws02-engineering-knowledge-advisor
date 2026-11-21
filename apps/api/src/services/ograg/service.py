@@ -296,10 +296,7 @@ class OgRagService:
             self.ontology.get_identity_property_names().get(cls, [])
         )
         if identity_property_names and not any(
-            str(val).strip()
-            for prop_name in identity_property_names
-            if graph.get(prop_name) is not None
-            for val in to_list(graph[prop_name])
+            prop_name in graph for prop_name in identity_property_names
         ):
             raise RecordError(
                 ERROR_IDENTITY_REQUIRED.format(
