@@ -1,6 +1,7 @@
 from model.request import FileToUpload as FileToUpload
 from model.request import RecordChanges as RecordChanges
 from model.request import RecordNode as RecordNode
+from model.request import UploadChanges as UploadChanges
 from model.response import NO_FILE as NO_FILE
 from model.response import FileStatus as FileStatus
 from model.response import FileUpload as FileUpload

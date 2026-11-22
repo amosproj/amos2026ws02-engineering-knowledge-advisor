@@ -122,6 +122,8 @@ A record of a class marked `og:file` (CadFile) carries one file, upload state in
 3. Client posts the file straight to S3 based on form, then `POST /records/{id}/complete`.
 4. Worker checks the file and imports its assembly tree: `processing`, then `ready` or `failed` with an error code.
 
+`PATCH /records/{id}/upload` with `{"upAxis": "Y"}` sets the axis shown upwards in the 3D view of a `ready` file, for every user (default `Z`).
+
 ## Storage and background jobs
 
 Uploaded files are stored in S3 (MinIO in Docker). The `migrate` service applies the migrations, then creates the bucket if it does not exist yet (`python -m services.s3`).

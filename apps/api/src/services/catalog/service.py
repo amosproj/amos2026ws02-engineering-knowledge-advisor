@@ -33,7 +33,13 @@ from services.catalog.files import get_folder, get_source_key
 from services.catalog.records import Fields
 from services.object_storage import ObjectStorage
 from services.ograg.service import DeleteResult, OgRagService, RecordError
-from services.uploads import LockTimeoutError, Upload, UploadStatus, UploadStore
+from services.uploads import (
+    LockTimeoutError,
+    UpAxis,
+    Upload,
+    UploadStatus,
+    UploadStore,
+)
 
 FILE_MISMATCH: str = "file_mismatch"
 # most urgent first
@@ -462,6 +468,24 @@ class CatalogService:
         if model_key is None:
             return None
         return await asyncio.to_thread(self.storage.create_download_url, model_key)
+
+    async def set_up_axis(self, session: Tx, file_id: str, up_axis: UpAxis) -> Upload:
+        """Sets the axis of the file shown upwards in the 3D view.
+
+        Raises:
+            NotFoundError: no record ``file_id``.
+            RecordError: the record's class carries no file.
+            FileNotReadyError: the file is not ready.
+            BusyError: another request holds the file.
+        """
+        await self._get_file_record(session, file_id)
+        async with self._busy_after_lock_timeout(session):
+            changed: Upload | None = await self.uploads.set_up_axis(
+                file_id, up_axis, session
+            )
+        if changed is None:
+            raise FileNotReadyError()
+        return changed
 
     async def import_cad_file_tree(
         self, session: Tx, cad_file_id: str, model: CadModel

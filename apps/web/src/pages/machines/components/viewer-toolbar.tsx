@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Home09Icon, Settings05Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 
@@ -5,12 +6,18 @@ import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@compo
 import { ViewerSettings } from '@pages/settings/components/viewer-settings'
 
 type ViewerToolbarProps = {
+    modelSettings: ReactNode
     settingsOpen: boolean
     onSettingsOpenChange: (open: boolean) => void
     onReset: () => void
 }
 
-export function ViewerToolbar({ settingsOpen, onSettingsOpenChange, onReset }: ViewerToolbarProps) {
+export function ViewerToolbar({
+    modelSettings,
+    settingsOpen,
+    onSettingsOpenChange,
+    onReset,
+}: ViewerToolbarProps) {
     return (
         <>
             <Button
@@ -29,7 +36,7 @@ export function ViewerToolbar({ settingsOpen, onSettingsOpenChange, onReset }: V
                     <DialogHeader>
                         <DialogTitle>3D viewer settings</DialogTitle>
                     </DialogHeader>
-                    <ViewerSettings columns />
+                    <ViewerSettings columns>{modelSettings}</ViewerSettings>
                 </DialogContent>
             </Dialog>
             <Button

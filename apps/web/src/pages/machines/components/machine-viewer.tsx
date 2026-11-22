@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Canvas } from '@react-three/fiber'
 
-import { Button, Spinner, useSettings } from '@components'
+import { Button, Spinner, toast, useSettings } from '@components'
 
-import { errorCode } from '../models/machine-errors'
+import { errorCode, errorMessage } from '../models/machine-errors'
+import { cadFileQuery, updateUpload, type UpAxis } from '../query/machine-api'
 import type { ViewInset } from '../utils/camera-rig'
 import { buildSketch, disposeSketch, type Sketch } from '../utils/machine-sketch'
 import { SceneModel } from '../utils/scene-model'
+import { UP_AXIS_ROTATIONS } from '../utils/up-axis'
+import { UpAxisSettings } from './up-axis-settings'
 import { ViewerLighting } from './viewer-lighting'
 import { ViewerScene } from './viewer-scene'
 import { ViewerToolbar } from './viewer-toolbar'
@@ -46,11 +49,33 @@ export default function MachineViewer({
         staleTime: Infinity,
         gcTime: 0,
     })
+    const cadFile = useQuery(cadFileQuery(fileId))
+    const saveUpAxis = useMutation({
+        scope: { id: `up-axis-${fileId}` }, // Saves of the same file run one after the other, the last choice wins
+        mutationFn: (upAxis: UpAxis) => updateUpload({ params: { id: fileId }, body: { upAxis } }),
+        meta: { invalidates: [cadFileQuery(fileId).queryKey] },
+        onError: (error) =>
+            toast.add({
+                type: 'error',
+                title: 'Up axis not saved',
+                description: errorMessage(error),
+            }),
+    })
+
+    const savedUpAxis = cadFile.data?.upload?.upAxis
+    const upAxis = saveUpAxis.isPending ? saveUpAxis.variables : (savedUpAxis ?? 'Z')
+    const rotation = UP_AXIS_ROTATIONS[upAxis]
     const [resetCount, setResetCount] = useState(0)
     const [settingsOpen, setSettingsOpen] = useState(false)
     const dragged = useRef(false)
     const data = model.data
     const { settings } = useSettings()
+    const modelSphere = data?.sphere
+    const sphere = useMemo(() => {
+        const rotated = modelSphere?.clone()
+        rotated?.center.applyQuaternion(rotation)
+        return rotated
+    }, [modelSphere, rotation])
     const sketching = settings.selectionStyle === 'sketch'
     const [built, setBuilt] = useState<{ model: SceneModel; sketch: Sketch }>()
     // Releases the edges of a replaced model, the dispose effect below runs on the change
@@ -77,7 +102,7 @@ export default function MachineViewer({
         return () => disposeSketch(built.sketch)
     }, [built])
 
-    if (model.isPending) {
+    if (model.isPending || (cadFile.isPending && !model.isError)) {
         return (
             <Overlay inset={inset}>
                 <Spinner />
@@ -96,7 +121,6 @@ export default function MachineViewer({
             </Overlay>
         )
     }
-    const { sphere } = model.data
     if (!sphere) {
         return <Overlay inset={inset}>The 3D model is empty.</Overlay>
     }
@@ -115,6 +139,7 @@ export default function MachineViewer({
                 <ViewerLighting />
                 <ViewerScene
                     model={model.data}
+                    rotation={rotation}
                     sphere={sphere}
                     inset={inset}
                     resetCount={resetCount}
@@ -127,6 +152,13 @@ export default function MachineViewer({
                 />
             </Canvas>
             <ViewerToolbar
+                modelSettings={
+                    <UpAxisSettings
+                        value={upAxis}
+                        disabled={!savedUpAxis || saveUpAxis.isPending}
+                        onChange={(axis) => saveUpAxis.mutate(axis)}
+                    />
+                }
                 settingsOpen={settingsOpen}
                 onSettingsOpenChange={setSettingsOpen}
                 onReset={() => setResetCount((count) => count + 1)}

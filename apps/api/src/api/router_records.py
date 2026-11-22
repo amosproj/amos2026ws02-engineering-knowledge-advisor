@@ -457,4 +457,5 @@ def to_file_upload(upload: Upload) -> FileUpload:
         created_at=upload.created_at,
         updated_at=upload.updated_at,
         has_model=upload.model_key is not None,
+        up_axis=upload.up_axis,
     )

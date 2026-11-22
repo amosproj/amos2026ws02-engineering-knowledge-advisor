@@ -105,7 +105,9 @@ export class SceneModel {
         const box = new Box3()
         for (const id of ids) {
             const part = this.parts.get(id)
-            if (part) box.expandByObject(part)
+            if (!part) continue
+            part.updateWorldMatrix(true, false)
+            box.expandByObject(part)
         }
         return box.isEmpty() ? undefined : box.getBoundingSphere(new Sphere())
     }

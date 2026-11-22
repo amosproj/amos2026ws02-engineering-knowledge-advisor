@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { CameraControls, CameraControlsImpl, GizmoHelper, GizmoViewcube } from '@react-three/drei'
 import { useThree, type ThreeEvent } from '@react-three/fiber'
-import type { PerspectiveCamera, Sphere } from 'three'
+import type { PerspectiveCamera, Quaternion, Sphere } from 'three'
 
 import { useSettings } from '@components'
 import type { NavigationSpeed } from '@pages/settings/models/settings-model'
@@ -35,6 +35,7 @@ const isDarkTheme = () => document.documentElement.classList.contains('dark')
 
 type ViewerSceneProps = {
     model: SceneModel
+    rotation: Quaternion
     sphere: Sphere
     inset: ViewInset
     resetCount: number
@@ -48,6 +49,7 @@ type ViewerSceneProps = {
 
 export function ViewerScene({
     model,
+    rotation,
     sphere,
     inset,
     resetCount,
@@ -143,8 +145,12 @@ export function ViewerScene({
     })
 
     useEffect(() => {
-        resetView(resetCount > 0)
-    }, [rig, sphere, resetCount])
+        resetView(false)
+    }, [rig, sphere])
+
+    useEffect(() => {
+        if (resetCount > 0) resetView(true)
+    }, [resetCount])
 
     const frameParts = useEffectEvent((targets: string[]) => {
         const bounds = model.partsBounds(targets)
@@ -180,8 +186,10 @@ export function ViewerScene({
 
     return (
         <>
-            <primitive object={model.scene} onClick={pickPart} />
-            {sketch ? <primitive object={sketch.lines} /> : null}
+            <group quaternion={rotation}>
+                <primitive object={model.scene} onClick={pickPart} />
+                {sketch ? <primitive object={sketch.lines} /> : null}
+            </group>
             <CameraControls
                 ref={controls}
                 makeDefault

@@ -28,6 +28,7 @@ from sqlalchemy.types import TypeEngine
 from db.names import (
     PROCESSING_INDEX,
     STATUS_CHECK,
+    UP_AXIS_CHECK,
     CommonColumn,
     FactColumn,
     FactNodeColumn,
@@ -35,6 +36,7 @@ from db.names import (
     LinkColumn,
     RecordColumn,
     TableName,
+    UpAxis,
     UploadColumn,
     UploadStatus,
     VectorColumn,
@@ -203,6 +205,7 @@ def _define_links(metadata: MetaData, records: Table) -> Table:
 def _define_uploads(metadata: MetaData, records: Table) -> Table:
     # Upload state of each CadFile record. The file name lives in the record, the files in S3.
     allowed_statuses: str = ", ".join(f"'{status}'" for status in UploadStatus)
+    allowed_axes: str = ", ".join(f"'{axis}'" for axis in UpAxis)
     uploads = Table(
         TableName.UPLOADS,
         metadata,
@@ -224,6 +227,12 @@ def _define_uploads(metadata: MetaData, records: Table) -> Table:
         Column(UploadColumn.MODEL_KEY, String),
         Column(UploadColumn.SIZE_BYTES, BigInteger, nullable=False),
         Column(UploadColumn.SHA256, CHAR(64)),
+        Column(
+            UploadColumn.UP_AXIS,
+            String,
+            nullable=False,
+            server_default=UpAxis.Z.value,
+        ),
         _create_timestamp(UploadColumn.CREATED_AT),
         Column(
             UploadColumn.UPDATED_AT,
@@ -234,6 +243,9 @@ def _define_uploads(metadata: MetaData, records: Table) -> Table:
         ),
         CheckConstraint(
             f"{UploadColumn.STATUS} IN ({allowed_statuses})", name=STATUS_CHECK
+        ),
+        CheckConstraint(
+            f"{UploadColumn.UP_AXIS} IN ({allowed_axes})", name=UP_AXIS_CHECK
         ),
     )
     _define_processing_index(uploads)

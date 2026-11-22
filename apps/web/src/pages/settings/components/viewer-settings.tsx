@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
 import { Radio } from '@base-ui/react/radio'
 import { cn } from 'cn'
 
@@ -65,9 +65,10 @@ const selectionToggles: readonly Toggle[] = [
 
 type ViewerSettingsProps = {
     columns?: boolean
+    children?: ReactNode
 }
 
-export function ViewerSettings({ columns = false }: ViewerSettingsProps) {
+export function ViewerSettings({ columns = false, children }: ViewerSettingsProps) {
     const { settings, update } = useSettings()
     const profile = MOUSE_PROFILES[settings.mouseProfile]
     const profileDescriptionId = useId()
@@ -156,13 +157,17 @@ export function ViewerSettings({ columns = false }: ViewerSettingsProps) {
                 {mouse}
                 {selection}
             </div>
-            {navigation}
+            <div className="space-y-10">
+                {navigation}
+                {children}
+            </div>
         </div>
     ) : (
         <div className="space-y-10">
             {mouse}
             {navigation}
             {selection}
+            {children}
         </div>
     )
 }

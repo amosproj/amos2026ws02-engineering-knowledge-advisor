@@ -4,6 +4,7 @@ import asyncio
 import os
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import timedelta
 
 import pytest
@@ -21,7 +22,7 @@ from config.settings import DEFAULT_EMBEDDING_DIMENSIONS
 from db import CommonColumn, RecordColumn, Tables, define_tables
 from db.names import UploadColumn
 from services.postgres.upload_store import PgUploadStore
-from services.uploads import LockTimeoutError, Upload, UploadStatus
+from services.uploads import LockTimeoutError, UpAxis, Upload, UploadStatus
 
 URL: str = os.environ.get("API_TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif(
@@ -158,6 +159,29 @@ def test_set_ready_stores_the_model_key_or_none():
 
             assert (await get_upload(store, sessions, FIRST_ID)).model_key == MODEL_KEY
             assert (await get_upload(store, sessions, SECOND_ID)).model_key is None
+
+    run_async(run_check)
+
+
+def test_the_up_axis_is_set_on_ready_files_only():
+    async def run_check() -> None:
+        async with open_store(FIRST_ID, SECOND_ID) as (store, sessions):
+            await finish(store, sessions, FIRST_ID)
+            async with sessions() as session, session.begin():
+                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, session)
+            ready: Upload = await get_upload(store, sessions, FIRST_ID)
+            assert ready.up_axis == UpAxis.Z
+
+            async with sessions() as session, session.begin():
+                refused: Upload | None = await store.set_up_axis(
+                    SECOND_ID, UpAxis.Y, session
+                )
+                changed: Upload | None = await store.set_up_axis(
+                    FIRST_ID, UpAxis.MINUS_Y, session
+                )
+            assert refused is None
+            # nothing but the axis changes, updated_at included
+            assert changed == replace(ready, up_axis=UpAxis.MINUS_Y)
 
     run_async(run_check)
 
