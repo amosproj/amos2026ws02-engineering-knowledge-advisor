@@ -10,6 +10,10 @@ class ModelBase(DeclarativeBase):
 
 
 @lru_cache
-def get_tables() -> Tables:
-    """Register tables on ``ModelBase.metadata``. Call this before using the metadata."""
-    return define_tables(ModelBase.metadata)
+def get_tables(embedding_dimensions: int) -> Tables:
+    """Register tables on ``ModelBase.metadata``. Call this before using the metadata.
+
+    Args:
+        embedding_dimensions: embedding model vector dimensionality.
+    """
+    return define_tables(embedding_dimensions, ModelBase.metadata)

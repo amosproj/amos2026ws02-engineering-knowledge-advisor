@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 
 import pytest
+from helpers import recreate_tables
 from sqlalchemy import MetaData, Select, Table, TextClause, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import (
@@ -16,7 +17,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from db import CommonColumn, RecordColumn, TableName, Tables, define_tables
+from config.settings import DEFAULT_EMBEDDING_DIMENSIONS
+from db import CommonColumn, RecordColumn, Tables, define_tables
 from db.names import UploadColumn
 from services.postgres.upload_store import PgUploadStore
 from services.uploads import LockTimeoutError, Upload, UploadStatus
@@ -50,14 +52,12 @@ def run_async(check: Callable[[], Coroutine[object, object, None]]) -> None:
 async def open_store(*file_ids: str) -> AsyncGenerator[tuple[PgUploadStore, Sessions]]:
     """Fresh tables with one record per file id, each upload registered (``uploading``), in this order."""
     engine: AsyncEngine = create_async_engine(URL)
-    tables: Tables = define_tables(MetaData())
+    tables: Tables = define_tables(DEFAULT_EMBEDDING_DIMENSIONS, MetaData())
     store = PgUploadStore(tables)
     sessions: Sessions = async_sessionmaker(engine, expire_on_commit=False)
     try:
         async with engine.begin() as conn:
-            for name in TableName:
-                await conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
-            await conn.run_sync(tables.metadata.create_all)
+            await recreate_tables(conn, tables)
         for file_id in file_ids:
             async with sessions() as session, session.begin():
                 await session.execute(
@@ -263,7 +263,9 @@ def test_a_deadlock_in_a_limited_wait_is_a_lock_timeout():
     async def run_check() -> None:
         async with open_store(FIRST_ID) as (store, sessions):
             await finish(store, sessions, FIRST_ID)
-            records: Table = define_tables(MetaData()).records
+            records: Table = define_tables(
+                DEFAULT_EMBEDDING_DIMENSIONS, MetaData()
+            ).records
             lock_record: Select = (
                 select(records)
                 .where(records.c[CommonColumn.ID] == FIRST_ID)

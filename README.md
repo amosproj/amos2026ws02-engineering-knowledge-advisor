@@ -21,7 +21,7 @@ The project uses a containerized web application architecture with a React front
 
 ## Project Mission
 
-Deliver an open-source prototype that lets Bosch engineers capture knowledge about existing products, linked to their CAD assembly groups, and retrieve it with AI during new designs.
+Deliver an open-source prototype that lets end-users capture knowledge about existing products, linked to their CAD assembly groups, and retrieve it with AI during new designs.
 
 ## Repository Structure
 
