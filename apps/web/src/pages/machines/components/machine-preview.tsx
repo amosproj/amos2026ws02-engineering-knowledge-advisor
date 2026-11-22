@@ -8,7 +8,7 @@ export function MachinePreview({ cadFileId }: { cadFileId: string | undefined })
     const [failed, setFailed] = useState(false)
 
     return (
-        <div className="flex aspect-4/3 w-28 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-neutral-200 dark:bg-neutral-700">
+        <div className="flex aspect-4/3 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-neutral-200 @3xl:w-28 dark:bg-neutral-700">
             {cadFileId !== undefined && !failed ? (
                 <img
                     src={previewUrl(cadFileId)}
