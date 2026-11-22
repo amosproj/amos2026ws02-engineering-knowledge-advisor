@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import vtkmodules.vtkRenderingOpenGL2
+import vtkmodules.vtkRenderingOpenGL2  # noqa: F401
 from vtkmodules.vtkCommonCore import vtkLogger
 from vtkmodules.vtkIOImage import vtkPNGWriter
 from vtkmodules.vtkIOImport import vtkGLTFImporter

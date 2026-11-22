@@ -283,7 +283,12 @@ class MemoryUploadStore(UploadStore):
 
     @override
     async def set_ready(
-        self, file_id: str, sha256: str, model_key: str | None, tx: Tx
+        self,
+        file_id: str,
+        sha256: str,
+        model_key: str | None,
+        preview_key: str | None,
+        tx: Tx,
     ) -> None:
         raise NotImplementedError
 
