@@ -64,6 +64,7 @@ dependencies = [
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "vtk" },
 ]
 
 [package.dev-dependencies]
@@ -91,6 +92,7 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1.5" },
     { name = "starlette", specifier = ">=1.10.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
+    { name = "vtk", specifier = ">=9.6.2" },
 ]
 
 [package.metadata.requires-dev]
