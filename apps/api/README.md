@@ -87,6 +87,7 @@ Loaded on start with the ontology. Invalid ontology stops the start. JSON fields
 | `DELETE /api/v1/records/{id}[?deleteOrphans=true]`  | Delete record, orphan records left without a parent link are marked for review or deleted |
 | `POST /api/v1/records/{id}/upload-form`             | Upload form for the file of an `og:file` record                            |
 | `POST /api/v1/records/{id}/complete`                | Confirm the upload, queue the file for processing                          |
+| `GET /api/v1/records/{id}/preview`                  | Preview image (PNG) of the file, `404` without one                         |
 | `GET /api/v1/ontology`                              | Every class with its properties and annotations                            |
 
 `include=status,children,upload` wraps each record as `{"record": ..., "status": ..., "children": [...], "upload": ...}`:
