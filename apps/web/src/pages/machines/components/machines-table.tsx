@@ -32,6 +32,7 @@ import { useCadFileImport } from './cad-file-import-context'
 import { cadFileActionLabels, toCadFileAction, type CadFileAction } from './cad-file-action'
 import { CadFileDialog } from './cad-file-dialog'
 import { MachineFormDialog } from './machine-form-dialog'
+import { MachinePreview } from './machine-preview'
 import { StatusBadge } from './status-badge'
 
 export function MachinesTable({ machines }: { machines: MachineView[] | undefined }) {
@@ -56,7 +57,13 @@ export function MachinesTable({ machines }: { machines: MachineView[] | undefine
                       ))
                     : Array.from({ length: 5 }, (_, index) => (
                           <TableRow key={index}>
-                              {Array.from({ length: 6 }, (_, cell) => (
+                              <TableCell className="py-3">
+                                  <div className="flex items-center gap-4">
+                                      <Skeleton className="aspect-4/3 w-28 shrink-0 rounded-lg" />
+                                      <Skeleton className="h-5 w-full" />
+                                  </div>
+                              </TableCell>
+                              {Array.from({ length: 5 }, (_, cell) => (
                                   <TableCell key={cell}>
                                       <Skeleton className="h-5 w-full" />
                                   </TableCell>
@@ -104,17 +111,27 @@ function MachineRow({ machine }: { machine: MachineView }) {
 
     return (
         <TableRow className="has-[a:focus-visible]:ring-ring relative cursor-pointer has-[a:focus-visible]:ring-2">
-            <TableCell className="max-w-64">
-                <Link
-                    to="/machines/$machineId"
-                    params={{ machineId }}
-                    className="block truncate font-medium outline-none after:absolute after:inset-0"
-                >
-                    {record.name}
-                </Link>
-                {record.description ? (
-                    <p className="text-muted-foreground truncate">{record.description}</p>
-                ) : null}
+            <TableCell className="max-w-96 py-3">
+                <div className="flex items-center gap-4">
+                    <MachinePreview
+                        key={cadFile?.['@id']}
+                        cadFileId={status === 'ready' ? cadFile?.['@id'] : undefined}
+                    />
+                    <div className="min-w-0">
+                        <Link
+                            to="/machines/$machineId"
+                            params={{ machineId }}
+                            className="block truncate text-base font-medium outline-none after:absolute after:inset-0"
+                        >
+                            {record.name}
+                        </Link>
+                        {record.description ? (
+                            <p className="text-muted-foreground mt-0.5 line-clamp-2 whitespace-normal">
+                                {record.description}
+                            </p>
+                        ) : null}
+                    </div>
+                </div>
             </TableCell>
             <TableCell>{record.identifier}</TableCell>
             <TableCell className="max-w-48 truncate">{record.customer}</TableCell>
