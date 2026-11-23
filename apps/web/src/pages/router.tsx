@@ -8,6 +8,9 @@ import { MachineDetailPage } from './machines/machine-detail-page'
 import { MachinesPage } from './machines/machines-page'
 import { machinesSearchSchema } from './machines/models/machines-search-model'
 import { settingsSearchSchema } from './settings/models/settings-model'
+import { ImprintPage } from './imprint/imprint-page'
+import { LegalNoticesPage } from './legal-notices/legal-notices-page'
+import { PrivacyPolicyPage } from './privacy-policy/privacy-policy-page'
 import { SettingsPage } from './settings/settings-page'
 
 interface RouterContext {
@@ -52,10 +55,34 @@ const settingsRoute = createRoute({
     component: SettingsPage,
 })
 
+const imprintRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/imprint',
+    staticData: { breadcrumb: 'Imprint' },
+    component: ImprintPage,
+})
+
+const legalNoticesRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/legal-notices',
+    staticData: { breadcrumb: 'Legal Notices' },
+    component: LegalNoticesPage,
+})
+
+const privacyPolicyRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/privacy-policy',
+    staticData: { breadcrumb: 'Privacy Policy' },
+    component: PrivacyPolicyPage,
+})
+
 const routeTree = rootRoute.addChildren([
     homeRoute,
     machinesRoute.addChildren([machinesIndexRoute, machineDetailRoute]),
     settingsRoute,
+    imprintRoute,
+    legalNoticesRoute,
+    privacyPolicyRoute,
 ])
 
 export const router = createRouter({

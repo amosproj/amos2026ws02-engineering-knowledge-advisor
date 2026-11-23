@@ -23,6 +23,9 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    SidebarMenuSub,
+    SidebarMenuSubButton,
+    SidebarMenuSubItem,
     SidebarProvider,
     SidebarRail,
     SidebarTrigger,
@@ -40,11 +43,24 @@ export type DashboardNavItem = {
     icon: SidebarIcon
 }
 
+type DashboardNavSubItem = {
+    title: string
+    link: SidebarLinkTo
+}
+
+export type DashboardNavGroup = {
+    title: string
+    icon: SidebarIcon
+    items: readonly DashboardNavSubItem[]
+}
+
+export type DashboardNavEntry = DashboardNavItem | DashboardNavGroup
+
 export type DashboardNavConfig = {
     /** Items rendered at the top of the sidebar. */
-    navMenu: readonly DashboardNavItem[]
+    navMenu: readonly DashboardNavEntry[]
     /** Items pinned at the bottom of the sidebar. */
-    navFooter: readonly DashboardNavItem[]
+    navFooter: readonly DashboardNavEntry[]
 }
 
 /** Label of a route in the header breadcrumb, set through the route's `staticData.breadcrumb`. */
@@ -79,21 +95,78 @@ function Brand() {
     )
 }
 
-function NavSection({ items, pathname }: { items: readonly DashboardNavItem[]; pathname: string }) {
+function isNavGroup(item: DashboardNavEntry): item is DashboardNavGroup {
+    return 'items' in item
+}
+
+function NavGroup({ item, pathname }: { item: DashboardNavGroup; pathname: string }) {
+    const { state, setOpen: setSidebarOpen } = useSidebar()
+    const hasActiveItem = item.items.some((subItem) => isActiveLink(subItem.link, pathname))
+    const [isOpen, setIsOpen] = React.useState(hasActiveItem)
+
+    React.useEffect(() => {
+        if (hasActiveItem) setIsOpen(true)
+    }, [hasActiveItem])
+
+    function toggleGroup() {
+        if (state === 'collapsed') {
+            setSidebarOpen(true)
+            setIsOpen(true)
+            return
+        }
+
+        setIsOpen((open) => !open)
+    }
+
+    return (
+        <SidebarMenuItem>
+            <SidebarMenuButton tooltip={item.title} aria-expanded={isOpen} onClick={toggleGroup}>
+                <HugeiconsIcon icon={item.icon} strokeWidth={2} />
+                <span>{item.title}</span>
+            </SidebarMenuButton>
+            {isOpen && (
+                <SidebarMenuSub>
+                    {item.items.map((subItem) => (
+                        <SidebarMenuSubItem key={subItem.link}>
+                            <SidebarMenuSubButton
+                                isActive={isActiveLink(subItem.link, pathname)}
+                                render={<Link to={subItem.link} />}
+                            >
+                                <span>{subItem.title}</span>
+                            </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                    ))}
+                </SidebarMenuSub>
+            )}
+        </SidebarMenuItem>
+    )
+}
+
+function NavSection({
+    items,
+    pathname,
+}: {
+    items: readonly DashboardNavEntry[]
+    pathname: string
+}) {
     return (
         <SidebarMenu>
-            {items.map((item) => (
-                <SidebarMenuItem key={item.link}>
-                    <SidebarMenuButton
-                        tooltip={item.title}
-                        isActive={isActiveLink(item.link, pathname)}
-                        render={<Link to={item.link} />}
-                    >
-                        <HugeiconsIcon icon={item.icon} strokeWidth={2} />
-                        <span>{item.title}</span>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-            ))}
+            {items.map((item) =>
+                isNavGroup(item) ? (
+                    <NavGroup key={item.title} item={item} pathname={pathname} />
+                ) : (
+                    <SidebarMenuItem key={item.link}>
+                        <SidebarMenuButton
+                            tooltip={item.title}
+                            isActive={isActiveLink(item.link, pathname)}
+                            render={<Link to={item.link} />}
+                        >
+                            <HugeiconsIcon icon={item.icon} strokeWidth={2} />
+                            <span>{item.title}</span>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                ),
+            )}
         </SidebarMenu>
     )
 }
