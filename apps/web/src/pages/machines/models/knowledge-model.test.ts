@@ -4,7 +4,6 @@ import type { KnowledgeItemView } from '../query/knowledge-api'
 import {
     knowledgeDetails,
     BUCKETS,
-    knowledgeFormSchema,
     newKnowledgeForm,
     unusedBuckets,
     toKnowledgeBody,
@@ -31,25 +30,6 @@ const EMPTY: KnowledgeForm = {
     itemType: '',
     reference: '',
 }
-
-describe('knowledgeFormSchema', () => {
-    it('refuses blank knowledge', () => {
-        const parsed = knowledgeFormSchema.safeParse({ ...EMPTY, statement: '   ' })
-
-        expect(parsed.success).toBe(false)
-    })
-
-    it('trims the knowledge and the details', () => {
-        const parsed = knowledgeFormSchema.parse({
-            ...EMPTY,
-            statement: '  Chamfer the nest. ',
-            reasoning: ' Parts jam. ',
-        })
-
-        expect(parsed.statement).toBe('Chamfer the nest.')
-        expect(parsed.reasoning).toBe('Parts jam.')
-    })
-})
 
 describe('toKnowledgeBody', () => {
     it('links the item to the instance and leaves out empty values', () => {

@@ -70,7 +70,6 @@ const NO_INSET: ViewInset = { left: 0, right: 0 }
 
 const toTree = (data: RecordTree | null) => (data ? indexAssembly(toAssemblyNode(data)) : null)
 
-// Width the details panel opens at, in px: room for the knowledge panel and its buckets
 const DETAILS_PANEL_WIDTH = 360
 
 export function MachineDetailPage() {

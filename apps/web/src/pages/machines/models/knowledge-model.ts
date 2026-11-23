@@ -17,7 +17,6 @@ const SHORT_MAX_LENGTH = 255
 const optionalText = (label: string, max: number) =>
     z.string().trim().max(max, `The ${label} must be ${max} characters or fewer.`)
 
-/** Labels of the knowledge properties, as the ontology names them. */
 export const FIELD_LABELS = {
     name: 'Name',
     statement: 'Statement',
@@ -30,7 +29,6 @@ export const FIELD_LABELS = {
     reference: 'Reference',
 } as const
 
-/** Help text from the ontology comments. */
 export const FIELD_HINTS = {
     name: 'Short name of the item.',
     reasoning: 'Why the knowledge holds: the engineering reasoning behind it.',
@@ -41,13 +39,11 @@ export const FIELD_HINTS = {
     reference: 'A standard, norm or other source, e.g. DIN EN ISO 13849.',
 } as const
 
-/** A predefined start for new knowledge: its name, and an example statement. */
 export type Bucket = {
     name: string
     example: string
 }
 
-/** Basic buckets: global properties of a machine, offered on every element. */
 export const BUCKETS: readonly Bucket[] = [
     { name: 'Size of product produced', example: 'e.g. Parts up to 200 × 150 × 80 mm and 2 kg.' },
     { name: 'Cycle time of system', example: 'e.g. 45 s per part, one part at a time.' },
@@ -78,13 +74,11 @@ export const BUCKETS: readonly Bucket[] = [
     },
 ]
 
-/** The buckets no item of ``items`` is named after yet. */
 export function unusedBuckets(items: readonly KnowledgeItemView[]): Bucket[] {
     const used = new Set(items.map((item) => item.record.properties.name?.trim()))
     return BUCKETS.filter((bucket) => !used.has(bucket.name))
 }
 
-/** Machine properties are requirements on the machine. */
 const BUCKET_ITEM_TYPE: ItemType = 'requirement'
 
 export const knowledgeFormSchema = z.object({
@@ -101,7 +95,6 @@ export const knowledgeFormSchema = z.object({
     condition: optionalText('condition', DETAIL_MAX_LENGTH),
     consequence: optionalText('consequence', DETAIL_MAX_LENGTH),
     recommendation: optionalText('recommendation', DETAIL_MAX_LENGTH),
-    // Empty: not set
     confidence: z.enum(['', ...CONFIDENCE_LEVELS]),
     itemType: z.enum(['', ...ITEM_TYPES]),
     reference: optionalText('reference', SHORT_MAX_LENGTH),
@@ -124,13 +117,11 @@ export function toKnowledgeForm(item: KnowledgeItemView | undefined): KnowledgeF
     }
 }
 
-/** A new item, started from ``bucket``: named after it, as a requirement. */
 export function newKnowledgeForm(bucket: Bucket | undefined): KnowledgeForm {
     const empty = toKnowledgeForm(undefined)
     return bucket ? { ...empty, name: bucket.name, itemType: BUCKET_ITEM_TYPE } : empty
 }
 
-/** A new item: empty values are left out. */
 export function toKnowledgeBody(form: KnowledgeForm, instanceId: string): KnowledgeItemBody {
     const set = <K extends string, V>(key: K, value: V | '') =>
         (value ? { [key]: value } : {}) as Partial<Record<K, V>>
@@ -148,7 +139,6 @@ export function toKnowledgeBody(form: KnowledgeForm, instanceId: string): Knowle
     }
 }
 
-/** Merge patch: a cleared value is sent as null, which removes it. */
 export function toKnowledgeChanges(form: KnowledgeForm): KnowledgeItemChanges {
     return {
         itemType: form.itemType || null,
@@ -165,7 +155,6 @@ export function toKnowledgeChanges(form: KnowledgeForm): KnowledgeItemChanges {
     }
 }
 
-/** The filled detail properties of an item, in display order. */
 export function knowledgeDetails(item: KnowledgeItemView) {
     const { properties } = item.record
     return DETAIL_FIELDS.flatMap((key) => {

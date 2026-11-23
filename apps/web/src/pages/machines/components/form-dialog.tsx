@@ -20,13 +20,10 @@ import { SubscribeForm } from '@components/forms/subscribe-form'
 import { cn } from 'cn'
 
 export type FormDialogControls = {
-    // Closes the dialog, e.g. after a save
     close: () => void
-    // Closes the dialog, after asking first if there is unsaved input
     cancel: () => void
     // While busy, the dialog cannot be closed
     setBusy: (busy: boolean) => void
-    // Unsaved input: closing asks first, and leaving or reloading the page warns
     setUnsaved: (unsaved: boolean) => void
 }
 
@@ -37,7 +34,6 @@ type FormDialogProps = {
     trigger?: React.ReactElement
     open?: boolean
     onOpenChange?: (open: boolean) => void
-    // Room for a form laid out in two columns
     wide?: boolean
     // The form, mounted again on each opening so it starts from fresh values
     children: (dialog: FormDialogControls) => React.ReactNode
@@ -152,7 +148,6 @@ export function FormDialogFooter({ error, submitLabel, onCancel }: FormDialogFoo
                 </Alert>
             ) : null}
             <DialogFooter>
-                {/* Same minimum width, so a short label like "Add" is not a smaller target */}
                 <Button type="button" variant="outline" className="min-w-20" onClick={onCancel}>
                     Cancel
                 </Button>

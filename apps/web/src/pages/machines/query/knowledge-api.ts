@@ -14,13 +14,11 @@ export const ITEM_TYPES = [
 
 export const CONFIDENCE_LEVELS = ['established practice', 'rule of thumb', 'unverified'] as const
 
-/** The text properties of `KnowledgeProperties` besides the statement, in display order. */
 export const DETAIL_FIELDS = ['reasoning', 'condition', 'consequence', 'recommendation'] as const
 
 const itemType = z.enum(ITEM_TYPES)
 const confidence = z.enum(CONFIDENCE_LEVELS)
 
-// og:KnowledgeProperties, nested in the item (one to one)
 const knowledgePropertiesSchema = z.looseObject({
     statement: z.string(),
     name: z.string().optional(),
@@ -38,7 +36,6 @@ const knowledgeItemSchema = z.looseObject({
     properties: knowledgePropertiesSchema,
 })
 
-// The view: sent when `include` is set, carries the version
 const knowledgeItemViewSchema = z.object({
     record: knowledgeItemSchema,
     version: z.string(),
@@ -123,7 +120,6 @@ export const deleteKnowledgeItem = queryMaker({
     response: z.object({ deletedIds: z.array(z.string()), markedIds: z.array(z.string()) }),
 })
 
-/** Prefix of the knowledge item queries of one assembly instance. */
 export const knowledgeItemsQueryKey = (instanceId: string) =>
     [...machinesQueryKey, 'knowledge', instanceId] as const
 

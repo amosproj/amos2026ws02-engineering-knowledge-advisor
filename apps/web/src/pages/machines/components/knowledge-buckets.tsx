@@ -5,12 +5,10 @@ import type { KnowledgeItemView } from '../query/knowledge-api'
 
 type KnowledgeBucketsProps = {
     instanceId: string
-    // The items of the instance: buckets they are named after are left out
     items: KnowledgeItemView[]
     onSelect: (bucket: Bucket) => void
 }
 
-/** The buckets a new item can start from, as a row of chips. Nothing when all are used. */
 export function KnowledgeBuckets({ instanceId, items, onSelect }: KnowledgeBucketsProps) {
     const buckets: Bucket[] = unusedBuckets(items)
     if (buckets.length === 0) return null

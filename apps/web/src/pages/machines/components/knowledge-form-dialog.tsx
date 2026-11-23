@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useStore } from '@tanstack/react-form'
+import { useSelector } from '@tanstack/react-form'
 
 import { Badge, FieldGroup, NativeSelectOption, toast, useAppForm } from '@components'
 
@@ -29,7 +29,6 @@ import { DialogForm, FormDialog, FormDialogFooter, type FormDialogControls } fro
 
 type KnowledgeFormDialogProps = {
     instanceId: string
-    // Edited item, a new item without it
     item?: KnowledgeItemView
     // Bucket a new item starts from
     bucket?: Bucket
@@ -116,8 +115,7 @@ function KnowledgeFormBody({ instanceId, item, bucket, dialog }: KnowledgeFormBo
         },
     })
 
-    // Input that differs from what the dialog opened with
-    const unsaved = useStore(form.store, (state) => !state.isDefaultValue)
+    const unsaved = useSelector(form.store, (state) => !state.isDefaultValue)
     const { setUnsaved } = dialog
     useEffect(() => setUnsaved(unsaved), [unsaved, setUnsaved])
 
@@ -126,7 +124,6 @@ function KnowledgeFormBody({ instanceId, item, bucket, dialog }: KnowledgeFormBo
             <form.Subscribe selector={(state) => state.isSubmitting}>
                 {(isSubmitting) => (
                     <DialogForm onSubmit={() => void form.handleSubmit()} submitting={isSubmitting}>
-                        {/* Two columns from sm up: the knowledge spans both, the details pair up */}
                         <FieldGroup className="grid items-start gap-x-6 gap-y-5 sm:grid-cols-2">
                             <div className="sm:col-span-2">
                                 <form.AppField name="statement">

@@ -12,7 +12,6 @@ import { KnowledgeFormDialog } from './knowledge-form-dialog'
 import { KnowledgeItemCard } from './knowledge-item-card'
 
 type KnowledgeItemsProps = {
-    // The assembly instance (tree node) the knowledge belongs to
     instanceId: string
     instanceName: string
 }
@@ -20,7 +19,6 @@ type KnowledgeItemsProps = {
 export function KnowledgeItems({ instanceId, instanceName }: KnowledgeItemsProps) {
     const items = useQuery(knowledgeItemsQuery(instanceId))
     const [adding, setAdding] = useState(false)
-    // Bucket the new item starts from, none for a blank one. Kept while the dialog closes.
     const [bucket, setBucket] = useState<Bucket>()
 
     const add = (from?: Bucket) => {

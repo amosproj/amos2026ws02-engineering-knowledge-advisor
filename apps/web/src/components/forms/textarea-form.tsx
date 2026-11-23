@@ -10,7 +10,6 @@ export type TextareaFormProps = Omit<
 > & {
     label: string
     description?: string
-    /** Rendered next to the label, e.g. a "Required" badge. */
     labelAction?: React.ReactNode
 }
 
