@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useStore } from '@tanstack/react-form'
 
-import { FieldGroup, NativeSelectOption, toast, useAppForm } from '@components'
+import { Badge, FieldGroup, NativeSelectOption, toast, useAppForm } from '@components'
 
 import {
     FIELD_HINTS,
@@ -133,6 +133,7 @@ function KnowledgeFormBody({ instanceId, item, bucket, dialog }: KnowledgeFormBo
                                     {(field) => (
                                         <field.TextareaForm
                                             label={FIELD_LABELS.statement}
+                                            labelAction={<Badge variant="outline">Required</Badge>}
                                             placeholder={
                                                 bucket?.example ??
                                                 'e.g. Chamfer the nest so parts slide in without jamming.'
@@ -146,17 +147,14 @@ function KnowledgeFormBody({ instanceId, item, bucket, dialog }: KnowledgeFormBo
                                 {(field) => (
                                     <field.InputForm
                                         label={FIELD_LABELS.name}
-                                        description={`${FIELD_HINTS.name} Optional.`}
+                                        description={FIELD_HINTS.name}
                                         autoComplete="off"
                                     />
                                 )}
                             </form.AppField>
                             <form.AppField name="itemType">
                                 {(field) => (
-                                    <field.NativeSelectForm
-                                        label={FIELD_LABELS.itemType}
-                                        description="Optional."
-                                    >
+                                    <field.NativeSelectForm label={FIELD_LABELS.itemType}>
                                         <NativeSelectOption value="">No type</NativeSelectOption>
                                         {ITEM_TYPES.map((type) => (
                                             <NativeSelectOption key={type} value={type}>
@@ -171,7 +169,7 @@ function KnowledgeFormBody({ instanceId, item, bucket, dialog }: KnowledgeFormBo
                                     {(field) => (
                                         <field.TextareaForm
                                             label={FIELD_LABELS[key]}
-                                            description={`${FIELD_HINTS[key]} Optional.`}
+                                            description={FIELD_HINTS[key]}
                                             rows={2}
                                         />
                                     )}
@@ -181,7 +179,7 @@ function KnowledgeFormBody({ instanceId, item, bucket, dialog }: KnowledgeFormBo
                                 {(field) => (
                                     <field.NativeSelectForm
                                         label={FIELD_LABELS.confidence}
-                                        description={`${FIELD_HINTS.confidence} Optional.`}
+                                        description={FIELD_HINTS.confidence}
                                     >
                                         <NativeSelectOption value="">Not set</NativeSelectOption>
                                         {CONFIDENCE_LEVELS.map((level) => (
@@ -196,7 +194,7 @@ function KnowledgeFormBody({ instanceId, item, bucket, dialog }: KnowledgeFormBo
                                 {(field) => (
                                     <field.InputForm
                                         label={FIELD_LABELS.reference}
-                                        description={`${FIELD_HINTS.reference} Optional.`}
+                                        description={FIELD_HINTS.reference}
                                         autoComplete="off"
                                     />
                                 )}

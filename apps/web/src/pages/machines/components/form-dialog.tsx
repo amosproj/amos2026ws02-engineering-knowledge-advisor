@@ -152,10 +152,11 @@ export function FormDialogFooter({ error, submitLabel, onCancel }: FormDialogFoo
                 </Alert>
             ) : null}
             <DialogFooter>
-                <Button type="button" variant="outline" onClick={onCancel}>
+                {/* Same minimum width, so a short label like "Add" is not a smaller target */}
+                <Button type="button" variant="outline" className="min-w-20" onClick={onCancel}>
                     Cancel
                 </Button>
-                <SubscribeForm>{submitLabel}</SubscribeForm>
+                <SubscribeForm className="min-w-20">{submitLabel}</SubscribeForm>
             </DialogFooter>
         </>
     )

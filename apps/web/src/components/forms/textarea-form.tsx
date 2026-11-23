@@ -10,12 +10,15 @@ export type TextareaFormProps = Omit<
 > & {
     label: string
     description?: string
+    /** Rendered next to the label, e.g. a "Required" badge. */
+    labelAction?: React.ReactNode
 }
 
 export function TextareaForm({
     id,
     label,
     description,
+    labelAction,
     'aria-describedby': ariaDescribedBy,
     ...props
 }: TextareaFormProps) {
@@ -33,7 +36,14 @@ export function TextareaForm({
 
     return (
         <Field data-invalid={errors.length > 0}>
-            <FieldLabel htmlFor={textareaId}>{label}</FieldLabel>
+            {labelAction ? (
+                <div className="flex items-center justify-between gap-3">
+                    <FieldLabel htmlFor={textareaId}>{label}</FieldLabel>
+                    {labelAction}
+                </div>
+            ) : (
+                <FieldLabel htmlFor={textareaId}>{label}</FieldLabel>
+            )}
             <Textarea
                 {...props}
                 id={textareaId}
