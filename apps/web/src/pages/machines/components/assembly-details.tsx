@@ -4,6 +4,7 @@ import { Button, Skeleton } from '@components'
 
 import { formatDimensions, type AssemblyNode } from '../models/assembly-tree-model'
 import { assemblyGroupQuery } from '../query/machine-api'
+import { KnowledgeItems } from './knowledge-items'
 
 type AssemblyDetailsProps = {
     node: AssemblyNode
@@ -50,9 +51,7 @@ export function AssemblyDetails({ node, machineName }: AssemblyDetailsProps) {
                 <Detail label="Instance">{node.name}</Detail>
                 <Detail label="Machine">{machineName}</Detail>
             </dl>
-            <div className="text-muted-foreground mt-2 rounded-lg border border-dashed p-4 text-center">
-                The knowledge capture form could be placed here.
-            </div>
+            <KnowledgeItems instanceId={node.id} instanceName={node.name} />
         </div>
     )
 }

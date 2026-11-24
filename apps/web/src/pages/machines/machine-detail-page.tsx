@@ -70,6 +70,8 @@ const NO_INSET: ViewInset = { left: 0, right: 0 }
 
 const toTree = (data: RecordTree | null) => (data ? indexAssembly(toAssemblyNode(data)) : null)
 
+const DETAILS_PANEL_WIDTH = 360
+
 export function MachineDetailPage() {
     const { machineId } = useParams({ from: '/machines/$machineId' })
     return <MachineView key={machineId} machineId={machineId} />
@@ -221,7 +223,8 @@ function MachineView({ machineId }: { machineId: string }) {
     const showDetails = (node: AssemblyNode) => {
         setSelected(node)
         if (isMobile) setDrawer('details')
-        else if (detailsPanelRef.current?.isCollapsed()) detailsPanelRef.current.resize(288)
+        else if (detailsPanelRef.current?.isCollapsed())
+            detailsPanelRef.current.resize(DETAILS_PANEL_WIDTH)
     }
     const frame = (node: AssemblyNode) =>
         setFrameRequest((request) => ({
