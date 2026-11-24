@@ -120,7 +120,12 @@ function NavGroup({ item, pathname }: { item: DashboardNavGroup; pathname: strin
 
     return (
         <SidebarMenuItem>
-            <SidebarMenuButton tooltip={item.title} aria-expanded={isOpen} onClick={toggleGroup}>
+            <SidebarMenuButton
+                tooltip={item.title}
+                aria-expanded={isOpen}
+                isActive={hasActiveItem && (state === 'collapsed' || !isOpen)}
+                onClick={toggleGroup}
+            >
                 <HugeiconsIcon icon={item.icon} strokeWidth={2} />
                 <span>{item.title}</span>
             </SidebarMenuButton>
