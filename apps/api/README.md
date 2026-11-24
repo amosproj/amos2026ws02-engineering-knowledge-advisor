@@ -4,17 +4,23 @@ FastAPI backend. Requires Python 3.13 and [uv](https://docs.astral.sh/uv/).
 
 ## Configuration
 
-| Variable                  | Values                                                 | Default         |
-| ------------------------- | ------------------------------------------------------ | --------------- |
-| `API_PROFILE`             | `dev`, `prod`                                          | `dev`           |
-| `API_DATABASE_URL`        | `postgresql+psycopg://user:pw@host/db`                 | none (required) |
-| `API_ONTOLOGY_PATH`       | JSON-LD ontology file                                  | none (required) |
-| `API_S3_ENDPOINT_URL`     | S3 endpoint, e.g. `http://minio:9000`                  | none (required) |
-| `API_S3_BUCKET`           | bucket of the uploaded files                           | none (required) |
-| `API_S3_ACCESS_KEY`       | S3 access key                                          | none (required) |
-| `API_S3_SECRET_KEY`       | S3 secret key                                          | none (required) |
-| `API_S3_REGION`           | S3 region, e.g. `us-east-1`                            | none (required) |
-| `API_S3_PUBLIC_URL`       | where the browser reaches the storage, e.g. `/storage` | none (required) |
+| Variable                             | Values                                                                            | Default         |
+| ------------------------------------ | --------------------------------------------------------------------------------- | --------------- |
+| `API_PROFILE`                        | `dev`, `prod`                                                                     | `dev`           |
+| `API_DATABASE_URL`                   | `postgresql+psycopg://user:pw@host/db`                                            | none (required) |
+| `API_ONTOLOGY_PATH`                  | JSON-LD ontology file                                                             | none (required) |
+| `API_EMBEDDING_DIMENSIONS`           | embedding model vector dimensionality                                             | `768`           |
+| `API_SEARCH__TOP_K`                  | relevant hypernodes: values (from the candidates) + keys closest in meaning, each | `10`            |
+| `API_SEARCH__MAX_EDGES`              | facts given to the LLM as context                                                 | `8`             |
+| `API_SEARCH__CANDIDATE_POOL`         | nearest value embeddings fetched per request, >= `TOP_K`                          | `50`            |
+| `API_SEARCH__MIN_SIMILARITY`         | semantic similarity a request needs (0 to 1)                                      | `0.72`          |
+| `API_SEARCH__LEXICAL_MIN_SIMILARITY` | spelling similarity of a lexical value (0 to 1)                                   | `0.6`           |
+| `API_S3_ENDPOINT_URL`                | S3 endpoint, e.g. `http://minio:9000`                                             | none (required) |
+| `API_S3_BUCKET`                      | bucket of the uploaded files                                                      | none (required) |
+| `API_S3_ACCESS_KEY`                  | S3 access key                                                                     | none (required) |
+| `API_S3_SECRET_KEY`                  | S3 secret key                                                                     | none (required) |
+| `API_S3_REGION`                      | S3 region, e.g. `us-east-1`                                                       | none (required) |
+| `API_S3_PUBLIC_URL`                  | where the browser reaches the storage, e.g. `/storage`                            | none (required) |
 
 Settings are read in this order:
 
@@ -53,7 +59,7 @@ Postgres tests `tests/test_pg.py` run only when the environment variable `API_TE
 
 ## Database
 
-Postgres. Schema changes are Alembic migrations in `migrations/`:
+Postgres with [pgvector](https://github.com/pgvector/pgvector) and `pg_trgm` extensions. Plugin + table inits and Schema changes are Alembic migrations in `migrations/`:
 
 ```sh
 uv run --project apps/api alembic -c apps/api/alembic.ini upgrade head                                # apply
@@ -62,6 +68,8 @@ uv run --project apps/api alembic -c apps/api/alembic.ini check                 
 ```
 
 Table, column, index and constraint names live in `src/db/names.py`. Tables live in `src/db/tables.py`.
+
+The `ograg_*` tables hold the OG-RAG hypergraph derived from `records`. Their vector size is `API_EMBEDDING_DIMENSIONS` (default 768 for `intfloat/multilingual-e5-base`). Changing it after the table has been created requires a migration of the vector column and its indexes. The hypergraph tables are not a backup priority.
 
 Text columns: `String` (`varchar` without a length) for ids and short values, `Text` for free form text. Postgres stores both the same way. To set a limit, use ``varchar(n)``.
 
@@ -87,6 +95,7 @@ Loaded on start with the ontology. Invalid ontology stops the start. JSON fields
 | `DELETE /api/v1/records/{id}[?deleteOrphans=true]`  | Delete record, orphan records left without a parent link are marked for review or deleted |
 | `POST /api/v1/records/{id}/upload-form`             | Upload form for the file of an `og:file` record                            |
 | `POST /api/v1/records/{id}/complete`                | Confirm the upload, queue the file for processing                          |
+| `GET /api/v1/records/{id}/preview`                  | Preview image (PNG) of the file, `404` without one                         |
 | `GET /api/v1/ontology`                              | Every class with its properties and annotations                            |
 
 `include=status,children,upload` wraps each record as `{"record": ..., "status": ..., "children": [...], "upload": ...}`:
@@ -149,7 +158,7 @@ curl http://localhost:8080/api/v1/llm/chat \
 
 See [LLM integration](../../Documentation/architecture/llm-integration.md) for chat API, supported providers, environment settings, streaming format, error codes, and extension instructions.
 
-## Sample data for API tests:
+## Sample data for API tests
 
 `POST /records` is for generated IDs and takes the same bodies.
 

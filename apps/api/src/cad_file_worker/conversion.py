@@ -1,19 +1,16 @@
 """Converts a STEP file in a child process, so a crash or a hang of Open CASCADE cannot take the worker down."""
 
-import multiprocessing
 import pickle
 import threading
-import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
-from multiprocessing.context import SpawnContext
 from pathlib import Path
 
-from cad_file_worker.errors import ConversionTimeoutError, StopRequested
+from cad_file_worker.child_process import run_in_child
+from cad_file_worker.errors import ChildTimeoutError, ConversionTimeoutError
 from services.cad.errors import StepImportError
 from services.cad.model import CadModel
 
-POLL_SECONDS: float = 0.5
 TEMP_RESULT_FILE_NAME: str = "conversion.pickle"
 
 
@@ -53,29 +50,17 @@ def convert_step_file(
     """
     result_path: Path = glb_path.with_name(TEMP_RESULT_FILE_NAME)
     result_path.unlink(missing_ok=True)
-    context: SpawnContext = multiprocessing.get_context("spawn")
-    process = context.Process(target=_convert, args=(step_path, glb_path, result_path))
-    process.start()
-    deadline: float = time.monotonic() + timeout
     try:
-        try:
-            while True:
-                if stopping.is_set():
-                    raise StopRequested
-                if time.monotonic() > deadline:
-                    raise ConversionTimeoutError(
-                        f"Converting the STEP file took longer than {timeout} s"
-                    )
-                on_progress()
-                if process.exitcode is not None:
-                    break
-                process.join(POLL_SECONDS)
-        finally:
-            process.kill()
-            process.join()
-            exitcode: int | None = process.exitcode
-            process.close()
+        exitcode: int | None = run_in_child(
+            _convert,
+            (step_path, glb_path, result_path),
+            timeout,
+            stopping,
+            on_progress,
+        )
         return _read_result(result_path, exitcode)
+    except ChildTimeoutError as error:
+        raise ConversionTimeoutError(f"Converting the STEP file {error}") from error
     finally:
         result_path.unlink(missing_ok=True)
 

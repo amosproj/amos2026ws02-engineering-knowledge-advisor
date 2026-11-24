@@ -713,6 +713,8 @@ def test_writes_run_in_the_requests_session(client: TestClient, service: OgRagSe
 
 MODEL_URL: str = f"{RECORDS_URL}/CF-1/model"
 MODEL_KEY: str = "files/CF-1/model.glb"
+PREVIEW_URL: str = f"{RECORDS_URL}/CF-1/preview"
+PREVIEW_KEY: str = "files/CF-1/preview.png"
 
 
 def add_cad_file(
@@ -722,6 +724,7 @@ def add_cad_file(
     status: UploadStatus | None,
     model_key: str | None = None,
     error_code: str | None = None,
+    preview_key: str | None = None,
 ) -> None:
     """A machine with CAD file CF-1 whose upload has ``status`` (no upload if ``None``)."""
     seed_machine_and_group(service)
@@ -736,6 +739,7 @@ def add_cad_file(
         status=status,
         model_key=model_key,
         error_code=error_code,
+        preview_key=preview_key,
     )
 
 
@@ -814,6 +818,37 @@ def test_the_model_link_needs_the_storage(
     monkeypatch.setattr(catalog.storage, "create_download_url", fail)
 
     assert client.get(MODEL_URL, follow_redirects=False).status_code == 503
+
+
+def test_the_preview_is_returned_as_an_image(
+    client: TestClient, service: OgRagService, catalog: CatalogService
+):
+    add_cad_file(client, service, catalog, UploadStatus.READY, preview_key=PREVIEW_KEY)
+    assert isinstance(catalog.storage, MemoryStorage)
+    catalog.storage.contents[PREVIEW_KEY] = b"png"
+
+    response: Response = client.get(PREVIEW_URL)
+
+    assert response.status_code == 200
+    assert response.content == b"png"
+    assert response.headers["content-type"] == "image/png"
+    assert response.headers["cache-control"] == "private, max-age=3600"
+
+
+@pytest.mark.parametrize("preview_key", [None, PREVIEW_KEY])
+def test_a_ready_file_without_a_stored_preview_has_no_preview(
+    client: TestClient,
+    service: OgRagService,
+    catalog: CatalogService,
+    preview_key: str | None,
+):
+    add_cad_file(client, service, catalog, UploadStatus.READY, preview_key=preview_key)
+
+    response: Response = client.get(PREVIEW_URL)
+
+    assert response.status_code == 404
+    assert response.json()["errorCode"] == "preview_unavailable"
+    assert response.headers["cache-control"] == "no-store"
 
 
 @pytest.mark.parametrize(("model_key", "has_model"), [(MODEL_KEY, True), (None, False)])

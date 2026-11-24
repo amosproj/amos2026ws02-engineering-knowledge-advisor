@@ -212,11 +212,11 @@ folders.
   data stays consistent in one transaction, and there is one database to run
   and back up. LanceDB was considered; we can switch later if vector volume or
   speed requires it.
-- **LLM adapter so Bosch can switch providers.** The backend calls one internal
+- **LLM adapter so end-user can switch providers.** The backend calls one internal
   interface instead of a vendor SDK. Each provider - hosted
   models such as GPT or Claude, or open-source models such as Qwen running on
-  Bosch's own hardware - is one implementation selected by configuration.
-  Bosch can change the model for cost, data-protection or quality reasons
+  end-user's own hardware - is one implementation selected by configuration.
+  End-user can change the model for cost, data-protection or quality reasons
   without changing the rest of the code, and tests can use a fake provider.
   Embeddings do not go through it: the embedding model runs locally in the
   backend.
@@ -233,7 +233,7 @@ folders.
   parsers.
 - **MinIO for files.** CAD files and documents are large binaries and do not
   belong in the database. MinIO speaks the S3 API, so the same code works with
-  any S3-compatible storage at Bosch. All data lives in Docker volumes on disk.
+  any S3-compatible storage. All data lives in Docker volumes on disk.
 - **FastAPI + React.** Python gives direct access to CAD, embedding and LLM
   libraries; FastAPI validates requests and generates the OpenAPI contract.
   React with TypeScript gives a typed, component-based UI.

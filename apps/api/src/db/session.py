@@ -67,7 +67,7 @@ def create_ograg_service(settings: Settings, engine: AsyncEngine) -> OgRagServic
     ontology = Ontology.load(settings.ontology_path)
     store = PgRecordStore(
         engine,
-        tables=get_tables(),
+        tables=get_tables(settings.embedding_dimensions),
         identity_property_names=ontology.get_identity_property_names(),
     )
     logger.info(
@@ -80,7 +80,7 @@ def create_catalog_service(settings: Settings, ograg: OgRagService) -> CatalogSe
     """The catalog on ``ograg``, with the upload state in Postgres and the files in S3. One per process."""
     return CatalogService(
         ograg,
-        PgUploadStore(get_tables()),
+        PgUploadStore(get_tables(settings.embedding_dimensions)),
         S3ObjectStorage(settings),
     )
 

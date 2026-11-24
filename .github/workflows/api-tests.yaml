@@ -50,6 +50,9 @@ jobs:
           working-directory: apps/api
           enable-cache: true
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libegl1
+
       - name: Install dependencies
         id: sync
         run: uv sync --locked

@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 
 import pytest
+from helpers import recreate_tables
 from sqlalchemy import MetaData, Select, Table, TextClause, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import (
@@ -16,7 +17,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from db import CommonColumn, RecordColumn, TableName, Tables, define_tables
+from config.settings import DEFAULT_EMBEDDING_DIMENSIONS
+from db import CommonColumn, RecordColumn, Tables, define_tables
 from db.names import UploadColumn
 from services.postgres.upload_store import PgUploadStore
 from services.uploads import LockTimeoutError, Upload, UploadStatus
@@ -29,6 +31,7 @@ pytestmark = pytest.mark.skipif(
 
 FIRST_ID: str = "file-1"
 MODEL_KEY: str = "files/file-1/model.glb"
+PREVIEW_KEY: str = "files/file-1/preview.png"
 SECOND_ID: str = "file-2"
 MISSING_ID: str = "file-9"
 SIZE: int = 300
@@ -50,14 +53,12 @@ def run_async(check: Callable[[], Coroutine[object, object, None]]) -> None:
 async def open_store(*file_ids: str) -> AsyncGenerator[tuple[PgUploadStore, Sessions]]:
     """Fresh tables with one record per file id, each upload registered (``uploading``), in this order."""
     engine: AsyncEngine = create_async_engine(URL)
-    tables: Tables = define_tables(MetaData())
+    tables: Tables = define_tables(DEFAULT_EMBEDDING_DIMENSIONS, MetaData())
     store = PgUploadStore(tables)
     sessions: Sessions = async_sessionmaker(engine, expire_on_commit=False)
     try:
         async with engine.begin() as conn:
-            for name in TableName:
-                await conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
-            await conn.run_sync(tables.metadata.create_all)
+            await recreate_tables(conn, tables)
         for file_id in file_ids:
             async with sessions() as session, session.begin():
                 await session.execute(
@@ -139,8 +140,8 @@ def test_the_same_content_may_be_ready_twice():
         async with open_store(FIRST_ID, SECOND_ID) as (store, sessions):
             await finish(store, sessions, FIRST_ID, SECOND_ID)
             async with sessions() as session, session.begin():
-                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, session)
-                await store.set_ready(SECOND_ID, SHA256, None, session)
+                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, PREVIEW_KEY, session)
+                await store.set_ready(SECOND_ID, SHA256, None, None, session)
 
             for file_id in (FIRST_ID, SECOND_ID):
                 assert (await get_upload(store, sessions, file_id)).status == "ready"
@@ -148,33 +149,41 @@ def test_the_same_content_may_be_ready_twice():
     run_async(run_check)
 
 
-def test_set_ready_stores_the_model_key_or_none():
+def test_set_ready_stores_the_keys_or_none():
     async def run_check() -> None:
         async with open_store(FIRST_ID, SECOND_ID) as (store, sessions):
             await finish(store, sessions, FIRST_ID, SECOND_ID)
             async with sessions() as session, session.begin():
-                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, session)
-                await store.set_ready(SECOND_ID, SHA256, None, session)
+                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, PREVIEW_KEY, session)
+                await store.set_ready(SECOND_ID, SHA256, None, None, session)
 
-            assert (await get_upload(store, sessions, FIRST_ID)).model_key == MODEL_KEY
-            assert (await get_upload(store, sessions, SECOND_ID)).model_key is None
+            first: Upload = await get_upload(store, sessions, FIRST_ID)
+            second: Upload = await get_upload(store, sessions, SECOND_ID)
+            assert (first.model_key, first.preview_key) == (MODEL_KEY, PREVIEW_KEY)
+            assert (second.model_key, second.preview_key) == (None, None)
 
     run_async(run_check)
 
 
-def test_restarting_a_failed_upload_clears_the_model_key():
+def test_restarting_a_failed_upload_clears_the_keys():
     async def run_check() -> None:
         async with open_store(FIRST_ID) as (store, sessions):
             async with sessions() as session, session.begin():
                 await store.finish_upload(FIRST_ID, FILE_MISMATCH, session)
                 # a leftover key, e.g. written by an older worker
                 await session.execute(
-                    update(store.table).values({UploadColumn.MODEL_KEY: MODEL_KEY})
+                    update(store.table).values(
+                        {
+                            UploadColumn.MODEL_KEY: MODEL_KEY,
+                            UploadColumn.PREVIEW_KEY: PREVIEW_KEY,
+                        }
+                    )
                 )
                 restarted: Upload | None = await store.start_upload(
                     FIRST_ID, f"files/{FIRST_ID}/source.step", SIZE, session
                 )
-            assert restarted is not None and restarted.model_key is None
+            assert restarted is not None
+            assert (restarted.model_key, restarted.preview_key) == (None, None)
 
     run_async(run_check)
 
@@ -263,7 +272,9 @@ def test_a_deadlock_in_a_limited_wait_is_a_lock_timeout():
     async def run_check() -> None:
         async with open_store(FIRST_ID) as (store, sessions):
             await finish(store, sessions, FIRST_ID)
-            records: Table = define_tables(MetaData()).records
+            records: Table = define_tables(
+                DEFAULT_EMBEDDING_DIMENSIONS, MetaData()
+            ).records
             lock_record: Select = (
                 select(records)
                 .where(records.c[CommonColumn.ID] == FIRST_ID)
