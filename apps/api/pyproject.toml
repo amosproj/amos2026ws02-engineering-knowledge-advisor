@@ -29,7 +29,6 @@ requires = ["uv_build>=0.13.4,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.uv]
-# uv export --format cyclonedx1.5 needs >=0.13
 required-version = "==0.13.5"
 
 [dependency-groups]
