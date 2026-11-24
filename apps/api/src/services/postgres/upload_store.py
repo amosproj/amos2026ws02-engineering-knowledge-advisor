@@ -25,6 +25,7 @@ from db.tables import Tables
 from services.postgres.shared import Conditions
 from services.uploads import (
     LockTimeoutError,
+    UpAxis,
     Upload,
     UploadStatus,
     UploadStore,
@@ -209,6 +210,35 @@ class PgUploadStore(UploadStore):
         )
 
     @override
+    async def set_up_axis(
+        self, file_id: str, up_axis: UpAxis, tx: AsyncSession
+    ) -> Upload | None:
+        row: RowMapping | None = (
+            (
+                await tx.execute(
+                    update(self.table)
+                    .where(
+                        self._get_file_id_column() == file_id,
+                        self._has_status(UploadStatus.READY),
+                    )
+                    .values(
+                        {
+                            UploadColumn.UP_AXIS: up_axis,
+                            # keeps the last status change
+                            UploadColumn.UPDATED_AT: self.table.c[
+                                UploadColumn.UPDATED_AT
+                            ],
+                        }
+                    )
+                    .returning(*self.table.c)
+                )
+            )
+            .mappings()
+            .first()
+        )
+        return None if row is None else _to_upload(row)
+
+    @override
     async def move_to_back(self, file_id: str, tx: AsyncSession) -> None:
         locked_id: str | None = await tx.scalar(
             select(self._get_file_id_column())
@@ -297,4 +327,5 @@ def _to_upload(row: RowMapping) -> Upload:
         updated_at=row[UploadColumn.UPDATED_AT],
         model_key=row[UploadColumn.MODEL_KEY],
         preview_key=row[UploadColumn.PREVIEW_KEY],
+        up_axis=UpAxis(row[UploadColumn.UP_AXIS]),
     )

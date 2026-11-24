@@ -35,8 +35,9 @@ export function MachineFormDialog({ machine, ...dialogProps }: MachineFormDialog
             description={
                 machine
                     ? 'Only the name is required.'
-                    : 'Only the name is required. The STEP file uploads in the background, keep this tab open until it is uploaded.'
+                    : 'Give the machine a name to get started. Adding its STEP file lets you explore the machine in 3D. Keep this tab open while the file uploads.'
             }
+            wide={!machine}
             {...dialogProps}
         >
             {(dialog) => <MachineFormBody machine={machine} dialog={dialog} />}
@@ -128,41 +129,57 @@ function MachineFormBody({ machine, dialog }: MachineFormBodyProps) {
             <form.Subscribe selector={(state) => state.isSubmitting}>
                 {(isSubmitting) => (
                     <DialogForm onSubmit={() => void form.handleSubmit()} submitting={isSubmitting}>
-                        <FieldGroup>
-                            <form.AppField name="name">
-                                {(field) => <field.InputForm label="Name" autoComplete="off" />}
-                            </form.AppField>
-                            <form.AppField name="identifier">
-                                {(field) => (
-                                    <field.InputForm
-                                        label="Identifier"
-                                        description="Project or serial number, e.g. RC-01."
-                                        autoComplete="off"
-                                    />
-                                )}
-                            </form.AppField>
-                            <form.AppField name="customer">
-                                {(field) => <field.InputForm label="Customer" autoComplete="off" />}
-                            </form.AppField>
-                            <form.AppField name="description">
-                                {(field) => (
-                                    <field.TextareaForm label="Description" autoComplete="off" />
-                                )}
-                            </form.AppField>
-                            {machine ? null : (
-                                <form.AppField name="file">
+                        <div
+                            className={
+                                machine
+                                    ? 'flex flex-col gap-4'
+                                    : 'grid gap-4 md:grid-cols-2 md:items-start md:gap-x-6'
+                            }
+                        >
+                            <FieldGroup>
+                                <form.AppField name="name">
+                                    {(field) => <field.InputForm label="Name" autoComplete="off" />}
+                                </form.AppField>
+                                <form.AppField name="identifier">
                                     {(field) => (
-                                        <field.FileUploadForm
-                                            label="STEP file"
-                                            description="Optional, it can also be uploaded later."
-                                            mode="single"
-                                            accept={STEP_FILE_ACCEPT}
-                                            maxSize={STEP_FILE_MAX_SIZE}
+                                        <field.InputForm
+                                            label="Identifier"
+                                            description="Project or serial number, e.g. RC-01."
+                                            autoComplete="off"
                                         />
                                     )}
                                 </form.AppField>
-                            )}
-                        </FieldGroup>
+                                <form.AppField name="customer">
+                                    {(field) => (
+                                        <field.InputForm label="Customer" autoComplete="off" />
+                                    )}
+                                </form.AppField>
+                            </FieldGroup>
+                            <FieldGroup>
+                                <form.AppField name="description">
+                                    {(field) => (
+                                        <field.TextareaForm
+                                            label="Description"
+                                            autoComplete="off"
+                                        />
+                                    )}
+                                </form.AppField>
+                                {machine ? null : (
+                                    <form.AppField name="file">
+                                        {(field) => (
+                                            <field.FileUploadForm
+                                                label="STEP file"
+                                                optional
+                                                info="It can also be uploaded later."
+                                                mode="single"
+                                                accept={STEP_FILE_ACCEPT}
+                                                maxSize={STEP_FILE_MAX_SIZE}
+                                            />
+                                        )}
+                                    </form.AppField>
+                                )}
+                            </FieldGroup>
+                        </div>
                         <FormDialogFooter
                             error={error}
                             submitLabel={machine ? 'Save' : 'Create'}

@@ -12,7 +12,7 @@ from services.object_storage import ObjectStorage, StoredObject
 from services.ograg.ontology import Ontology, to_list
 from services.ograg.service import OgRagService
 from services.records import ERROR_STILL_LINKED
-from services.uploads import Upload, UploadStatus, UploadStore
+from services.uploads import UpAxis, Upload, UploadStatus, UploadStore
 
 ONTOLOGY_PATH: Path = Path(__file__).parents[1] / "ontology_v0.jsonld"
 ERROR_ESCAPE_SEQUENCE: str = (
@@ -295,6 +295,14 @@ class MemoryUploadStore(UploadStore):
     @override
     async def set_failed(self, file_id: str, error_code: str, tx: Tx) -> None:
         raise NotImplementedError
+
+    @override
+    async def set_up_axis(self, file_id: str, up_axis: UpAxis, tx: Tx) -> Upload | None:
+        current: Upload | None = self.uploads.get(file_id)
+        if current is None or current.status != UploadStatus.READY:
+            return None
+        self.uploads[file_id] = replace(current, up_axis=up_axis)
+        return self.uploads[file_id]
 
     @override
     async def move_to_back(self, file_id: str, tx: Tx) -> None:

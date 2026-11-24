@@ -11,6 +11,8 @@ const includeSearch = z.object({ include: z.string() })
 const uploadStatus = z.enum(['uploading', 'processing', 'ready', 'failed'])
 const fileStatus = z.enum(['empty', ...uploadStatus.options])
 
+export const upAxis = z.enum(['X', 'Y', 'Z', '-X', '-Y', '-Z'])
+
 const machineSchema = z.looseObject({
     '@id': z.string(),
     name: z.string(),
@@ -70,6 +72,7 @@ const uploadSchema = z.object({
     sizeBytes: z.number(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    upAxis,
 })
 
 const cadFileViewSchema = z.object({
@@ -114,6 +117,7 @@ const cadFileChanges = cadFileBody.pick({ name: true, timestamp: true })
 export type Machine = z.output<typeof machineSchema>
 export type MachineView = z.output<typeof machineViewSchema>
 export type FileStatus = z.output<typeof fileStatus>
+export type UpAxis = z.output<typeof upAxis>
 export type CadFileView = z.output<typeof cadFileViewSchema>
 export type AssemblyGroup = z.output<typeof groupSchema>
 export type { RecordTree }
@@ -211,6 +215,14 @@ export const completeUpload = queryMaker({
     method: 'POST',
     path: '/v1/records/:id/complete',
     params: idParams,
+    response: uploadSchema,
+})
+
+export const updateUpload = queryMaker({
+    method: 'PATCH',
+    path: '/v1/records/:id/upload',
+    params: idParams,
+    body: z.object({ upAxis }),
     response: uploadSchema,
 })
 

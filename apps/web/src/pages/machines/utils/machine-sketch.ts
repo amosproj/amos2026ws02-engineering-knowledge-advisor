@@ -3,6 +3,7 @@ import {
     BufferGeometry,
     LineBasicMaterial,
     LineSegments,
+    Matrix4,
     type Mesh,
     type Object3D,
 } from 'three'
@@ -24,6 +25,9 @@ type SketchReply =
 export async function buildSketch(scene: Object3D, meshes: Mesh[], signal: AbortSignal) {
     signal.throwIfAborted()
     scene.updateMatrixWorld(true)
+
+    const toScene = scene.matrixWorld.clone().invert()
+    const matrix = new Matrix4()
     const geometryIds = new Map<BufferGeometry, number>()
     const meshGeometries = new Int32Array(meshes.length)
     const matrices = new Float32Array(meshes.length * 16)
@@ -34,7 +38,8 @@ export async function buildSketch(scene: Object3D, meshes: Mesh[], signal: Abort
             geometryIds.set(mesh.geometry, id)
         }
         meshGeometries[i] = id
-        matrices.set(mesh.matrixWorld.elements, i * 16)
+        matrix.multiplyMatrices(toScene, mesh.matrixWorld)
+        matrices.set(matrix.elements, i * 16)
     })
 
     const worker = new Worker(new URL('./sketch-edges.worker.ts', import.meta.url), {

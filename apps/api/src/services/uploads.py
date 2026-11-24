@@ -21,6 +21,17 @@ class UploadStatus(StrEnum):
     FAILED = "failed"
 
 
+class UpAxis(StrEnum):
+    """Axis of the CAD file that points up."""
+
+    X = "X"
+    Y = "Y"
+    Z = "Z"
+    MINUS_X = "-X"
+    MINUS_Y = "-Y"
+    MINUS_Z = "-Z"
+
+
 @dataclass(frozen=True)
 class Upload:
     """Upload state of one file record.
@@ -35,6 +46,7 @@ class Upload:
         updated_at: last change of the state.
         model_key: object storage key of the 3D model (GLB), ``None`` without one.
         preview_key: object storage key of the preview image (PNG), ``None`` without one.
+        up_axis: axis of the CAD file shown upwards in the 3D view.
     """
 
     file_id: str
@@ -46,6 +58,7 @@ class Upload:
     updated_at: datetime
     model_key: str | None = None
     preview_key: str | None = None
+    up_axis: UpAxis = UpAxis.Z
 
 
 class LockTimeoutError(ConflictError):
@@ -118,6 +131,15 @@ class UploadStore(ABC):
     @abstractmethod
     async def set_failed(self, file_id: str, error_code: str, tx: Tx) -> None:
         """Marks the file ``failed`` with ``error_code``."""
+        ...
+
+    @abstractmethod
+    async def set_up_axis(self, file_id: str, up_axis: UpAxis, tx: Tx) -> Upload | None:
+        """Sets the up axis of a ready file. ``updated_at`` stays.
+
+        Returns:
+            The changed upload, ``None`` if the file is not ready.
+        """
         ...
 
     @abstractmethod

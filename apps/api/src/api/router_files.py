@@ -22,6 +22,7 @@ from model import (
     FileUpload,
     RecordAncestors,
     RecordTree,
+    UploadChanges,
     UploadForm,
 )
 from model.problem import Problem, ProblemResponse
@@ -40,6 +41,10 @@ RESPONSE_DETAIL_409_UPLOAD_FORM: str = (
     "File is being processed, already ready, or the worker holds it."
 )
 RESPONSE_DETAIL_409_COMPLETE: str = "Upload not found and file does not match, or import failed, or the file is being processed."
+RESPONSE_DETAIL_200_PATCH_UPLOAD: str = "Changed upload."
+RESPONSE_DETAIL_409_PATCH_UPLOAD: str = (
+    "File is not ready, or another request holds it."
+)
 RESPONSE_DETAIL_422_NO_FILE: str = (
     "Request validation failed, or the record's class carries no file."
 )
@@ -167,6 +172,22 @@ async def complete_upload(
             instance=request.url.path,
         )
     return to_file_upload(result)
+
+
+@v1_files_router.patch(
+    "/records/{recordId}/upload",
+    responses={
+        200: {"model": FileUpload, "description": RESPONSE_DETAIL_200_PATCH_UPLOAD},
+        404: {"model": Problem, "description": RESPONSE_DETAIL_404},
+        409: {"model": Problem, "description": RESPONSE_DETAIL_409_PATCH_UPLOAD},
+        422: {"model": Problem, "description": RESPONSE_DETAIL_422_NO_FILE},
+    },
+)
+async def patch_upload(
+    record_id: RecordId, body: UploadChanges, catalog: Catalog, session: Session
+) -> FileUpload:
+    """Sets the up axis of a ready file, for every user. The 3D model itself is not changed."""
+    return to_file_upload(await catalog.set_up_axis(session, record_id, body.up_axis))
 
 
 @v1_files_router.get(

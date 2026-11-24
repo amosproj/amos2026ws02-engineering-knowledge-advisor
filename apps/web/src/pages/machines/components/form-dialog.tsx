@@ -30,12 +30,10 @@ export type FormDialogControls = {
 type FormDialogProps = {
     title: string
     description: string
-    // Opens the dialog when clicked. Without it, open the dialog with `open`.
     trigger?: React.ReactElement
     open?: boolean
     onOpenChange?: (open: boolean) => void
     wide?: boolean
-    // The form, mounted again on each opening so it starts from fresh values
     children: (dialog: FormDialogControls) => React.ReactNode
 }
 
@@ -82,8 +80,8 @@ export function FormDialog({
             {trigger ? <DialogTrigger render={trigger} /> : null}
             <DialogContent
                 className={cn(
-                    'flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden',
-                    wide ? 'sm:max-w-3xl' : 'sm:max-w-lg',
+                    'flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden sm:max-w-lg',
+                    wide && 'md:max-w-[min(48rem,calc(100%-2rem))]',
                 )}
             >
                 <DialogHeader>

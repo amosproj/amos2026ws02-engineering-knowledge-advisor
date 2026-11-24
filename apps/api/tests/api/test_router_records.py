@@ -713,6 +713,7 @@ def test_writes_run_in_the_requests_session(client: TestClient, service: OgRagSe
 
 MODEL_URL: str = f"{RECORDS_URL}/CF-1/model"
 MODEL_KEY: str = "files/CF-1/model.glb"
+UPLOAD_URL: str = f"{RECORDS_URL}/CF-1/upload"
 PREVIEW_URL: str = f"{RECORDS_URL}/CF-1/preview"
 PREVIEW_KEY: str = "files/CF-1/preview.png"
 
@@ -802,6 +803,44 @@ def test_the_model_of_a_missing_record_or_a_machine(
 
     assert client.get(f"{RECORDS_URL}/CF-9/model").status_code == 404
     assert client.get(f"{RECORDS_URL}/{MACHINE_ID}/model").status_code == 422
+
+
+def test_the_up_axis_of_a_ready_file_is_changed_for_every_reader(
+    client: TestClient, service: OgRagService, catalog: CatalogService
+):
+    add_cad_file(client, service, catalog, UploadStatus.READY, model_key=MODEL_KEY)
+
+    response: Response = client.patch(UPLOAD_URL, json={"upAxis": "-Y"})
+
+    assert response.status_code == 200
+    read: Response = client.get(f"{RECORDS_URL}/CF-1?include=upload")
+    assert read.json()["upload"] == response.json()
+    assert response.json()["upAxis"] == "-Y"
+    assert_problem(client.patch(UPLOAD_URL, json={"upAxis": "W"}), 422)
+
+
+@pytest.mark.parametrize("status", [None, UploadStatus.PROCESSING])
+def test_the_up_axis_of_a_file_not_ready_is_a_conflict(
+    client: TestClient,
+    service: OgRagService,
+    catalog: CatalogService,
+    status: UploadStatus | None,
+):
+    add_cad_file(client, service, catalog, status)
+
+    response: Response = client.patch(UPLOAD_URL, json={"upAxis": "Y"})
+
+    assert response.status_code == 409
+    assert response.json()["errorCode"] == "file_not_ready"
+
+
+def test_only_a_file_record_has_an_up_axis(client: TestClient, service: OgRagService):
+    seed_machine_and_group(service)
+
+    body: dict[str, str] = {"upAxis": "Y"}
+    assert client.patch(f"{RECORDS_URL}/CF-9/upload", json=body).status_code == 404
+    machine_url: str = f"{RECORDS_URL}/{MACHINE_ID}/upload"
+    assert client.patch(machine_url, json=body).status_code == 422
 
 
 def test_the_model_link_needs_the_storage(

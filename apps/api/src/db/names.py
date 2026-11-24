@@ -73,6 +73,7 @@ class UploadColumn(StrEnum):
     MODEL_KEY = "model_key"
     SIZE_BYTES = "size_bytes"
     SHA256 = "sha256"
+    UP_AXIS = "up_axis"
     CREATED_AT = "created_at"
     UPDATED_AT = "updated_at"
 
@@ -84,5 +85,15 @@ class UploadStatus(StrEnum):
     FAILED = "failed"
 
 
+class UpAxis(StrEnum):
+    X = "X"
+    Y = "Y"
+    Z = "Z"
+    MINUS_X = "-X"
+    MINUS_Y = "-Y"
+    MINUS_Z = "-Z"
+
+
 PROCESSING_INDEX: str = f"ix_{TableName.UPLOADS}_{UploadStatus.PROCESSING}"
 STATUS_CHECK: str = f"ck_{TableName.UPLOADS}_{UploadColumn.STATUS}"
+UP_AXIS_CHECK: str = f"ck_{TableName.UPLOADS}_{UploadColumn.UP_AXIS}"

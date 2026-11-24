@@ -30,6 +30,7 @@ export type AssemblyIndex = {
     byId: ReadonlyMap<string, AssemblyNode>
     byOccurrence: ReadonlyMap<string, AssemblyNode>
     parentIds: ReadonlyMap<string, string>
+    inModel: ReadonlySet<string>
 }
 
 export function indexAssembly(root: AssemblyNode): AssemblyIndex {
@@ -45,7 +46,7 @@ export function indexAssembly(root: AssemblyNode): AssemblyIndex {
         }
     }
     visit(root)
-    return { root, byId, byOccurrence, parentIds }
+    return { root, byId, byOccurrence, parentIds, inModel: nodesInModel(root) }
 }
 
 /** Ids of the nodes above ``id``, nearest first. */
@@ -72,7 +73,7 @@ export function isHidden(
  * other children along the way get hidden on their own instead: only ``id`` comes back.
  */
 export function showNode(
-    { byId, parentIds }: AssemblyIndex,
+    { byId, parentIds, inModel }: AssemblyIndex,
     hidden: ReadonlySet<string>,
     id: string,
 ) {
@@ -84,7 +85,7 @@ export function showNode(
     for (const ancestor of ancestors.slice(0, top + 1)) {
         next.delete(ancestor)
         for (const sibling of byId.get(ancestor)?.children ?? []) {
-            if (sibling.id !== child) next.add(sibling.id)
+            if (sibling.id !== child && inModel.has(sibling.id)) next.add(sibling.id)
         }
         child = ancestor
     }
@@ -93,6 +94,18 @@ export function showNode(
 
 export function occurrencesOf(node: AssemblyNode): string[] {
     return node.occurrenceId ? [node.occurrenceId] : node.children.flatMap(occurrencesOf)
+}
+
+export function nodesInModel(root: AssemblyNode) {
+    const ids = new Set<string>()
+    const visit = (node: AssemblyNode): boolean => {
+        let found = Boolean(node.occurrenceId)
+        for (const child of node.children) if (visit(child)) found = true
+        if (found) ids.add(node.id)
+        return found
+    }
+    visit(root)
+    return ids
 }
 
 const millimeters = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 })

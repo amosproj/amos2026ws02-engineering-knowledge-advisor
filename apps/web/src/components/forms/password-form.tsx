@@ -6,12 +6,12 @@ import {
     Field,
     FieldDescription,
     FieldError,
-    FieldLabel,
     InputGroup,
     InputGroupAddon,
     InputGroupButton,
     InputGroupInput,
 } from '../atomic/molecules'
+import { FormLabel } from './form-label'
 import { useFieldContext } from './form-context'
 
 export type PasswordFormProps = Omit<
@@ -20,6 +20,8 @@ export type PasswordFormProps = Omit<
 > & {
     label: string
     description?: React.ReactNode
+    optional?: boolean
+    info?: string
     /** Rendered next to the label, e.g. a "Forgot password?" link. */
     labelAction?: React.ReactNode
     groupClassName?: string
@@ -29,6 +31,8 @@ export function PasswordForm({
     id,
     label,
     description,
+    optional,
+    info,
     labelAction,
     groupClassName,
     'aria-describedby': ariaDescribedBy,
@@ -44,16 +48,21 @@ export function PasswordForm({
     // Password hints usually restate the rule that failed, so the error replaces them.
     const showDescription = Boolean(description) && errors.length === 0
     const descriptionId = showDescription ? `${inputId}-description` : undefined
+    const infoId = info ? `${inputId}-info` : undefined
 
     const describedBy =
-        [ariaDescribedBy, descriptionId, errorId].filter(Boolean).join(' ') || undefined
+        [ariaDescribedBy, descriptionId, infoId, errorId].filter(Boolean).join(' ') || undefined
 
     return (
         <Field data-invalid={errors.length > 0}>
-            <div className="flex items-center justify-between gap-3">
-                <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
-                {labelAction}
-            </div>
+            <FormLabel
+                htmlFor={inputId}
+                label={label}
+                optional={optional}
+                info={info}
+                infoId={infoId}
+                action={labelAction}
+            />
             <InputGroup className={groupClassName}>
                 <InputGroupInput
                     {...props}
