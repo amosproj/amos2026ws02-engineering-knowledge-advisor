@@ -1,0 +1,59 @@
+Title	URL	Assignees	Status	Estimated size	Real size
+S7-1 Knowledge type as a fixed list	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/149		Product Backlog		
+S7-2 Design rationale: considered alternatives and problems encountered	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/150		Product Backlog		
+S7-3 Edit and delete a knowledge item	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/151		Product Backlog		
+S7-4 Vector store on pgvector	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/152		Product Backlog		
+S7-6 Show part names instead of numbers in the assembly tree	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/153		Product Backlog		
+S7-7 Typed backend tables and queries	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/154		Product Backlog		
+S7-8 Queue CAD parsing and embedding jobs	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/155		Product Backlog		
+S7-9 Agree the answer and citation API	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/156		Product Backlog		
+S7-10 Create the final project release plan	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/157	tombln292, yanmcruz	Product Backlog		
+S6-2 Import the seed knowledge set	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/90		Product Backlog		
+S6-13 Embed keys and values of record properties	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/128		Product Backlog		
+Define validation for ontology-driven inputs	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/110	ChristianJPohl, franktronics, le-db	Product Backlog		
+S6-11 Glossary file in the repository	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/92		Product Backlog		
+S7/8-X Test Strategy	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/146		Product Backlog		
+S7/8-X Refractoring	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/147		Product Backlog		
+S7/8-X Frontend Consistency	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/148		Product Backlog		
+S4-3 Label assembly groups in the machine view	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/76		Product Backlog	5	
+S4-1 Maintain a function vocabulary (in German and English)	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/58	ChristianJPohl	Product Backlog	3	
+S4-2 Tagging an assembly group	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/10		Product Backlog	3	
+SX-Y Find assembly groups by function, part size and loading mode	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/13		Product Backlog		
+S9-1 Display search results	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/14		Product Backlog		
+Make the parser distinguish between the different parts of a machine	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/102		Product Backlog		
+S6-3 Validate the Mid-Project Demo Workflow	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/119		Sprint Backlog		
+S6-5 Finalize SBOM and provide Legal Notices	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/121	ChristianJPohl	Awaiting PR Review	3	
+S6-14 Show preview images for machine int the list	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/141	franktronics	Awaiting PR Review		
+S5-4 Write the seed knowledge set	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/89	yanmcruz	Awaiting Review	3	
+S5-1 Store knowledge items on an element	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/11	mgulbazilyas	Awaiting Review	5	
+S6-1 Show and add knowledge in the machine view	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/77	mgulbazilyas	Awaiting Review	3	
+S6-12 Define knowledge graphs schemas	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/127	le-db	Awaiting Review	2	
+S6-4 Clean Up Configuration and Document the Build Process	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/120	Jost-Na	Awaiting Review	3	
+S6-7 Document the User Workflow	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/123	Jost-Na, tombln292	Awaiting Review	2	
+S6-9 Document the Current Software Design	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/125	Jost-Na	Awaiting Review	2	
+S6-10 Prepare the Mid-Project Release	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/126	tombln292, yanmcruz	Awaiting Review	1	
+Implement lexical search for stored records	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/109	ChristianJPohl	Feature Archive	2	2
+S3-3 Make imported machines and assembly groups available to the machine view	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/52	ChristianJPohl	Feature Archive	3	5
+S5-3 Research knowledge-graph storage and retrieval	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/88	le-db	Feature Archive	2	2
+S5-6 Build process video (HW)	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/91	Jost-Na	Feature Archive	2	2
+S5-E1 Generating GLB File	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/100	franktronics, mgulbazilyas	Feature Archive	3	3
+S5-8 3D view of the machine	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/93	franktronics	Feature Archive	5	5
+S3-4 Show machines and their assembly tree	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/53	franktronics	Feature Archive	5	2
+S3-7 Design the main user flows	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/55	tombln292	Feature Archive	3	3
+S3-1 Persist imported machines and their assembly structure	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/51	franktronics, le-db	Feature Archive	3	5
+Map out the data that we receive	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/33	le-db	Feature Archive	2	2
+S4-7 Connect LLMs through an adapter	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/30	Jost-Na	Feature Archive	3	5
+Initialize software bill of materials with your dependencies	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/37	mgulbazilyas	Feature Archive	3	3
+S3-5 Upload a STEP file from the user interface	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/54	franktronics	Feature Archive	3	5
+Check our requirements for testing	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/34	ChristianJPohl	Feature Archive	2	2
+S3-2 Import uploaded STEP files as usable assembly groups	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/6	ChristianJPohl	Feature Archive	3	3
+Setup Frontend	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/27	franktronics	Feature Archive		5
+S3-0 Define data model v0 for machines, assembly groups and knowledge	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/5	le-db	Feature Archive	3	3
+S3-9 Set up a staging environment with automatic deployment	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/56	Jost-Na	Feature Archive	5	5
+S3-10 Setup hotreload for frontend on Dev	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/66	Jost-Na	Feature Archive	2	2
+Setup repository structure	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/23	Jost-Na	Feature Archive		1
+Setup README	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/24	Jost-Na	Feature Archive		2
+Setup database	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/28	Jost-Na	Feature Archive		1
+Setup Object Storage	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/29	Jost-Na	Feature Archive		1
+Setup Docker Compose	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/31	Jost-Na	Feature Archive	3	5
+Setup Backend	https://github.com/amosproj/amos2026ws02-engineering-knowledge-advisor/issues/26	le-db	Feature Archive		3
