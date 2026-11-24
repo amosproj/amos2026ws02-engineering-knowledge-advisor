@@ -10791,7 +10791,8 @@
         "pydantic-settings-36@2.16.1",
         "sqlalchemy-43@2.1.5",
         "starlette-44@1.10.0",
-        "uvicorn-50@0.54.0"
+        "uvicorn-50@0.54.0",
+        "vtk-52@9.6.2"
       ],
       "ref": "api-1@0.2.1"
     },
