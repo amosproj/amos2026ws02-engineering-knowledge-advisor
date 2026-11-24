@@ -21,7 +21,7 @@ const navConfig: DashboardNavConfig = {
             icon: LegalDocument01Icon,
             items: [
                 { title: 'Imprint', link: '/imprint' },
-                { title: 'Third-Party Notices', link: '/legal-notices' },
+                { title: 'Third-Party Notices', link: '/third-party-notices' },
                 { title: 'Privacy Policy', link: '/privacy-policy' },
             ],
         },

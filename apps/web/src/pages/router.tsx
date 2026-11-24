@@ -9,7 +9,7 @@ import { MachinesPage } from './machines/machines-page'
 import { machinesSearchSchema } from './machines/models/machines-search-model'
 import { settingsSearchSchema } from './settings/models/settings-model'
 import { ImprintPage } from './imprint/imprint-page'
-import { LegalNoticesPage } from './legal-notices/legal-notices-page'
+import { ThirdPartyNoticesPage } from './third-party-notices/third-party-notices-page.tsx'
 import { PrivacyPolicyPage } from './privacy-policy/privacy-policy-page'
 import { SettingsPage } from './settings/settings-page'
 
@@ -62,11 +62,11 @@ const imprintRoute = createRoute({
     component: ImprintPage,
 })
 
-const legalNoticesRoute = createRoute({
+const thirdPartyNoticesRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: '/legal-notices',
-    staticData: { breadcrumb: 'Legal Notices' },
-    component: LegalNoticesPage,
+    path: '/third-party-notices',
+    staticData: { breadcrumb: 'Third-Party Notices' },
+    component: ThirdPartyNoticesPage,
 })
 
 const privacyPolicyRoute = createRoute({
@@ -81,7 +81,7 @@ const routeTree = rootRoute.addChildren([
     machinesRoute.addChildren([machinesIndexRoute, machineDetailRoute]),
     settingsRoute,
     imprintRoute,
-    legalNoticesRoute,
+    thirdPartyNoticesRoute,
     privacyPolicyRoute,
 ])
 

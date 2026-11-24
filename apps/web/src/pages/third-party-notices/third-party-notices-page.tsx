@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { ScrollArea } from '@components'
-import { legalNoticesQuery } from './query/legal-notices-api'
+import { thirdPartyNoticesQuery } from './query/third-party-notices-api.ts'
 
-export function LegalNoticesPage() {
-    const { data, isLoading, error } = useQuery(legalNoticesQuery)
+export function ThirdPartyNoticesPage() {
+    const { data, isLoading, error } = useQuery(thirdPartyNoticesQuery)
 
     return (
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 md:px-6 md:py-10">
