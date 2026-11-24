@@ -13,6 +13,7 @@ export type TextareaFormProps = Omit<
     description?: string
     optional?: boolean
     info?: string
+    labelAction?: React.ReactNode
 }
 
 export function TextareaForm({
@@ -21,6 +22,7 @@ export function TextareaForm({
     description,
     optional,
     info,
+    labelAction,
     'aria-describedby': ariaDescribedBy,
     ...props
 }: TextareaFormProps) {
@@ -45,6 +47,7 @@ export function TextareaForm({
                 optional={optional}
                 info={info}
                 infoId={infoId}
+                action={labelAction}
             />
             <Textarea
                 {...props}

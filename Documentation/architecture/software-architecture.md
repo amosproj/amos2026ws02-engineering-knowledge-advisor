@@ -123,7 +123,7 @@ flowchart LR
         direction TB
         infra["infra/<br/>nginx, postgres init"]
         compose["compose.yaml, .env.example"]
-        docs["Documentation/<br/>architecture, openapi.json, SBOM"]
+        docs["Documentation/<br/>architecture, openapi.json"]
         deliv["Deliverables/sprint-XX"]
         ci[".github/workflows, scripts/"]
         infra ~~~ compose ~~~ docs ~~~ deliv ~~~ ci
@@ -143,7 +143,7 @@ flowchart LR
 | `apps/web`      | React single-page app, built by Vite, served by Nginx                                               |
 | `apps/api`      | FastAPI service and CAD file worker: routers, CAD parser, RAG, LLM adapter, data access, migrations |
 | `infra`         | Nginx and PostgreSQL configuration used by Docker Compose                                           |
-| `Documentation` | Architecture, API conventions, OpenAPI contract, SBOM                                               |
+| `Documentation` | Architecture, API conventions, OpenAPI contract                                               |
 | `Deliverables`  | Sprint deliverables (PDFs, images)                                                                  |
 
 <div class="page-break"></div>
@@ -152,9 +152,9 @@ flowchart LR
 
 Language and framework per component. Exact versions are deliberately not
 listed here so this page does not go out of date; they are pinned in
-`package-lock.json`, `uv.lock`, the Dockerfiles and `compose.yaml`, and listed
-in the SBOM (`Documentation/sbom`). *In use* means part of the current setup,
-*planned* means decided but not implemented, *open* means not decided yet.
+`package-lock.json`, `uv.lock`, the Dockerfiles and `compose.yaml`. *In use*
+means part of the current setup, *planned* means decided but not implemented,
+*open* means not decided yet.
 
 | Component               | Language   | Framework / Product                                                                 | Status    |
 |-------------------------|------------|-------------------------------------------------------------------------------------|-----------|

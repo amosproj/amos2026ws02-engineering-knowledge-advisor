@@ -5,7 +5,7 @@ const STORAGE_KEY = 'machine-layout'
 const panelLayoutSchema = z.object({
     treeWidth: z.number().positive().catch(320),
     treeCollapsed: z.boolean().catch(false),
-    detailsWidth: z.number().positive().catch(288),
+    detailsWidth: z.number().positive().catch(360),
 })
 
 export type PanelLayout = z.output<typeof panelLayoutSchema>

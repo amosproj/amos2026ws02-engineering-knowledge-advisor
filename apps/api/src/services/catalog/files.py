@@ -5,17 +5,23 @@ import posixpath
 SOURCE_FILE_NAME: str = "source.step"
 MODEL_FILE_NAME: str = "model.glb"
 MODEL_CONTENT_TYPE: str = "model/gltf-binary"
+PREVIEW_FILE_NAME: str = "preview.png"
+PREVIEW_CONTENT_TYPE: str = "image/png"
 FILES_PREFIX: str = "files/"
 
 
 def get_source_key(cad_file_id: str) -> str:
-    """Key of the uploaded STEP file. Its preview and 3D model will sit in the same folder."""
+    """Key of the uploaded STEP file. Its preview and 3D model sit in the same folder."""
     return f"{FILES_PREFIX}{cad_file_id}/{SOURCE_FILE_NAME}"
 
 
 def get_model_key(cad_file_id: str) -> str:
     """Key of the CAD file's 3D model (GLB), next to its source."""
     return f"{FILES_PREFIX}{cad_file_id}/{MODEL_FILE_NAME}"
+
+
+def get_preview_key(cad_file_id: str) -> str:
+    return f"{FILES_PREFIX}{cad_file_id}/{PREVIEW_FILE_NAME}"
 
 
 def get_folder(source_key: str) -> str:
