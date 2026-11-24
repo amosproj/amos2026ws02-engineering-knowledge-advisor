@@ -1,18 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { ScrollArea } from '@components'
-
-async function fetchNotices() {
-    const response = await fetch('/THIRD_PARTY_NOTICES.txt')
-    if (!response.ok) throw new Error('Failed to load legal notices')
-    return response.text()
-}
+import { legalNoticesQuery } from './query/legal-notices-api'
 
 export function LegalNoticesPage() {
-    const { data, isLoading, error } = useQuery({
-        queryKey: ['notices', 'third-party'],
-        queryFn: fetchNotices,
-        staleTime: Infinity,
-    })
+    const { data, isLoading, error } = useQuery(legalNoticesQuery)
 
     return (
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 md:px-6 md:py-10">
