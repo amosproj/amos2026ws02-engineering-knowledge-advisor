@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Alert02Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { cn } from 'cn'
 
 import {
     Alert,
     AlertDescription,
     AlertTitle,
     Button,
+    ConfirmationPopup,
     Dialog,
     DialogContent,
     DialogDescription,
@@ -17,11 +17,14 @@ import {
     DialogTrigger,
 } from '@components'
 import { SubscribeForm } from '@components/forms/subscribe-form'
+import { cn } from 'cn'
 
 export type FormDialogControls = {
     close: () => void
+    cancel: () => void
     // While busy, the dialog cannot be closed
     setBusy: (busy: boolean) => void
+    setUnsaved: (unsaved: boolean) => void
 }
 
 type FormDialogProps = {
@@ -45,15 +48,35 @@ export function FormDialog({
 }: FormDialogProps) {
     const [ownOpen, setOwnOpen] = useState(false)
     const [busy, setBusy] = useState(false)
+    const [unsaved, setUnsaved] = useState(false)
+    const [confirmingDiscard, setConfirmingDiscard] = useState(false)
     const open = controlledOpen ?? ownOpen
 
     const setOpen = (nextOpen: boolean) => {
+        if (!nextOpen) setUnsaved(false)
         setOwnOpen(nextOpen)
         onOpenChange?.(nextOpen)
     }
 
+    const cancel = () => (unsaved ? setConfirmingDiscard(true) : setOpen(false))
+
+    // The browser's own prompt on reload, closing the tab or leaving the app
+    useEffect(() => {
+        if (!open || !unsaved) return
+        const warn = (event: BeforeUnloadEvent) => event.preventDefault()
+        window.addEventListener('beforeunload', warn)
+        return () => window.removeEventListener('beforeunload', warn)
+    }, [open, unsaved])
+
     return (
-        <Dialog open={open} onOpenChange={(nextOpen) => !busy && setOpen(nextOpen)}>
+        <Dialog
+            open={open}
+            onOpenChange={(nextOpen) => {
+                if (busy) return
+                if (nextOpen) setOpen(true)
+                else cancel()
+            }}
+        >
             {trigger ? <DialogTrigger render={trigger} /> : null}
             <DialogContent
                 className={cn(
@@ -67,9 +90,18 @@ export function FormDialog({
                 </DialogHeader>
 
                 <div className="-mr-2 min-h-0 overflow-y-auto px-2">
-                    {children({ close: () => setOpen(false), setBusy })}
+                    {children({ close: () => setOpen(false), cancel, setBusy, setUnsaved })}
                 </div>
             </DialogContent>
+            <ConfirmationPopup
+                open={confirmingDiscard}
+                onOpenChange={setConfirmingDiscard}
+                title="Discard your changes?"
+                description="What you entered is not saved yet."
+                confirmLabel="Discard changes"
+                cancelLabel="Keep editing"
+                onConfirm={() => setOpen(false)}
+            />
         </Dialog>
     )
 }

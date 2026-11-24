@@ -21,6 +21,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.1.5",
     "uvicorn[standard]>=0.54.0",
     "cadquery-ocp>=8.0.1.1.0",
+    "vtk>=9.6.2",
 ]
 
 [build-system]
@@ -28,7 +29,6 @@ requires = ["uv_build>=0.13.4,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.uv]
-# uv export --format cyclonedx1.5 needs >=0.13
 required-version = "==0.13.5"
 
 [dependency-groups]

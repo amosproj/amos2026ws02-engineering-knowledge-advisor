@@ -45,6 +45,7 @@ class Upload:
         created_at: when the upload was registered.
         updated_at: last change of the state.
         model_key: object storage key of the 3D model (GLB), ``None`` without one.
+        preview_key: object storage key of the preview image (PNG), ``None`` without one.
         up_axis: axis of the CAD file shown upwards in the 3D view.
     """
 
@@ -56,6 +57,7 @@ class Upload:
     created_at: datetime
     updated_at: datetime
     model_key: str | None = None
+    preview_key: str | None = None
     up_axis: UpAxis = UpAxis.Z
 
 
@@ -116,9 +118,14 @@ class UploadStore(ABC):
 
     @abstractmethod
     async def set_ready(
-        self, file_id: str, sha256: str, model_key: str | None, tx: Tx
+        self,
+        file_id: str,
+        sha256: str,
+        model_key: str | None,
+        preview_key: str | None,
+        tx: Tx,
     ) -> None:
-        """Marks the file ``ready`` with its content hash and the key of its 3D model, ``None`` without one."""
+        """Marks the file ``ready`` with its content hash and the keys of its 3D model and preview, ``None`` without one."""
         ...
 
     @abstractmethod

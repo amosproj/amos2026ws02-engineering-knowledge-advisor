@@ -71,6 +71,7 @@ class PgUploadStore(UploadStore):
             UploadColumn.ERROR_CODE: None,
             UploadColumn.SHA256: None,
             UploadColumn.MODEL_KEY: None,
+            UploadColumn.PREVIEW_KEY: None,
             UploadColumn.SOURCE_KEY: source_key,
             UploadColumn.SIZE_BYTES: size_bytes,
             UploadColumn.CREATED_AT: func.now(),
@@ -178,7 +179,12 @@ class PgUploadStore(UploadStore):
 
     @override
     async def set_ready(
-        self, file_id: str, sha256: str, model_key: str | None, tx: AsyncSession
+        self,
+        file_id: str,
+        sha256: str,
+        model_key: str | None,
+        preview_key: str | None,
+        tx: AsyncSession,
     ) -> None:
         await self._set_values(
             file_id,
@@ -186,6 +192,7 @@ class PgUploadStore(UploadStore):
                 UploadColumn.STATUS: UploadStatus.READY,
                 UploadColumn.SHA256: sha256,
                 UploadColumn.MODEL_KEY: model_key,
+                UploadColumn.PREVIEW_KEY: preview_key,
                 UploadColumn.ERROR_CODE: None,
             },
             tx,
@@ -319,5 +326,6 @@ def _to_upload(row: RowMapping) -> Upload:
         created_at=row[UploadColumn.CREATED_AT],
         updated_at=row[UploadColumn.UPDATED_AT],
         model_key=row[UploadColumn.MODEL_KEY],
+        preview_key=row[UploadColumn.PREVIEW_KEY],
         up_axis=UpAxis(row[UploadColumn.UP_AXIS]),
     )

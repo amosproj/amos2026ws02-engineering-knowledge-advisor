@@ -12,10 +12,11 @@ from collections.abc import (
     Awaitable,
     Callable,
     Collection,
+    Generator,
     Iterable,
     Mapping,
 )
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, closing
 from dataclasses import dataclass
 
 from services import JsonObject, JsonValue, Record, Tx
@@ -457,17 +458,26 @@ class CatalogService:
             FileNotReadyError: not uploaded, or still uploading or processing.
             ImportFailedError: the import failed.
         """
-        await self._get_file_record(session, file_id)
-        upload: Upload | None = await self.get_upload(session, file_id)
-        if upload is None or upload.status in (
-            UploadStatus.UPLOADING,
-            UploadStatus.PROCESSING,
-        ):
-            raise FileNotReadyError()
-        model_key: str | None = _to_completed(upload).model_key
-        if model_key is None:
+        upload: Upload = await self._get_ready_upload(session, file_id)
+        if upload.model_key is None:
             return None
-        return await asyncio.to_thread(self.storage.create_download_url, model_key)
+        return await asyncio.to_thread(
+            self.storage.create_download_url, upload.model_key
+        )
+
+    async def get_preview(self, session: Tx, file_id: str) -> bytes | None:
+        """The file's preview image (PNG), ``None`` if it is ready without one.
+
+        Raises:
+            NotFoundError: no record ``file_id``.
+            RecordError: the record's class carries no file.
+            FileNotReadyError: not uploaded, or still uploading or processing.
+            ImportFailedError: the import failed.
+        """
+        upload: Upload = await self._get_ready_upload(session, file_id)
+        if upload.preview_key is None:
+            return None
+        return await asyncio.to_thread(self._read_object, upload.preview_key)
 
     async def set_up_axis(self, session: Tx, file_id: str, up_axis: UpAxis) -> Upload:
         """Sets the axis of the file shown upwards in the 3D view.
@@ -523,6 +533,13 @@ class CatalogService:
     def delete_source_folders(self, source_keys: list[str]) -> None:
         """Deletes the folder of each source key. Blocking, call it after the commit."""
         self.storage.delete_folders_quietly([get_folder(key) for key in source_keys])
+
+    def _read_object(self, key: str) -> bytes | None:
+        chunks: Generator[bytes] | None = self.storage.read_object(key, 64 * 1024)
+        if chunks is None:
+            return None
+        with closing(chunks):
+            return b"".join(chunks)
 
     def _get_parent_ids(
         self, record: Record, candidate_ids: list[str] | None = None
@@ -624,6 +641,23 @@ class CatalogService:
         if upload is None:
             raise UploadNotFoundError()
         return upload
+
+    async def _get_ready_upload(self, session: Tx, file_id: str) -> Upload:
+        """
+        Raises:
+            NotFoundError: no record ``file_id``.
+            RecordError: the record's class carries no file.
+            FileNotReadyError: not uploaded, or still uploading or processing.
+            ImportFailedError: the import failed.
+        """
+        await self._get_file_record(session, file_id)
+        upload: Upload | None = await self.get_upload(session, file_id)
+        if upload is None or upload.status in (
+            UploadStatus.UPLOADING,
+            UploadStatus.PROCESSING,
+        ):
+            raise FileNotReadyError()
+        return _to_completed(upload)
 
     @asynccontextmanager
     async def _busy_after_lock_timeout(self, session: Tx) -> AsyncGenerator[None]:

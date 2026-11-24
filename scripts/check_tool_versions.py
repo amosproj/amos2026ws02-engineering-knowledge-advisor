@@ -1,16 +1,15 @@
 """Verify that the pinned Python, uv, npm and Node versions agree across the repository.
 
 The SBOMs are only reproducible when every environment uses the same tool
-versions, so each version has one source of truth and every other place that
-pins it must match:
+versions, so each version has one source of truth and every place that pins it
+must match:
 
 * Python: ``requires-python`` in ``apps/api/pyproject.toml``
-  (also pinned in the SBOM workflow and ``apps/api/Dockerfile``)
+  (also pinned in ``apps/api/Dockerfile``)
 * uv: ``required-version`` in ``apps/api/pyproject.toml``
-  (also pinned in the SBOM workflow and ``apps/api/Dockerfile``)
+  (also pinned in the API test workflow and ``apps/api/Dockerfile``)
 * npm: ``packageManager`` in ``apps/web/package.json``
-  (also pinned in the SBOM workflow)
-* Node: the latest-LTS alias in the SBOM and web-test workflows
+* Node: the latest-LTS alias in the web-test workflow
   (also used in ``apps/web/Dockerfile``)
 
 The API Dockerfile must also install with ``--no-dev``, because the API
@@ -30,7 +29,6 @@ ROOT = Path(__file__).resolve().parents[1]
 
 PYPROJECT = ROOT / "apps" / "api" / "pyproject.toml"
 PACKAGE_JSON = ROOT / "apps" / "web" / "package.json"
-SBOM_WORKFLOW = ROOT / ".github" / "workflows" / "sbom-check.yaml"
 API_WORKFLOW = ROOT / ".github" / "workflows" / "api-tests.yaml"
 WEB_WORKFLOW = ROOT / ".github" / "workflows" / "web-tests.yaml"
 API_DOCKERFILE = ROOT / "apps" / "api" / "Dockerfile"
@@ -61,7 +59,6 @@ def python_versions() -> dict[str, str | None]:
     match = re.search(r"(\d+\.\d+)", spec)
     return {
         label(PYPROJECT): match.group(1) if match else None,
-        label(SBOM_WORKFLOW): search(SBOM_WORKFLOW, PY_WORKFLOW_PATTERN),
         label(API_DOCKERFILE): search(API_DOCKERFILE, PY_DOCKERFILE_PATTERN),
     }
 
@@ -71,7 +68,6 @@ def uv_versions() -> dict[str, str | None]:
     required = pyproject.get("tool", {}).get("uv", {}).get("required-version", "")
     return {
         label(PYPROJECT): required.removeprefix("==") or None,
-        label(SBOM_WORKFLOW): search(SBOM_WORKFLOW, UV_WORKFLOW_PATTERN),
         label(API_WORKFLOW): search(API_WORKFLOW, UV_WORKFLOW_PATTERN),
         label(API_DOCKERFILE): search(API_DOCKERFILE, UV_DOCKERFILE_PATTERN),
     }
@@ -80,15 +76,11 @@ def uv_versions() -> dict[str, str | None]:
 def npm_versions() -> dict[str, str | None]:
     return {
         label(PACKAGE_JSON): npm_package_manager_version(),
-        label(SBOM_WORKFLOW): search(SBOM_WORKFLOW, NPM_WORKFLOW_PATTERN),
     }
 
 
 def node_versions() -> dict[str, str | None]:
     return {
-        label(SBOM_WORKFLOW): "lts"
-        if search(SBOM_WORKFLOW, NODE_WORKFLOW_PATTERN)
-        else None,
         label(WEB_WORKFLOW): "lts"
         if search(WEB_WORKFLOW, NODE_WORKFLOW_PATTERN)
         else None,

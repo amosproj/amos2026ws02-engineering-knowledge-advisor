@@ -268,11 +268,16 @@ export const assemblyGroupQuery = (id: string) =>
         queryFn: ({ signal }) => getAssemblyGroup({ params: { id }, signal }),
     })
 
+function fileUrl(fileId: string, name: 'model' | 'preview') {
+    return `${env.VITE_API_URL.replace(/\/$/, '')}/v1/records/${encodeURIComponent(fileId)}/${name}`
+}
+
+export const previewUrl = (fileId: string) => fileUrl(fileId, 'preview')
+
 // Bytes of the CAD file's 3D model (GLB), following the redirect to the storage
 export async function fetchModel(fileId: string, signal?: AbortSignal) {
-    const url = `${env.VITE_API_URL.replace(/\/$/, '')}/v1/records/${encodeURIComponent(fileId)}/model`
     try {
-        const response = await fetch(url, { signal })
+        const response = await fetch(fileUrl(fileId, 'model'), { signal })
         if (response.ok) return await response.arrayBuffer()
         const text = await response.text()
         let data: unknown = text

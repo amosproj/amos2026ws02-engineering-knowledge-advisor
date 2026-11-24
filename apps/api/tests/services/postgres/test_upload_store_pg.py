@@ -32,6 +32,7 @@ pytestmark = pytest.mark.skipif(
 
 FIRST_ID: str = "file-1"
 MODEL_KEY: str = "files/file-1/model.glb"
+PREVIEW_KEY: str = "files/file-1/preview.png"
 SECOND_ID: str = "file-2"
 MISSING_ID: str = "file-9"
 SIZE: int = 300
@@ -140,8 +141,8 @@ def test_the_same_content_may_be_ready_twice():
         async with open_store(FIRST_ID, SECOND_ID) as (store, sessions):
             await finish(store, sessions, FIRST_ID, SECOND_ID)
             async with sessions() as session, session.begin():
-                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, session)
-                await store.set_ready(SECOND_ID, SHA256, None, session)
+                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, PREVIEW_KEY, session)
+                await store.set_ready(SECOND_ID, SHA256, None, None, session)
 
             for file_id in (FIRST_ID, SECOND_ID):
                 assert (await get_upload(store, sessions, file_id)).status == "ready"
@@ -149,16 +150,18 @@ def test_the_same_content_may_be_ready_twice():
     run_async(run_check)
 
 
-def test_set_ready_stores_the_model_key_or_none():
+def test_set_ready_stores_the_keys_or_none():
     async def run_check() -> None:
         async with open_store(FIRST_ID, SECOND_ID) as (store, sessions):
             await finish(store, sessions, FIRST_ID, SECOND_ID)
             async with sessions() as session, session.begin():
-                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, session)
-                await store.set_ready(SECOND_ID, SHA256, None, session)
+                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, PREVIEW_KEY, session)
+                await store.set_ready(SECOND_ID, SHA256, None, None, session)
 
-            assert (await get_upload(store, sessions, FIRST_ID)).model_key == MODEL_KEY
-            assert (await get_upload(store, sessions, SECOND_ID)).model_key is None
+            first: Upload = await get_upload(store, sessions, FIRST_ID)
+            second: Upload = await get_upload(store, sessions, SECOND_ID)
+            assert (first.model_key, first.preview_key) == (MODEL_KEY, PREVIEW_KEY)
+            assert (second.model_key, second.preview_key) == (None, None)
 
     run_async(run_check)
 
@@ -168,7 +171,7 @@ def test_the_up_axis_is_set_on_ready_files_only():
         async with open_store(FIRST_ID, SECOND_ID) as (store, sessions):
             await finish(store, sessions, FIRST_ID)
             async with sessions() as session, session.begin():
-                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, session)
+                await store.set_ready(FIRST_ID, SHA256, MODEL_KEY, PREVIEW_KEY, session)
             ready: Upload = await get_upload(store, sessions, FIRST_ID)
             assert ready.up_axis == UpAxis.Z
 
@@ -186,19 +189,25 @@ def test_the_up_axis_is_set_on_ready_files_only():
     run_async(run_check)
 
 
-def test_restarting_a_failed_upload_clears_the_model_key():
+def test_restarting_a_failed_upload_clears_the_keys():
     async def run_check() -> None:
         async with open_store(FIRST_ID) as (store, sessions):
             async with sessions() as session, session.begin():
                 await store.finish_upload(FIRST_ID, FILE_MISMATCH, session)
                 # a leftover key, e.g. written by an older worker
                 await session.execute(
-                    update(store.table).values({UploadColumn.MODEL_KEY: MODEL_KEY})
+                    update(store.table).values(
+                        {
+                            UploadColumn.MODEL_KEY: MODEL_KEY,
+                            UploadColumn.PREVIEW_KEY: PREVIEW_KEY,
+                        }
+                    )
                 )
                 restarted: Upload | None = await store.start_upload(
                     FIRST_ID, f"files/{FIRST_ID}/source.step", SIZE, session
                 )
-            assert restarted is not None and restarted.model_key is None
+            assert restarted is not None
+            assert (restarted.model_key, restarted.preview_key) == (None, None)
 
     run_async(run_check)
 

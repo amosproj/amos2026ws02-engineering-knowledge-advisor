@@ -283,7 +283,12 @@ class MemoryUploadStore(UploadStore):
 
     @override
     async def set_ready(
-        self, file_id: str, sha256: str, model_key: str | None, tx: Tx
+        self,
+        file_id: str,
+        sha256: str,
+        model_key: str | None,
+        preview_key: str | None,
+        tx: Tx,
     ) -> None:
         raise NotImplementedError
 
@@ -323,6 +328,7 @@ class MemoryStorage(ObjectStorage):
 
     def __init__(self) -> None:
         self.sizes: dict[str, int] = {}
+        self.contents: dict[str, bytes] = {}
         self.deleted_keys: list[str] = []
 
     @override
@@ -353,7 +359,8 @@ class MemoryStorage(ObjectStorage):
 
     @override
     def read_object(self, key: str, chunk_size: int) -> Generator[bytes] | None:
-        raise NotImplementedError
+        content: bytes | None = self.contents.get(key)
+        return None if content is None else (chunk for chunk in [content])
 
     @override
     def list_objects(self, prefix: str) -> Iterator[list[StoredObject]]:
