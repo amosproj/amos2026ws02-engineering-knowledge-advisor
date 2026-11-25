@@ -9,23 +9,23 @@ import pytest
 from fakes import MemoryStorage, load_ontology
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from helpers import assert_mentions
+from helpers import assert_mentions, recreate_tables
 from httpx2 import Response
 from record_store_checks import CHECK_IDS, CHECKS, IDENTITY_PROPERTY_NAMES, Check
 from sqlalchemy import MetaData, text
 from sqlalchemy.ext.asyncio import (
-    AsyncConnection,
     AsyncEngine,
     AsyncSession,
     create_async_engine,
 )
 
 from api.router_records import v1_records_router
+from config.settings import DEFAULT_EMBEDDING_DIMENSIONS
 from db import TableName, Tables, define_tables
 from db.session import create_sessionmaker
 from handler.exception_handler import register
 from handler.service_exception_handler import register as register_service
-from services import Lane, SearchMode, UnstorableValueError
+from services import Lane, Record, SearchMode, UnstorableValueError
 from services.cad.model import BoundingBox, CadDefinition, CadModel, CadOccurrence
 from services.catalog import CatalogService
 from services.ograg.ontology import Ontology
@@ -37,6 +37,7 @@ from services.ograg.service import (
 )
 from services.postgres.record_store import PgRecordStore
 from services.postgres.upload_store import PgUploadStore
+from services.vectors import VectorKind
 
 URL: str = os.environ.get("API_TEST_DATABASE_URL", "")
 pytestmark = pytest.mark.skipif(
@@ -77,21 +78,14 @@ ITEM: dict[str, Any] = {
 SELECTOR_LOOP: dict[str, Any] = {"loop_factory": asyncio.SelectorEventLoop}
 
 
-def run_async(check: Callable[[], Coroutine[Any, Any, None]]) -> None:
+def run_async(check: Callable[[], Coroutine[object, object, None]]) -> None:
     asyncio.run(check(), loop_factory=asyncio.SelectorEventLoop)
 
 
-async def drop_tables(conn: AsyncConnection) -> None:
-    """Drops the tables of ``TableName``."""
-    for name in TableName:
-        await conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
-
-
 async def create_fresh_tables(engine: AsyncEngine) -> Tables:
-    tables: Tables = define_tables(MetaData())
+    tables: Tables = define_tables(DEFAULT_EMBEDDING_DIMENSIONS, MetaData())
     async with engine.begin() as conn:
-        await drop_tables(conn)
-        await conn.run_sync(tables.metadata.create_all)
+        await recreate_tables(conn, tables)
     return tables
 
 
@@ -105,7 +99,7 @@ def create_service_on(engine: AsyncEngine, tables: Tables) -> OgRagService:
 
 @pytest.mark.parametrize(
     "member",
-    [*Lane, *SearchMode],
+    [*Lane, *SearchMode, *VectorKind],
     ids=lambda member: f"{type(member).__name__}.{member.name}",
 )
 def test_enum_members_are_written_as_their_value(member: StrEnum):
@@ -113,7 +107,7 @@ def test_enum_members_are_written_as_their_value(member: StrEnum):
         engine: AsyncEngine = create_async_engine(URL)
         try:
             async with engine.connect() as conn:
-                written = await conn.scalar(
+                written: str | None = await conn.scalar(
                     text("SELECT CAST(:v AS text)"), {"v": member}
                 )
             assert written == member.value
@@ -309,10 +303,12 @@ def test_an_import_waits_for_its_cad_file_to_move_to_another_machine():
                 assert not imported.done()
             await imported
 
-            machine = await service.store.get_record(OTHER_MACHINE_ID)
+            machine: Record | None = await service.store.get_record(OTHER_MACHINE_ID)
             assert machine is not None
             assert machine.input["properties"] == {"sizeX": 1, "sizeY": 2, "sizeZ": 3}
-            linking = await service.store.get_linking_records([MACHINE_ID])
+            linking: list[Record] = await service.store.get_linking_records(
+                [MACHINE_ID]
+            )
             assert linking == []
         finally:
             await engine.dispose()

@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { getVisibleFieldErrors } from '@utils/field-errors'
 import { Switch } from '../atomic/atoms'
-import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from '../atomic/molecules'
+import { Field, FieldContent, FieldDescription, FieldError } from '../atomic/molecules'
+import { FormLabel } from './form-label'
 import { useFieldContext } from './form-context'
 
 export type SwitchFormProps = Omit<
@@ -10,12 +11,16 @@ export type SwitchFormProps = Omit<
 > & {
     label: string
     description?: string
+    optional?: boolean
+    info?: string
 }
 
 export function SwitchForm({
     id,
     label,
     description,
+    optional,
+    info,
     'aria-describedby': ariaDescribedBy,
     ...props
 }: SwitchFormProps) {
@@ -24,17 +29,24 @@ export function SwitchForm({
     const generatedId = React.useId()
     const switchId = id ?? `${generatedId}-switch`
     const descriptionId = description ? `${switchId}-description` : undefined
+    const infoId = info ? `${switchId}-info` : undefined
 
     const errors = getVisibleFieldErrors(field.state.meta.errors, field.state.meta.isTouched)
     const errorId = errors.length > 0 ? `${switchId}-error` : undefined
 
     const describedBy =
-        [ariaDescribedBy, descriptionId, errorId].filter(Boolean).join(' ') || undefined
+        [ariaDescribedBy, descriptionId, infoId, errorId].filter(Boolean).join(' ') || undefined
 
     return (
         <Field orientation="horizontal" data-invalid={errors.length > 0}>
             <FieldContent>
-                <FieldLabel htmlFor={switchId}>{label}</FieldLabel>
+                <FormLabel
+                    htmlFor={switchId}
+                    label={label}
+                    optional={optional}
+                    info={info}
+                    infoId={infoId}
+                />
                 {description ? (
                     <FieldDescription id={descriptionId}>{description}</FieldDescription>
                 ) : null}

@@ -18,7 +18,7 @@ import {
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { cn } from 'cn'
-import { usePanelRef } from 'react-resizable-panels'
+import { usePanelRef, type Layout, type LayoutChangedMeta } from 'react-resizable-panels'
 
 import {
     Button,
@@ -56,7 +56,8 @@ import {
     type AssemblyNode,
 } from './models/assembly-tree-model'
 import { findCadFile } from './models/machine-model'
-import type { ViewInset } from './models/viewer-camera-model'
+import { readPanelLayout, savePanelLayout, updatePanelLayout } from './models/panel-layout-model'
+import type { ViewInset } from './utils/camera-rig'
 import {
     assemblyTreeQuery,
     machineQuery,
@@ -101,8 +102,11 @@ function MachineView({ machineId }: { machineId: string }) {
     const containerRef = useRef<HTMLDivElement>(null)
     const [inset, setInset] = useState(NO_INSET)
     const treePanelRef = usePanelRef()
+    const viewerPanelRef = usePanelRef()
     const detailsPanelRef = usePanelRef()
-    const [treeCollapsed, setTreeCollapsed] = useState(false)
+    const [initialLayout] = useState(readPanelLayout)
+    const panelLayout = useRef(initialLayout)
+    const [treeCollapsed, setTreeCollapsed] = useState(initialLayout.treeCollapsed)
     const treeButtonRef = useRef<HTMLButtonElement>(null)
     const collapseButtonRef = useRef<HTMLButtonElement>(null)
     const [drawer, setDrawer] = useState<'tree' | 'details' | null>(null)
@@ -221,8 +225,11 @@ function MachineView({ machineId }: { machineId: string }) {
     const showDetails = (node: AssemblyNode) => {
         setSelected(node)
         if (isMobile) setDrawer('details')
-        else if (detailsPanelRef.current?.isCollapsed()) detailsPanelRef.current.resize(288)
+        else if (detailsPanelRef.current?.isCollapsed()) {
+            detailsPanelRef.current.resize(panelLayout.current.detailsWidth)
+        }
     }
+    const openTree = () => treePanelRef.current?.resize(panelLayout.current.treeWidth)
     const frame = (node: AssemblyNode) =>
         setFrameRequest((request) => ({
             targets: occurrencesOf(node),
@@ -253,6 +260,9 @@ function MachineView({ machineId }: { machineId: string }) {
                 setIsolatedId(node.id)
                 frame(node)
                 break
+            case 'exitIsolation':
+                setIsolatedId(undefined)
+                break
             case 'zoom':
                 frame(node)
                 break
@@ -270,7 +280,7 @@ function MachineView({ machineId }: { machineId: string }) {
         if (!node) return
         select(node)
         setRevealRequest((count) => count + 1)
-        if (!isMobile && treePanelRef.current?.isCollapsed()) treePanelRef.current.expand()
+        if (!isMobile && treePanelRef.current?.isCollapsed()) openTree()
     }
     const closeDetails = () => {
         setSelected(undefined)
@@ -298,7 +308,23 @@ function MachineView({ machineId }: { machineId: string }) {
     }
     const expandTree = () => {
         focusPending.current = true
-        treePanelRef.current?.expand()
+        openTree()
+    }
+    const saveLayout = (layout: Layout, meta: LayoutChangedMeta) => {
+        const available = [treePanelRef, viewerPanelRef, detailsPanelRef].reduce(
+            (sum, ref) => sum + (ref.current?.getSize().inPixels ?? 0),
+            0,
+        )
+        if (available === 0) return
+        const requested = meta.requestedLayout ?? layout
+        const toPixels = (id: string) => Math.round(((requested[id] ?? 0) / 100) * available)
+        panelLayout.current = updatePanelLayout(
+            panelLayout.current,
+            toPixels('tree'),
+            toPixels('details'),
+        )
+        savePanelLayout(panelLayout.current)
+        if (layout.details === 0) setSelected(undefined)
     }
     const closeDrawer = () => {
         focusPending.current = true
@@ -378,13 +404,13 @@ function MachineView({ machineId }: { machineId: string }) {
                 </>
             ) : (
                 <div className="pointer-events-none absolute inset-0 top-px">
-                    <ResizablePanelGroup>
+                    <ResizablePanelGroup onLayoutChanged={saveLayout}>
                         <ResizablePanel
                             id="tree"
                             panelRef={treePanelRef}
                             collapsible
                             collapsedSize={0}
-                            defaultSize={320}
+                            defaultSize={initialLayout.treeCollapsed ? 0 : initialLayout.treeWidth}
                             minSize={200}
                             maxSize="45%"
                             groupResizeBehavior="preserve-pixel-size"
@@ -414,7 +440,7 @@ function MachineView({ machineId }: { machineId: string }) {
                             </Panel>
                         </ResizablePanel>
                         <PanelHandle label="Resize assembly tree" />
-                        <ResizablePanel id="viewer">
+                        <ResizablePanel id="viewer" panelRef={viewerPanelRef}>
                             <div ref={visibleRef} className="h-full" />
                         </ResizablePanel>
                         <PanelHandle label="Resize details" disabled={!selected} />
@@ -427,9 +453,6 @@ function MachineView({ machineId }: { machineId: string }) {
                             minSize={200}
                             maxSize="45%"
                             groupResizeBehavior="preserve-pixel-size"
-                            onResize={(size) => {
-                                if (size.inPixels === 0) setSelected(undefined)
-                            }}
                         >
                             {selected ? (
                                 <div className="h-full py-2 pr-2">

@@ -994,6 +994,81 @@
         }
       }
     },
+    "/api/v1/records/{recordId}/upload": {
+      "patch": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Patch Upload",
+        "description": "Sets the up axis of a ready file, for every user. The 3D model itself is not changed.",
+        "operationId": "patch_upload_api_v1_records__recordId__upload_patch",
+        "parameters": [
+          {
+            "name": "recordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Recordid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadChanges"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed upload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileUpload"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "File is not ready, or another request holds it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed, or the record's class carries no file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/records/{recordId}/model": {
       "get": {
         "tags": [
@@ -1021,6 +1096,77 @@
           },
           "404": {
             "description": "No such record, or the file is ready without a 3D model.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "File is not uploaded, still processing, or its import failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed, or the record's class carries no file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "File storage cannot be reached. Please try again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/records/{recordId}/preview": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Get Preview",
+        "description": "Returns the preview image (PNG) of the file record, rendered from its 3D model.",
+        "operationId": "get_preview_api_v1_records__recordId__preview_get",
+        "parameters": [
+          {
+            "name": "recordId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "title": "Recordid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preview image of the 3D model.",
+            "content": {
+              "image/png": {}
+            }
+          },
+          "404": {
+            "description": "No such record, or the file is ready without a preview image.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1583,6 +1729,10 @@
             "type": "boolean",
             "title": "Hasmodel",
             "description": "Whether the 3D model (GLB) can be downloaded: GET /records/{id}/model."
+          },
+          "upAxis": {
+            "$ref": "#/components/schemas/UpAxis",
+            "description": "Axis of the CAD file shown upwards in the 3D view."
           }
         },
         "type": "object",
@@ -1593,12 +1743,20 @@
           "sizeBytes",
           "createdAt",
           "updatedAt",
-          "hasModel"
+          "hasModel",
+          "upAxis"
         ],
         "title": "FileUpload",
         "description": "Upload state of a file record."
       },
-      "Json": {
+      "JsonObject": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/JsonValue"
+        },
+        "type": "object",
+        "description": "JSON object."
+      },
+      "JsonValue": {
         "anyOf": [
           {
             "type": "string"
@@ -1614,13 +1772,13 @@
           },
           {
             "items": {
-              "$ref": "#/components/schemas/Json"
+              "$ref": "#/components/schemas/JsonValue"
             },
             "type": "array"
           },
           {
             "additionalProperties": {
-              "$ref": "#/components/schemas/Json"
+              "$ref": "#/components/schemas/JsonValue"
             },
             "type": "object"
           },
@@ -1629,13 +1787,6 @@
           }
         ],
         "description": "Any JSON value."
-      },
-      "JsonObject": {
-        "additionalProperties": {
-          "$ref": "#/components/schemas/Json"
-        },
-        "type": "object",
-        "description": "JSON object."
       },
       "ModelInfo": {
         "properties": {
@@ -2310,6 +2461,33 @@
         },
         "type": "object",
         "title": "TokenUsage"
+      },
+      "UpAxis": {
+        "type": "string",
+        "enum": [
+          "X",
+          "Y",
+          "Z",
+          "-X",
+          "-Y",
+          "-Z"
+        ],
+        "title": "UpAxis",
+        "description": "Axis of the CAD file that points up."
+      },
+      "UploadChanges": {
+        "properties": {
+          "upAxis": {
+            "$ref": "#/components/schemas/UpAxis",
+            "description": "Axis of the CAD file shown upwards in the 3D view."
+          }
+        },
+        "type": "object",
+        "required": [
+          "upAxis"
+        ],
+        "title": "UploadChanges",
+        "description": "Body of ``PATCH /records/{id}/upload``."
       },
       "UploadForm": {
         "properties": {

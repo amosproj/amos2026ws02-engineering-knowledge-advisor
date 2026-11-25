@@ -9,7 +9,7 @@ def _normalize_prefix(prefix: str | None) -> str:
     if prefix is None:
         return ""
 
-    segments = [seg for seg in prefix.split("/") if seg]
+    segments: list[str] = [seg for seg in prefix.split("/") if seg]
     return "/" + "/".join(segments) if segments else ""
 
 
@@ -24,7 +24,7 @@ class ApiRouterBuilder:
         return self
 
     def prefix(self, prefix: str) -> Self:
-        self._prefix = _normalize_prefix(prefix)
+        self._prefix: str = _normalize_prefix(prefix)
         return self
 
     def version(self, version: str) -> Self:
@@ -40,5 +40,5 @@ class ApiRouterBuilder:
         return self
 
     def build(self) -> APIRouter:
-        prefix = f"{self._prefix}{_normalize_prefix(self._version)}"
+        prefix: str = f"{self._prefix}{_normalize_prefix(self._version)}"
         return APIRouter(prefix=prefix, tags=[*self._tags])

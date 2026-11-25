@@ -13,28 +13,37 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from cad_file_worker.conversion import Conversion, convert_step_file
 from cad_file_worker.errors import ConversionTimeoutError, StopRequested
+from cad_file_worker.preview import create_preview
 from cad_file_worker.step_file import StepFileScan, scan_step_file
 from logger import logger
 from services import UnstorableValueError
-from services.cad.errors import StepImportError
+from services.cad.errors import PreviewError, StepImportError
 from services.cad.model import CadModel
 from services.catalog import CatalogService
-from services.catalog.files import MODEL_CONTENT_TYPE, MODEL_FILE_NAME, get_model_key
+from services.catalog.files import (
+    MODEL_CONTENT_TYPE,
+    MODEL_FILE_NAME,
+    PREVIEW_CONTENT_TYPE,
+    PREVIEW_FILE_NAME,
+    get_model_key,
+    get_preview_key,
+)
 from services.object_storage import ObjectStorageError
 from services.ograg.service import ParentLimitError, RecordError
 from services.uploads import Upload, UploadStore
 
-CHUNK_SIZE = 8 * 1024 * 1024
-MAX_PROCESSING_SECONDS = 30 * 60
-MAX_CONVERSION_SECONDS = 30 * 60
+CHUNK_SIZE: int = 8 * 1024 * 1024
+MAX_PROCESSING_SECONDS: int = 30 * 60
+MAX_CONVERSION_SECONDS: int = 30 * 60
+MAX_PREVIEW_SECONDS: int = 2 * 60
 # gzip's default (9) is several times slower for a few percent less
-GZIP_LEVEL = 6
+GZIP_LEVEL: int = 6
 
-UPLOAD_NOT_FOUND = "upload_not_found"
-INVALID_STEP_FILE = "invalid_step_file"
-PARSE_ERROR = "parse_error"
-IMPORT_ERROR = "import_error"
-PROCESSING_TIMEOUT = "processing_timeout"
+UPLOAD_NOT_FOUND: str = "upload_not_found"
+INVALID_STEP_FILE: str = "invalid_step_file"
+PARSE_ERROR: str = "parse_error"
+IMPORT_ERROR: str = "import_error"
+PROCESSING_TIMEOUT: str = "processing_timeout"
 
 
 async def process_next_cad_upload(
@@ -96,11 +105,13 @@ async def _process(
             return UPLOAD_NOT_FOUND
         if not scan.is_valid:
             return INVALID_STEP_FILE
-        error_code, model_key = await _convert_and_import(
+        error_code, model_key, preview_key = await _convert_and_import(
             catalog, session, upload.file_id, step_path, stopping, on_progress
         )
     if error_code is None:
-        await catalog.uploads.set_ready(upload.file_id, scan.sha256, model_key, session)
+        await catalog.uploads.set_ready(
+            upload.file_id, scan.sha256, model_key, preview_key, session
+        )
     return error_code
 
 
@@ -148,11 +159,11 @@ async def _convert_and_import(
     step_path: Path,
     stopping: threading.Event,
     on_progress: Callable[[], None],
-) -> tuple[str | None, str | None]:
-    """Convert the STEP file, store its GLB and import its assembly tree.
+) -> tuple[str | None, str | None, str | None]:
+    """Convert the STEP file, store its GLB and preview and import its assembly tree.
 
-    Returns the error code, None when imported, and the GLB's key, None without one. A missing
-    GLB is logged and does not fail the file.
+    Returns the error code, None when imported, and the keys of the GLB and the preview, None
+    without one. A missing GLB or preview is logged and does not fail the file.
     """
     glb_path: Path = step_path.with_name(MODEL_FILE_NAME)
     try:
@@ -166,13 +177,18 @@ async def _convert_and_import(
         )
     except StepImportError as error:
         logger.warning(f"CAD file {cad_file_id} cannot be parsed: {error}")
-        return PARSE_ERROR, None
+        return PARSE_ERROR, None, None
     except ConversionTimeoutError as error:
         logger.warning(f"CAD file {cad_file_id}: {error}")
-        return PROCESSING_TIMEOUT, None
+        return PROCESSING_TIMEOUT, None, None
     model: CadModel = conversion.model
     # stored before the import: a failed import deletes the folder with it
     model_key: str | None = await _store_glb(catalog, cad_file_id, conversion, glb_path)
+    preview_key: str | None = None
+    if conversion.glb_error is None:
+        preview_key = await _store_preview(
+            catalog, cad_file_id, glb_path, stopping, on_progress
+        )
 
     try:
         # the failure is saved in the same transaction, so a refused import must not abort it
@@ -182,10 +198,10 @@ async def _convert_and_import(
             )
     except (RecordError, ParentLimitError, UnstorableValueError) as error:
         logger.warning(f"CAD file {cad_file_id} cannot be imported: {error}")
-        return IMPORT_ERROR, None
+        return IMPORT_ERROR, None, None
     for warning in warnings:
         logger.warning(f"CAD file {cad_file_id}: {warning}")
-    return None, model_key
+    return None, model_key, preview_key
 
 
 async def _store_glb(
@@ -207,6 +223,34 @@ async def _store_glb(
         logger.exception(
             f"CAD file {cad_file_id}: no 3D model, the GLB could not be stored"
         )
+        return None
+    return key
+
+
+async def _store_preview(
+    catalog: CatalogService,
+    cad_file_id: str,
+    glb_path: Path,
+    stopping: threading.Event,
+    on_progress: Callable[[], None],
+) -> str | None:
+    """Render and upload the preview. Returns its key, None when there is none: the preview is optional."""
+    key: str = get_preview_key(cad_file_id)
+    png_path: Path = glb_path.with_name(PREVIEW_FILE_NAME)
+    try:
+        await asyncio.to_thread(
+            create_preview,
+            glb_path,
+            png_path,
+            MAX_PREVIEW_SECONDS,
+            stopping,
+            on_progress,
+        )
+        await asyncio.to_thread(
+            catalog.storage.upload_file, key, png_path, PREVIEW_CONTENT_TYPE
+        )
+    except (PreviewError, ObjectStorageError, OSError):
+        logger.exception(f"CAD file {cad_file_id}: no preview")
         return None
     return key
 

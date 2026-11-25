@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncGenerator, Iterator, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator, Sequence
 from dataclasses import replace
 from typing import Any
 
@@ -17,9 +17,9 @@ from handler.exception_handler import register
 from handler.service_exception_handler import register as register_service
 from services import ConflictError, Record, Tx
 from services.catalog import CatalogService
-from services.object_storage import ObjectStorageError
+from services.object_storage import ObjectStorage, ObjectStorageError
 from services.ograg.service import DeleteResult, OgRagService
-from services.uploads import Upload, UploadStatus
+from services.uploads import Upload, UploadStatus, UploadStore
 
 PROBLEM_JSON: str = "application/problem+json"
 FASTAPI_DEFAULT_200: str = (
@@ -264,6 +264,21 @@ def test_deleting_a_parent_deletes_its_dependents_and_marks_the_rest(
     assert [rec["@id"] for rec in get_all_records(client)] == [ITEM_ID]
 
 
+def test_put_strips_strings(client: TestClient):
+    assert put_record(client, MACHINE_ID, MACHINE).status_code == 200
+    assert put_record(client, GROUP_ID, {**GROUP, "name": " Tray "}).status_code == 200
+    stored: dict[str, Any] = client.get(f"{RECORDS_URL}/{GROUP_ID}").json()
+    assert stored == {**GROUP, "name": "Tray", "@id": GROUP_ID}
+
+
+def test_refuse_record_with_only_blank_strings(client: TestClient):
+    blank_item: dict[str, Any] = {
+        "@type": "KnowledgeItem",
+        "properties": {"name": "  "},
+    }
+    assert_problem(put_record(client, ITEM_ID, blank_item), 422)
+
+
 def test_post_creates_a_record_with_a_generated_id(client: TestClient):
     response: Response = client.post(RECORDS_URL, json={**MACHINE, "@id": "ignored"})
     assert response.status_code == 201
@@ -480,8 +495,12 @@ def test_a_list_reads_its_includes_once_for_all_records(
         put_record(client, f"CF-{number}", {**CAD_FILE, "partOf": f"RC-{number}"})
     client.post(f"{RECORDS_URL}/CF-1/upload-form", json={"size": 300})
     calls: list[str] = []
-    get_linking_records = service.store.get_linking_records
-    get_uploads = catalog.uploads.get_uploads
+    get_linking_records: Callable[..., Awaitable[list[Record]]] = (
+        service.store.get_linking_records
+    )
+    get_uploads: Callable[..., Awaitable[dict[str, Upload]]] = (
+        catalog.uploads.get_uploads
+    )
 
     async def count_linking(target_ids: Sequence[str], tx: Tx) -> list[Record]:
         calls.append("get_linking_records")
@@ -587,7 +606,7 @@ def test_a_file_record_is_uploaded_with_a_form_and_completed(
 ):
     seed_machine_and_group(service)
     put_record(client, "CF-1", CAD_FILE)
-    storage = catalog.storage
+    storage: ObjectStorage = catalog.storage
     assert isinstance(storage, MemoryStorage)
 
     not_asked: Response = client.post(f"{RECORDS_URL}/CF-1/complete")
@@ -681,7 +700,7 @@ def test_delete_passes_its_options_and_returns_the_marked_ids(
 
 def test_writes_run_in_the_requests_session(client: TestClient, service: OgRagService):
     seen: list[Tx | None] = []
-    save = service.store.save_records
+    save: Callable[..., Awaitable[None]] = service.store.save_records
 
     async def recording_save(records: Sequence[Record], tx: Tx | None = None) -> None:
         seen.append(tx)
@@ -694,6 +713,9 @@ def test_writes_run_in_the_requests_session(client: TestClient, service: OgRagSe
 
 MODEL_URL: str = f"{RECORDS_URL}/CF-1/model"
 MODEL_KEY: str = "files/CF-1/model.glb"
+UPLOAD_URL: str = f"{RECORDS_URL}/CF-1/upload"
+PREVIEW_URL: str = f"{RECORDS_URL}/CF-1/preview"
+PREVIEW_KEY: str = "files/CF-1/preview.png"
 
 
 def add_cad_file(
@@ -703,6 +725,7 @@ def add_cad_file(
     status: UploadStatus | None,
     model_key: str | None = None,
     error_code: str | None = None,
+    preview_key: str | None = None,
 ) -> None:
     """A machine with CAD file CF-1 whose upload has ``status`` (no upload if ``None``)."""
     seed_machine_and_group(service)
@@ -710,13 +733,14 @@ def add_cad_file(
     if status is None:
         return
     client.post(f"{RECORDS_URL}/CF-1/upload-form", json={"size": 300})
-    uploads = catalog.uploads
+    uploads: UploadStore = catalog.uploads
     assert isinstance(uploads, MemoryUploadStore)
     uploads.uploads["CF-1"] = replace(
         uploads.uploads["CF-1"],
         status=status,
         model_key=model_key,
         error_code=error_code,
+        preview_key=preview_key,
     )
 
 
@@ -781,6 +805,44 @@ def test_the_model_of_a_missing_record_or_a_machine(
     assert client.get(f"{RECORDS_URL}/{MACHINE_ID}/model").status_code == 422
 
 
+def test_the_up_axis_of_a_ready_file_is_changed_for_every_reader(
+    client: TestClient, service: OgRagService, catalog: CatalogService
+):
+    add_cad_file(client, service, catalog, UploadStatus.READY, model_key=MODEL_KEY)
+
+    response: Response = client.patch(UPLOAD_URL, json={"upAxis": "-Y"})
+
+    assert response.status_code == 200
+    read: Response = client.get(f"{RECORDS_URL}/CF-1?include=upload")
+    assert read.json()["upload"] == response.json()
+    assert response.json()["upAxis"] == "-Y"
+    assert_problem(client.patch(UPLOAD_URL, json={"upAxis": "W"}), 422)
+
+
+@pytest.mark.parametrize("status", [None, UploadStatus.PROCESSING])
+def test_the_up_axis_of_a_file_not_ready_is_a_conflict(
+    client: TestClient,
+    service: OgRagService,
+    catalog: CatalogService,
+    status: UploadStatus | None,
+):
+    add_cad_file(client, service, catalog, status)
+
+    response: Response = client.patch(UPLOAD_URL, json={"upAxis": "Y"})
+
+    assert response.status_code == 409
+    assert response.json()["errorCode"] == "file_not_ready"
+
+
+def test_only_a_file_record_has_an_up_axis(client: TestClient, service: OgRagService):
+    seed_machine_and_group(service)
+
+    body: dict[str, str] = {"upAxis": "Y"}
+    assert client.patch(f"{RECORDS_URL}/CF-9/upload", json=body).status_code == 404
+    machine_url: str = f"{RECORDS_URL}/{MACHINE_ID}/upload"
+    assert client.patch(machine_url, json=body).status_code == 422
+
+
 def test_the_model_link_needs_the_storage(
     client: TestClient,
     service: OgRagService,
@@ -795,6 +857,37 @@ def test_the_model_link_needs_the_storage(
     monkeypatch.setattr(catalog.storage, "create_download_url", fail)
 
     assert client.get(MODEL_URL, follow_redirects=False).status_code == 503
+
+
+def test_the_preview_is_returned_as_an_image(
+    client: TestClient, service: OgRagService, catalog: CatalogService
+):
+    add_cad_file(client, service, catalog, UploadStatus.READY, preview_key=PREVIEW_KEY)
+    assert isinstance(catalog.storage, MemoryStorage)
+    catalog.storage.contents[PREVIEW_KEY] = b"png"
+
+    response: Response = client.get(PREVIEW_URL)
+
+    assert response.status_code == 200
+    assert response.content == b"png"
+    assert response.headers["content-type"] == "image/png"
+    assert response.headers["cache-control"] == "private, max-age=3600"
+
+
+@pytest.mark.parametrize("preview_key", [None, PREVIEW_KEY])
+def test_a_ready_file_without_a_stored_preview_has_no_preview(
+    client: TestClient,
+    service: OgRagService,
+    catalog: CatalogService,
+    preview_key: str | None,
+):
+    add_cad_file(client, service, catalog, UploadStatus.READY, preview_key=preview_key)
+
+    response: Response = client.get(PREVIEW_URL)
+
+    assert response.status_code == 404
+    assert response.json()["errorCode"] == "preview_unavailable"
+    assert response.headers["cache-control"] == "no-store"
 
 
 @pytest.mark.parametrize(("model_key", "has_model"), [(MODEL_KEY, True), (None, False)])

@@ -28,6 +28,7 @@ def upgrade() -> None:
         sa.Column("model_key", sa.String(), nullable=True),
         sa.Column("size_bytes", sa.BigInteger(), nullable=False),
         sa.Column("sha256", sa.CHAR(length=64), nullable=True),
+        sa.Column("up_axis", sa.String(), server_default="Z", nullable=False),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -43,6 +44,10 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "status IN ('uploading', 'processing', 'ready', 'failed')",
             name="ck_uploads_status",
+        ),
+        sa.CheckConstraint(
+            "up_axis IN ('X', 'Y', 'Z', '-X', '-Y', '-Z')",
+            name="ck_uploads_up_axis",
         ),
         sa.ForeignKeyConstraint(["file_id"], ["records.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("file_id"),

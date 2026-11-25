@@ -1,4 +1,6 @@
-import { Button, useSettings } from '@components'
+import { useId } from 'react'
+
+import { Button, InfoTip, useSettings } from '@components'
 
 import type { Theme } from '../models/settings-model'
 import { SettingsRow, SettingsSection } from './settings-layout'
@@ -11,14 +13,24 @@ const themeOptions: readonly { value: Theme; label: string }[] = [
 
 export function GeneralSettings() {
     const { settings, update } = useSettings()
+    const descriptionId = useId()
 
     return (
         <SettingsSection title="Appearance">
             <SettingsRow
                 title="Theme"
-                description="System follows the operating system light or dark appearance."
+                info={
+                    <InfoTip label="About theme" descriptionId={descriptionId}>
+                        System follows the operating system light or dark appearance.
+                    </InfoTip>
+                }
             >
-                <div role="radiogroup" aria-label="Theme" className="flex items-center gap-1">
+                <div
+                    role="radiogroup"
+                    aria-label="Theme"
+                    aria-describedby={descriptionId}
+                    className="flex items-center gap-1"
+                >
                     {themeOptions.map((option) => {
                         const selected = settings.theme === option.value
 

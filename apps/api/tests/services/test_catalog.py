@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 from fakes import build_ontology_with, make_catalog, make_service
 
-from services import Json, Link, Record
+from services import JsonValue, Link, Record, Tx
 from services.cad.model import BoundingBox, CadDefinition, CadModel, CadOccurrence
 from services.catalog import CatalogService, TreeNode
 from services.catalog.records import (
@@ -27,7 +27,7 @@ from services.uploads import UploadStatus
 pytestmark = pytest.mark.anyio
 
 # the in-memory store ignores transactions
-TX = None
+TX: Tx | None = None
 ITEM_ID: str = "KI-1"
 # a second parent link of CAD files: to an assembly group
 PART_OF_GROUP: dict[str, Any] = {
@@ -60,7 +60,7 @@ async def create_tree(ograg: OgRagService) -> tuple[str, str, str]:
 
 
 async def add_instance(
-    ograg: OgRagService, name: str, group_id: str, **links: Json
+    ograg: OgRagService, name: str, group_id: str, **links: JsonValue
 ) -> str:
     instance_id, _ = await create_record(
         ograg,

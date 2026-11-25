@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from datetime import timedelta
-from typing import Any, override
+from typing import override
 
 from sqlalchemy import (
     Column,
@@ -25,6 +25,7 @@ from db.tables import Tables
 from services.postgres.shared import Conditions
 from services.uploads import (
     LockTimeoutError,
+    UpAxis,
     Upload,
     UploadStatus,
     UploadStore,
@@ -65,11 +66,12 @@ class PgUploadStore(UploadStore):
     async def start_upload(
         self, file_id: str, source_key: str, size_bytes: int, tx: AsyncSession
     ) -> Upload | None:
-        restarted: dict[UploadColumn, Any] = {
+        restarted: dict[UploadColumn, object] = {
             UploadColumn.STATUS: UploadStatus.UPLOADING,
             UploadColumn.ERROR_CODE: None,
             UploadColumn.SHA256: None,
             UploadColumn.MODEL_KEY: None,
+            UploadColumn.PREVIEW_KEY: None,
             UploadColumn.SOURCE_KEY: source_key,
             UploadColumn.SIZE_BYTES: size_bytes,
             UploadColumn.CREATED_AT: func.now(),
@@ -177,7 +179,12 @@ class PgUploadStore(UploadStore):
 
     @override
     async def set_ready(
-        self, file_id: str, sha256: str, model_key: str | None, tx: AsyncSession
+        self,
+        file_id: str,
+        sha256: str,
+        model_key: str | None,
+        preview_key: str | None,
+        tx: AsyncSession,
     ) -> None:
         await self._set_values(
             file_id,
@@ -185,6 +192,7 @@ class PgUploadStore(UploadStore):
                 UploadColumn.STATUS: UploadStatus.READY,
                 UploadColumn.SHA256: sha256,
                 UploadColumn.MODEL_KEY: model_key,
+                UploadColumn.PREVIEW_KEY: preview_key,
                 UploadColumn.ERROR_CODE: None,
             },
             tx,
@@ -200,6 +208,35 @@ class PgUploadStore(UploadStore):
             },
             tx,
         )
+
+    @override
+    async def set_up_axis(
+        self, file_id: str, up_axis: UpAxis, tx: AsyncSession
+    ) -> Upload | None:
+        row: RowMapping | None = (
+            (
+                await tx.execute(
+                    update(self.table)
+                    .where(
+                        self._get_file_id_column() == file_id,
+                        self._has_status(UploadStatus.READY),
+                    )
+                    .values(
+                        {
+                            UploadColumn.UP_AXIS: up_axis,
+                            # keeps the last status change
+                            UploadColumn.UPDATED_AT: self.table.c[
+                                UploadColumn.UPDATED_AT
+                            ],
+                        }
+                    )
+                    .returning(*self.table.c)
+                )
+            )
+            .mappings()
+            .first()
+        )
+        return None if row is None else _to_upload(row)
 
     @override
     async def move_to_back(self, file_id: str, tx: AsyncSession) -> None:
@@ -270,7 +307,7 @@ class PgUploadStore(UploadStore):
         )
 
     async def _set_values(
-        self, file_id: str, values: dict[UploadColumn, Any], tx: AsyncSession
+        self, file_id: str, values: dict[UploadColumn, object], tx: AsyncSession
     ) -> None:
         await tx.execute(
             update(self.table)
@@ -289,4 +326,6 @@ def _to_upload(row: RowMapping) -> Upload:
         created_at=row[UploadColumn.CREATED_AT],
         updated_at=row[UploadColumn.UPDATED_AT],
         model_key=row[UploadColumn.MODEL_KEY],
+        preview_key=row[UploadColumn.PREVIEW_KEY],
+        up_axis=UpAxis(row[UploadColumn.UP_AXIS]),
     )

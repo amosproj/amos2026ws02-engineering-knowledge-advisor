@@ -90,7 +90,9 @@ def test_unhandled(caplog: pytest.LogCaptureFixture):
     assert response_body["instance"] == test_endpoint
 
     # logged by logger
-    errors = [entry for entry in caplog.records if entry.name == UNHANDLED_LOGGER_ID]
+    errors: list[logging.LogRecord] = [
+        entry for entry in caplog.records if entry.name == UNHANDLED_LOGGER_ID
+    ]
     assert errors and errors[0].message == UNHANDLED_LOG_MESSAGE
     assert errors[0].exc_info is not None
 

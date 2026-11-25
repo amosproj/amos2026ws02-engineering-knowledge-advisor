@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { getVisibleFieldErrors } from '@utils/field-errors'
 import { Checkbox } from '../atomic/atoms'
-import { Field, FieldContent, FieldDescription, FieldError, FieldLabel } from '../atomic/molecules'
+import { Field, FieldContent, FieldDescription, FieldError } from '../atomic/molecules'
+import { FormLabel } from './form-label'
 import { useFieldContext } from './form-context'
 
 export type CheckboxFormProps = Omit<
@@ -10,12 +11,16 @@ export type CheckboxFormProps = Omit<
 > & {
     label: string
     description?: string
+    optional?: boolean
+    info?: string
 }
 
 export function CheckboxForm({
     id,
     label,
     description,
+    optional,
+    info,
     'aria-describedby': ariaDescribedBy,
     ...props
 }: CheckboxFormProps) {
@@ -24,12 +29,13 @@ export function CheckboxForm({
     const generatedId = React.useId()
     const checkboxId = id ?? `${generatedId}-checkbox`
     const descriptionId = description ? `${checkboxId}-description` : undefined
+    const infoId = info ? `${checkboxId}-info` : undefined
 
     const errors = getVisibleFieldErrors(field.state.meta.errors, field.state.meta.isTouched)
     const errorId = errors.length > 0 ? `${checkboxId}-error` : undefined
 
     const describedBy =
-        [ariaDescribedBy, descriptionId, errorId].filter(Boolean).join(' ') || undefined
+        [ariaDescribedBy, descriptionId, infoId, errorId].filter(Boolean).join(' ') || undefined
 
     return (
         <Field orientation="horizontal" data-invalid={errors.length > 0}>
@@ -44,7 +50,13 @@ export function CheckboxForm({
                 aria-describedby={describedBy}
             />
             <FieldContent>
-                <FieldLabel htmlFor={checkboxId}>{label}</FieldLabel>
+                <FormLabel
+                    htmlFor={checkboxId}
+                    label={label}
+                    optional={optional}
+                    info={info}
+                    infoId={infoId}
+                />
                 {description ? (
                     <FieldDescription id={descriptionId}>{description}</FieldDescription>
                 ) : null}

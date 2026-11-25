@@ -124,7 +124,7 @@ async def check_find_matches_identity_case_insensitively(store: RecordStore) -> 
         name="input TRAY",
     )
     await store.save_records([MACHINE, GROUP, twin])
-    find = store.find_record_ids
+    find: Callable[..., Awaitable[list[str]]] = store.find_record_ids
     assert await find("AssemblyGroup", "INPUT tray") == [GROUP_ID, TWIN_ID]  # ambiguous
     assert await find("AssemblyGroup", "ag-it-003") == [GROUP_ID]
     assert await find("AssemblyGroup", TWIN_ID.lower()) == [
@@ -143,7 +143,7 @@ async def check_find_matches_any_value_of_a_list(store: RecordStore) -> None:
         name=["Feed tray", "Input TRAY"],
     )
     await store.save_records([MACHINE, GROUP, listed])
-    find = store.find_record_ids
+    find: Callable[..., Awaitable[list[str]]] = store.find_record_ids
     assert await find("AssemblyGroup", "ag-it-005") == [TWIN_ID]
     assert await find("AssemblyGroup", "AG-IT-005-old") == [TWIN_ID]
     assert await find("AssemblyGroup", "feed TRAY") == [TWIN_ID]
@@ -163,7 +163,7 @@ async def check_find_follows_the_identity_of_the_last_save(store: RecordStore) -
         name=["Output tray", "Exit tray"],
     )
     await store.save_records([renamed])
-    find = store.find_record_ids
+    find: Callable[..., Awaitable[list[str]]] = store.find_record_ids
     assert await find("AssemblyGroup", "Input tray") == []
     assert await find("AssemblyGroup", "exit TRAY") == [GROUP_ID]
     assert await find("AssemblyGroup", "ag-it-003") == [GROUP_ID]

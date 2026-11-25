@@ -1,8 +1,10 @@
+import { useId, type ReactNode } from 'react'
 import { Radio } from '@base-ui/react/radio'
 import { cn } from 'cn'
 
 import {
     buttonVariants,
+    InfoTip,
     RadioGroup,
     Select,
     SelectContent,
@@ -34,24 +36,22 @@ const selectionStyleOptions: readonly { value: SelectionStyle; label: string }[]
 type Toggle = {
     key: 'invertZoom' | 'zoomToCursor' | 'showViewCube' | 'focusOnSelect'
     title: string
-    description: string
+    info?: string
 }
 
 const navigationToggles: readonly Toggle[] = [
     {
         key: 'invertZoom',
         title: 'Invert zoom direction',
-        description: 'Reverse the zoom direction of the wheel and zoom drags.',
     },
     {
         key: 'zoomToCursor',
         title: 'Zoom to cursor',
-        description: 'Zoom towards the cursor instead of the center of the view.',
+        info: 'Zoom towards the cursor instead of the center of the view.',
     },
     {
         key: 'showViewCube',
         title: 'Show view cube',
-        description: 'Cube in the corner of the view to look from a side.',
     },
 ]
 
@@ -59,47 +59,55 @@ const selectionToggles: readonly Toggle[] = [
     {
         key: 'focusOnSelect',
         title: 'Frame the selected part',
-        description: 'Move the view to the part selected in the assembly tree.',
+        info: 'Move the view to the part selected in the assembly tree.',
     },
 ]
 
 type ViewerSettingsProps = {
     columns?: boolean
+    children?: ReactNode
 }
 
-export function ViewerSettings({ columns = false }: ViewerSettingsProps) {
+export function ViewerSettings({ columns = false, children }: ViewerSettingsProps) {
     const { settings, update } = useSettings()
     const profile = MOUSE_PROFILES[settings.mouseProfile]
+    const profileDescriptionId = useId()
+    const unselectedDescriptionId = useId()
 
     const mouse = (
         <SettingsSection title="Mouse">
-            <div className="bg-card space-y-4 rounded-xl border px-5 py-4">
-                <div className="flex items-center justify-between gap-6">
-                    <div className="space-y-1">
-                        <p className="text-sm font-medium">Navigation profile</p>
-                        <p className="text-muted-foreground text-sm">
-                            Mouse buttons used to move the 3D view, like in your CAD software.
-                        </p>
-                    </div>
-                    <Select
-                        items={profileItems}
-                        value={settings.mouseProfile}
-                        onValueChange={(value) => {
-                            if (value) update({ mouseProfile: value })
-                        }}
+            <SettingsRow
+                title="Navigation profile"
+                info={
+                    <InfoTip label="About navigation profile" descriptionId={profileDescriptionId}>
+                        Mouse buttons used to move the 3D view, like in your CAD software.
+                    </InfoTip>
+                }
+            >
+                <Select
+                    items={profileItems}
+                    value={settings.mouseProfile}
+                    onValueChange={(value) => {
+                        if (value) update({ mouseProfile: value })
+                    }}
+                >
+                    <SelectTrigger
+                        className="w-36"
+                        aria-label="Navigation profile"
+                        aria-describedby={profileDescriptionId}
                     >
-                        <SelectTrigger className="w-36 shrink-0" aria-label="Navigation profile">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {profileItems.map((item) => (
-                                <SelectItem key={item.value} value={item.value}>
-                                    {item.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {profileItems.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>
+                                {item.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </SettingsRow>
+            <div className="space-y-4 px-5 py-4">
                 <MouseDiagram profile={profile} />
                 {profile.requiresMiddleButton ? (
                     <p className="text-muted-foreground text-xs">Requires a 3-button mouse.</p>
@@ -109,7 +117,7 @@ export function ViewerSettings({ columns = false }: ViewerSettingsProps) {
     )
     const navigation = (
         <SettingsSection title="Navigation">
-            <SettingsRow title="Speed" description="Speed of rotation, pan and zoom.">
+            <SettingsRow title="Speed">
                 <Choices
                     label="Speed"
                     options={speedOptions}
@@ -123,11 +131,17 @@ export function ViewerSettings({ columns = false }: ViewerSettingsProps) {
     const selection = (
         <SettingsSection title="Selection">
             <SettingsRow
-                title="Other parts"
-                description="How the parts around the selected one are drawn."
+                title="Unselected parts"
+                info={
+                    <InfoTip label="About unselected parts" descriptionId={unselectedDescriptionId}>
+                        How the other parts are drawn when a part is selected. Sketch draws only
+                        their edges so the selection stands out.
+                    </InfoTip>
+                }
             >
                 <Choices
-                    label="Other parts"
+                    label="Unselected parts"
+                    describedBy={unselectedDescriptionId}
                     options={selectionStyleOptions}
                     value={settings.selectionStyle}
                     onChange={(selectionStyle) => update({ selectionStyle })}
@@ -143,13 +157,17 @@ export function ViewerSettings({ columns = false }: ViewerSettingsProps) {
                 {mouse}
                 {selection}
             </div>
-            {navigation}
+            <div className="space-y-10">
+                {navigation}
+                {children}
+            </div>
         </div>
     ) : (
         <div className="space-y-10">
             {mouse}
             {navigation}
             {selection}
+            {children}
         </div>
     )
 }
@@ -159,12 +177,20 @@ type ChoicesProps<T extends string> = {
     options: readonly { value: T; label: string }[]
     value: T
     onChange: (value: T) => void
+    describedBy?: string
 }
 
-function Choices<T extends string>({ label, options, value, onChange }: ChoicesProps<T>) {
+function Choices<T extends string>({
+    label,
+    options,
+    value,
+    onChange,
+    describedBy,
+}: ChoicesProps<T>) {
     return (
         <RadioGroup
             aria-label={label}
+            aria-describedby={describedBy}
             value={value}
             onValueChange={(next) => onChange(next as T)}
             className="flex w-auto gap-1"
@@ -186,15 +212,33 @@ function Choices<T extends string>({ label, options, value, onChange }: ChoicesP
 }
 
 function ToggleRows({ toggles }: { toggles: readonly Toggle[] }) {
-    const { settings, update } = useSettings()
+    return toggles.map((toggle) => <ToggleRow key={toggle.key} toggle={toggle} />)
+}
 
-    return toggles.map((toggle) => (
-        <SettingsRow key={toggle.key} title={toggle.title} description={toggle.description}>
+function ToggleRow({ toggle }: { toggle: Toggle }) {
+    const { settings, update } = useSettings()
+    const descriptionId = useId()
+
+    return (
+        <SettingsRow
+            title={toggle.title}
+            info={
+                toggle.info ? (
+                    <InfoTip
+                        label={`About ${toggle.title.toLowerCase()}`}
+                        descriptionId={descriptionId}
+                    >
+                        {toggle.info}
+                    </InfoTip>
+                ) : undefined
+            }
+        >
             <Switch
                 aria-label={toggle.title}
+                aria-describedby={toggle.info ? descriptionId : undefined}
                 checked={settings[toggle.key]}
                 onCheckedChange={(checked) => update({ [toggle.key]: checked })}
             />
         </SettingsRow>
-    ))
+    )
 }

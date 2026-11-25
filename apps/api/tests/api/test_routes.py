@@ -1,3 +1,8 @@
+from typing import Any
+
+from httpx2 import Response
+
+
 def route_paths(app) -> list[str]:
     return list(app.openapi()["paths"])
 
@@ -12,14 +17,14 @@ def test_invalid_double_slashes(app):
 
 
 def test_error_responses_are_documented_as_problems(app):
-    schemas = app.openapi()["components"]["schemas"]
+    schemas: dict[str, Any] = app.openapi()["components"]["schemas"]
     assert "HTTPValidationError" not in schemas
     assert "ValidationError" not in schemas
 
 
 def test_health(app, client):
-    paths = [path for path in route_paths(app) if "health" in path]
+    paths: list[str] = [path for path in route_paths(app) if "health" in path]
     assert len(paths) == 1
 
-    response = client.get(paths[0])
+    response: Response = client.get(paths[0])
     assert response.status_code == 200

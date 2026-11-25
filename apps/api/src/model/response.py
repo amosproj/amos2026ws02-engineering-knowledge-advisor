@@ -8,7 +8,7 @@ from pydantic import Field, RootModel
 from model.request import CamelModel, RecordNode
 from services.ograg.ontology import EdgeType
 from services.search import SearchMode
-from services.uploads import UploadStatus
+from services.uploads import UpAxis, UploadStatus
 
 NO_FILE: Literal["empty"] = "empty"
 
@@ -77,6 +77,9 @@ class FileUpload(CamelModel):
     updated_at: datetime = Field(description="Last status change.")
     has_model: bool = Field(
         description="Whether the 3D model (GLB) can be downloaded: GET /records/{id}/model."
+    )
+    up_axis: UpAxis = Field(
+        description="Axis of the CAD file shown upwards in the 3D view."
     )
 
 

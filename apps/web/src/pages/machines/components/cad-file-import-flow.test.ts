@@ -55,6 +55,7 @@ const upload = (status: Exclude<FileStatus, 'empty'>, errorCode: string | null =
     sizeBytes: file.size,
     createdAt: '2026-11-08T10:00:00Z',
     updatedAt: '2026-11-08T10:00:00Z',
+    upAxis: 'Z' as const,
 })
 const view = (
     status: Exclude<FileStatus, 'empty'>,

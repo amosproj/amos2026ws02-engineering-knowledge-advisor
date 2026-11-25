@@ -21,7 +21,7 @@ The project uses a containerized web application architecture with a React front
 
 ## Project Mission
 
-Deliver an open-source prototype that lets Bosch engineers capture knowledge about existing products, linked to their CAD assembly groups, and retrieve it with AI during new designs.
+Deliver an open-source prototype that lets end-users capture knowledge about existing products, linked to their CAD assembly groups, and retrieve it with AI during new designs.
 
 ## Repository Structure
 
@@ -31,7 +31,7 @@ engineering-knowledge-advisor/  # repo root
 │   ├── api/                    # backend
 │   └── web/                    # frontend
 ├── infra/                      # deployment, reverse proxy configs
-├── scripts/                    # repo tooling scripts (SBOM, versions)
+├── scripts/                    # repo tooling scripts
 └── .env                        # see "Quickstart"
 ```
 
@@ -164,10 +164,6 @@ The local API runs at `http://127.0.0.1:8000`. Local execution requires any exte
 ## Testing Guidelines
 
 Detailed instructions on automated tests, manual testing requirements, and available test environments can be found in [testing.md](Documentation/testing.md).
-
-## Software Bill of Materials
-
-CycloneDX SBOMs for the API and frontend are generated from the lockfiles, enforced by a pre-commit hook and checked in CI. Setup, regeneration, and tool version requirements are described in [Documentation/sbom/README.md](Documentation/sbom/README.md).
 
 ## Troubleshooting
 

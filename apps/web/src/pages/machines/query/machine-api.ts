@@ -11,6 +11,8 @@ const includeSearch = z.object({ include: z.string() })
 const uploadStatus = z.enum(['uploading', 'processing', 'ready', 'failed'])
 const fileStatus = z.enum(['empty', ...uploadStatus.options])
 
+export const upAxis = z.enum(['X', 'Y', 'Z', '-X', '-Y', '-Z'])
+
 const machineSchema = z.looseObject({
     '@id': z.string(),
     name: z.string(),
@@ -70,6 +72,7 @@ const uploadSchema = z.object({
     sizeBytes: z.number(),
     createdAt: z.string(),
     updatedAt: z.string(),
+    upAxis,
 })
 
 const cadFileViewSchema = z.object({
@@ -114,6 +117,7 @@ const cadFileChanges = cadFileBody.pick({ name: true, timestamp: true })
 export type Machine = z.output<typeof machineSchema>
 export type MachineView = z.output<typeof machineViewSchema>
 export type FileStatus = z.output<typeof fileStatus>
+export type UpAxis = z.output<typeof upAxis>
 export type CadFileView = z.output<typeof cadFileViewSchema>
 export type AssemblyGroup = z.output<typeof groupSchema>
 export type { RecordTree }
@@ -214,6 +218,14 @@ export const completeUpload = queryMaker({
     response: uploadSchema,
 })
 
+export const updateUpload = queryMaker({
+    method: 'PATCH',
+    path: '/v1/records/:id/upload',
+    params: idParams,
+    body: z.object({ upAxis }),
+    response: uploadSchema,
+})
+
 // Prefix of every machine query
 export const machinesQueryKey = ['machines'] as const
 
@@ -256,11 +268,16 @@ export const assemblyGroupQuery = (id: string) =>
         queryFn: ({ signal }) => getAssemblyGroup({ params: { id }, signal }),
     })
 
+function fileUrl(fileId: string, name: 'model' | 'preview') {
+    return `${env.VITE_API_URL.replace(/\/$/, '')}/v1/records/${encodeURIComponent(fileId)}/${name}`
+}
+
+export const previewUrl = (fileId: string) => fileUrl(fileId, 'preview')
+
 // Bytes of the CAD file's 3D model (GLB), following the redirect to the storage
 export async function fetchModel(fileId: string, signal?: AbortSignal) {
-    const url = `${env.VITE_API_URL.replace(/\/$/, '')}/v1/records/${encodeURIComponent(fileId)}/model`
     try {
-        const response = await fetch(url, { signal })
+        const response = await fetch(fileUrl(fileId, 'model'), { signal })
         if (response.ok) return await response.arrayBuffer()
         const text = await response.text()
         let data: unknown = text

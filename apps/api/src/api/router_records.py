@@ -293,8 +293,8 @@ async def query_records(
             for record, score in found
         ]
 
-    records = [record for record, score in found]
-    scores = [score for record, score in found]
+    records: list[Record] = [record for record, score in found]
+    scores: list[float] = [score for record, score in found]
     return await _to_views(catalog, session, records, include, scores)
 
 
@@ -457,4 +457,5 @@ def to_file_upload(upload: Upload) -> FileUpload:
         created_at=upload.created_at,
         updated_at=upload.updated_at,
         has_model=upload.model_key is not None,
+        up_axis=upload.up_axis,
     )

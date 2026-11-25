@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 from fakes import build_ontology_with, load_document, load_ontology
 
-from services import Json, Lane, SearchMode
+from services import JsonValue, Lane, SearchMode
 from services.ograg.ontology import (
     ClassDescription,
     EdgeType,
@@ -154,7 +154,9 @@ def test_lane_by_guideline_when():
         (48, Lane.FACT),
     ],
 )
-def test_a_condition_on_a_number_property_compares_numbers(voltage: Json, lane: Lane):
+def test_a_condition_on_a_number_property_compares_numbers(
+    voltage: JsonValue, lane: Lane
+):
     document: dict[str, Any] = load_document()
     voltage_prop: dict[str, Any] = {
         "@id": "og:ratedVoltage",

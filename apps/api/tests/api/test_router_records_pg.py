@@ -12,12 +12,14 @@ import pytest
 from fakes import load_ontology
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from helpers import EXTENSIONS
 from httpx2 import Response
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from api.router_files import v1_files_router
 from api.router_records import v1_records_router
+from config.settings import DEFAULT_EMBEDDING_DIMENSIONS
 from db import ModelBase, TableName, get_tables
 from db.session import create_sessionmaker
 from handler.exception_handler import register
@@ -83,7 +85,7 @@ class FakeStorage(ObjectStorage):
     def delete_folders_quietly(self, prefixes: list[str]) -> None:
         with self.sync_engine.connect() as conn:
             for prefix in prefixes:
-                committed = conn.scalar(
+                committed: str | None = conn.scalar(
                     text("SELECT status FROM uploads WHERE source_key LIKE :prefix"),
                     {"prefix": prefix + "%"},
                 )
@@ -98,10 +100,12 @@ class FakeStorage(ObjectStorage):
 @pytest.fixture
 def sync_engine() -> Iterator[Engine]:
     engine: Engine = create_engine(URL)
-    get_tables()
+    get_tables(DEFAULT_EMBEDDING_DIMENSIONS)
     with engine.begin() as conn:
         for name in TableName:
             conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
+        for extension in EXTENSIONS:
+            conn.execute(text(f"CREATE EXTENSION IF NOT EXISTS {extension}"))
         ModelBase.metadata.create_all(conn)
     yield engine
     engine.dispose()
@@ -123,12 +127,14 @@ def client(storage: FakeStorage) -> Iterator[TestClient]:
             ontology,
             PgRecordStore(
                 engine,
-                get_tables(),
+                get_tables(DEFAULT_EMBEDDING_DIMENSIONS),
                 identity_property_names=ontology.get_identity_property_names(),
             ),
         )
         app.state.catalog = CatalogService(
-            app.state.ograg, PgUploadStore(get_tables()), storage
+            app.state.ograg,
+            PgUploadStore(get_tables(DEFAULT_EMBEDDING_DIMENSIONS)),
+            storage,
         )
         try:
             yield

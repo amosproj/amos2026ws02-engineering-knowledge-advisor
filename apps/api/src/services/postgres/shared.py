@@ -42,7 +42,9 @@ class Conditions:
 
 class Statements:
     @staticmethod
-    def build_unnest_insert(table: Table, rows: Sequence[Mapping[str, Any]]) -> Insert:
+    def build_unnest_insert(
+        table: Table, rows: Sequence[Mapping[str, object]]
+    ) -> Insert:
         """Returns a ``INSERT ... SELECT FROM unnest(:col1, :col2, ...)`` statement for ``rows``.
 
         Above version sends one array param per column.

@@ -12,7 +12,7 @@ from services.object_storage import ObjectStorage, StoredObject
 from services.ograg.ontology import Ontology, to_list
 from services.ograg.service import OgRagService
 from services.records import ERROR_STILL_LINKED
-from services.uploads import Upload, UploadStatus, UploadStore
+from services.uploads import UpAxis, Upload, UploadStatus, UploadStore
 
 ONTOLOGY_PATH: Path = Path(__file__).parents[1] / "ontology_v0.jsonld"
 ERROR_ESCAPE_SEQUENCE: str = (
@@ -172,15 +172,15 @@ class MemoryRecordStore(RecordStore):
         limit: int | None = None,
         tx: Tx | None = None,
     ) -> list[tuple[Record, float]]:
-        records = await self.get_all_records()
+        records: list[Record] = await self.get_all_records()
         if cls is not None:
             records = [rec for rec in records if rec.cls == cls]
-        query_lower = query.lower()
+        query_lower: str = query.lower()
         matched: list[tuple[Record, float]] = []
         for rec in records:
-            graph_text = str(rec.graph).lower()
+            graph_text: str = str(rec.graph).lower()
             if query_lower in graph_text:
-                score = 1.0 / (1 + abs(graph_text.find(query_lower)))
+                score: float = 1.0 / (1 + abs(graph_text.find(query_lower)))
                 matched.append((rec, score))
         matched.sort(key=lambda item: item[1], reverse=True)
         if limit is not None:
@@ -283,13 +283,26 @@ class MemoryUploadStore(UploadStore):
 
     @override
     async def set_ready(
-        self, file_id: str, sha256: str, model_key: str | None, tx: Tx
+        self,
+        file_id: str,
+        sha256: str,
+        model_key: str | None,
+        preview_key: str | None,
+        tx: Tx,
     ) -> None:
         raise NotImplementedError
 
     @override
     async def set_failed(self, file_id: str, error_code: str, tx: Tx) -> None:
         raise NotImplementedError
+
+    @override
+    async def set_up_axis(self, file_id: str, up_axis: UpAxis, tx: Tx) -> Upload | None:
+        current: Upload | None = self.uploads.get(file_id)
+        if current is None or current.status != UploadStatus.READY:
+            return None
+        self.uploads[file_id] = replace(current, up_axis=up_axis)
+        return self.uploads[file_id]
 
     @override
     async def move_to_back(self, file_id: str, tx: Tx) -> None:
@@ -315,6 +328,7 @@ class MemoryStorage(ObjectStorage):
 
     def __init__(self) -> None:
         self.sizes: dict[str, int] = {}
+        self.contents: dict[str, bytes] = {}
         self.deleted_keys: list[str] = []
 
     @override
@@ -345,7 +359,8 @@ class MemoryStorage(ObjectStorage):
 
     @override
     def read_object(self, key: str, chunk_size: int) -> Generator[bytes] | None:
-        raise NotImplementedError
+        content: bytes | None = self.contents.get(key)
+        return None if content is None else (chunk for chunk in [content])
 
     @override
     def list_objects(self, prefix: str) -> Iterator[list[StoredObject]]:

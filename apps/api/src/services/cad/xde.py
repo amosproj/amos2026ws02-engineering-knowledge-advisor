@@ -29,7 +29,7 @@ def label_name(label: TDF_Label) -> str:
 
 def count_subshapes(shape: TopoDS_Shape, shape_type: TopAbs_ShapeEnum) -> int:
     explorer = TopExp_Explorer(shape, shape_type)
-    count = 0
+    count: int = 0
     while explorer.More():
         count += 1
         explorer.Next()

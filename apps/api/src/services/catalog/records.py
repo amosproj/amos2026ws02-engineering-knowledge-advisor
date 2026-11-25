@@ -8,7 +8,7 @@ from collections.abc import Collection, Mapping, Sequence
 from graphlib import CycleError, TopologicalSorter
 from uuid import uuid4
 
-from services import Json, JsonObject, Record, Tx
+from services import JsonObject, JsonValue, Record, Tx
 from services.catalog.errors import NotFoundError
 from services.ograg.ontology import Ontology, get_local_name
 from services.ograg.service import DeleteResult, OgRagService, RecordError
@@ -17,13 +17,13 @@ ERROR_NOT_FOUND: str = "no record {record_id!r}"
 ERROR_NOT_FOUND_OF_CLASS: str = "no {cls} {record_id!r}"
 ERROR_UNKNOWN_PROPERTY: str = "{cls} has no property {field!r}"
 
-type Fields = Mapping[str, Json]
+type Fields = Mapping[str, JsonValue]
 
 
 async def create_record(
     ograg: OgRagService,
     tx: Tx,
-    node: Mapping[str, Json],
+    node: Mapping[str, JsonValue],
 ) -> tuple[str, list[str]]:
     """Stores ``node`` as a new record. Returns created id and validation warnings."""
     record_id: str = uuid4().hex
@@ -74,7 +74,7 @@ async def update_record(
 
 def patch_input(record: Record, changes: Fields) -> JsonObject:
     """The record's input with ``changes`` applied as in ``update_record``"""
-    node: Json = _merge_patch(_to_local_names(record.input), dict(changes))
+    node: JsonValue = _merge_patch(_to_local_names(record.input), dict(changes))
     assert isinstance(node, dict)  # a patch object merged into an object
     return node
 
@@ -223,7 +223,7 @@ def _get_parent_link_names(onto: Ontology, cls: str, dependents_only: bool) -> s
     return onto.get_parent_link_names(cls)
 
 
-def _to_local_names(value: Json) -> Json:
+def _to_local_names(value: JsonValue) -> JsonValue:
     """Returns ``value`` with every object key as its local name, e.g. ``og:name`` as ``name``, at any depth."""
     if isinstance(value, dict):
         return {get_local_name(key): _to_local_names(val) for key, val in value.items()}
@@ -232,20 +232,16 @@ def _to_local_names(value: Json) -> Json:
     return value
 
 
-def _merge_patch(target: Json, patch: Json) -> Json:
+def _merge_patch(target: JsonValue, patch: JsonValue) -> JsonValue:
     """Returns ``target`` changed by ``patch`` (RFC 7396): objects merge key by key, anything else replaces.
-
-    ``None`` or blank text removes a key; a nested object left empty is removed too. Texts are stripped.
-    """
+    ``None`` values are dropped."""
     if not isinstance(patch, dict):
-        return patch.strip() if isinstance(patch, str) else patch
+        return patch
     merged: JsonObject = dict(target) if isinstance(target, dict) else {}
     for raw_key, value in patch.items():
         key: str = get_local_name(raw_key)
-        if value is None or (isinstance(value, str) and not value.strip()):
+        if value is None:
             merged.pop(key, None)
             continue
         merged[key] = _merge_patch(merged.get(key), _to_local_names(value))
-        if merged[key] == {}:
-            del merged[key]
     return merged

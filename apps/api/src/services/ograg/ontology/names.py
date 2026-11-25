@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from services import Json
+from services import JsonValue
 
 NUMBER_RANGES: set[str] = {"Number"}
 LITERAL_RANGES: set[str] = {"Text", "URL", "Date", "DateTime"} | NUMBER_RANGES
@@ -78,7 +78,7 @@ def get_local_name(iri: str) -> str:
     return iri
 
 
-def get_link_target_id(value: Json) -> Json:
+def get_link_target_id(value: JsonValue) -> JsonValue:
     """Returns target id a link ``value`` holds: ``value["@id"]`` if ``value`` is a dict, else ``value``."""
     return value.get(JSONLD_ID) if isinstance(value, dict) else value
 
@@ -88,6 +88,6 @@ def to_list[T](value: T | list[T]) -> list[T]:
     return value if isinstance(value, list) else [value]
 
 
-def get_type(node: Mapping[str, Json], default: str = "") -> str:
+def get_type(node: Mapping[str, JsonValue], default: str = "") -> str:
     """Returns the type of ``node`` if set, otherwise ``default``."""
     return get_local_name(str(node.get(JSONLD_TYPE, default)))

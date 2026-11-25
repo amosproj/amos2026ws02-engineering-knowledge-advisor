@@ -5,6 +5,7 @@ from pydantic.alias_generators import to_camel
 
 from services import JsonObject
 from services.ograg.ontology import JSONLD_ID, JSONLD_TYPE
+from services.uploads import UpAxis
 
 FILE_MAX_SIZE: int = 5 * 1024 * 1024 * 1024  # 5 GiB
 
@@ -48,3 +49,11 @@ class FileToUpload(CamelModel):
     """Body of ``POST /records/{id}/upload-form``."""
 
     size: Annotated[int, Field(ge=1, le=FILE_MAX_SIZE, description="Size in bytes.")]
+
+
+class UploadChanges(CamelModel):
+    """Body of ``PATCH /records/{id}/upload``."""
+
+    up_axis: UpAxis = Field(
+        description="Axis of the CAD file shown upwards in the 3D view."
+    )
