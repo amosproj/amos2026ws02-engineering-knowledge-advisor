@@ -1,0 +1,1004 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" xmlns:color="http://www.omg.org/spec/BPMN/non-normative/color/1.0" id="Defs_cad_upload_user_flow" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="18.33.0">
+  <bpmn:documentation>Big picture of how an end user views and manages machines (create, edit, delete), adds a CAD (STEP) file to a machine, and adds or edits knowledge, independent of screens and controls (based on the EKA Main User Flow board, sections A to C). The system side is one collapsed pool; see cad-import.bpmn and records-api.bpmn for what the web app, API, storage and worker do.</bpmn:documentation>
+  <bpmn:collaboration id="Collab_cad_upload_user_flow">
+    <bpmn:participant id="P_user" name="Viewing and managing machines" processRef="Proc_user" />
+    <bpmn:participant id="P_system" name="Engineering Knowledge Advisor" />
+    <bpmn:participant id="P_knowledge" name="Adding and editing knowledge" processRef="Proc_knowledge" />
+    <bpmn:messageFlow id="M01" name="Machine records and previews" sourceRef="P_system" targetRef="U_open" />
+    <bpmn:messageFlow id="M02" name="New record" sourceRef="U_machine" targetRef="P_system" />
+    <bpmn:messageFlow id="M03" name="CAD file" sourceRef="U_upload" targetRef="P_system" />
+    <bpmn:messageFlow id="M04" name="Cancel" sourceRef="U_upload_cancelled" targetRef="P_system" />
+    <bpmn:messageFlow id="M05" name="Import status" sourceRef="P_system" targetRef="U_status" />
+    <bpmn:messageFlow id="M06" name="3D model and tree" sourceRef="P_system" targetRef="U_browse" />
+    <bpmn:messageFlow id="M07" name="Details" sourceRef="P_system" targetRef="U_inspect" />
+    <bpmn:messageFlow id="M08" name="Record edits" sourceRef="U_edit" targetRef="P_system" />
+    <bpmn:messageFlow id="M09" name="Delete record" sourceRef="U_deleted" targetRef="P_system" />
+    <bpmn:messageFlow id="M11" name="Details and knowledge" sourceRef="P_system" targetRef="K_open" />
+    <bpmn:messageFlow id="M12" name="Knowledge record" sourceRef="K_save" targetRef="P_system" />
+    <bpmn:messageFlow id="M13" name="Save result or error" sourceRef="P_system" targetRef="K_result" />
+    <bpmn:messageFlow id="M14" name="Delete record" sourceRef="K_deleted" targetRef="P_system" />
+    <bpmn:messageFlow id="M10" name="Up axis" sourceRef="U_set_axis" targetRef="P_system" />
+    <bpmn:textAnnotation id="N_leave">
+      <bpmn:text>Leaving after the upload: stops following the import, but server finishes it.
+Leaving during the upload stops the upload.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="N_machine_errors">
+      <bpmn:text>Creating, editing or deleting can fail. Error is reported to the user.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="N_knowledge_errors">
+      <bpmn:text>Deleting can fail (404, 409, 412). Error is reported to the user.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="A_errors_knowledge" sourceRef="N_knowledge_errors" targetRef="K_confirm" />
+    <bpmn:association id="A_N_leave" sourceRef="N_leave" targetRef="U_status" />
+    <bpmn:association id="A_errors_created" sourceRef="N_machine_errors" targetRef="U_created" />
+    <bpmn:association id="A_errors_edited" sourceRef="N_machine_errors" targetRef="U_edited" />
+    <bpmn:association id="A_errors_deleted" sourceRef="N_machine_errors" targetRef="U_deleted" />
+  </bpmn:collaboration>
+  <bpmn:process id="Proc_user" isExecutable="false">
+    <bpmn:startEvent id="U_start" name="User wants to view or manage machines">
+      <bpmn:outgoing>F01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="U_has_cad" name="CAD file chosen?">
+      <bpmn:incoming>F06</bpmn:incoming>
+      <bpmn:outgoing>F07</bpmn:outgoing>
+      <bpmn:outgoing>F08</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="U_merge">
+      <bpmn:incoming>F09</bpmn:incoming>
+      <bpmn:incoming>F07</bpmn:incoming>
+      <bpmn:outgoing>F10</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="U_upload" name="Upload CAD file">
+      <bpmn:incoming>F10</bpmn:incoming>
+      <bpmn:outgoing>F13</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="U_status_gw" name="Status?">
+      <bpmn:incoming>F14</bpmn:incoming>
+      <bpmn:outgoing>F15</bpmn:outgoing>
+      <bpmn:outgoing>F16</bpmn:outgoing>
+      <bpmn:outgoing>F17</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="U_view">
+      <bpmn:incoming>F04</bpmn:incoming>
+      <bpmn:incoming>F17</bpmn:incoming>
+      <bpmn:outgoing>F18</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="U_browse" name="Browse tree">
+      <bpmn:incoming>F18</bpmn:incoming>
+      <bpmn:outgoing>F19</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="U_select" name="Select any group (tree node)">
+      <bpmn:incoming>F33</bpmn:incoming>
+      <bpmn:outgoing>F20</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="U_inspect" name="Inspect group details">
+      <bpmn:incoming>F20</bpmn:incoming>
+      <bpmn:outgoing>F21</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="U_done" name="Machine viewed">
+      <bpmn:incoming>F21</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:boundaryEvent id="U_b_cancel" name="Cancel" attachedToRef="U_upload">
+      <bpmn:outgoing>F22</bpmn:outgoing>
+      <bpmn:conditionalEventDefinition id="U_b_cancel_def">
+        <bpmn:condition xsi:type="bpmn:tFormalExpression">user cancels the upload</bpmn:condition>
+      </bpmn:conditionalEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="F01" sourceRef="U_start" targetRef="U_open" />
+    <bpmn:sequenceFlow id="F02" sourceRef="U_open" targetRef="Activity_096zqlp" />
+    <bpmn:sequenceFlow id="F03" name="add or retry CAD file" sourceRef="U_add_cad" targetRef="U_file" />
+    <bpmn:sequenceFlow id="F04" name="view existing machine" sourceRef="U_add_cad" targetRef="U_view" />
+    <bpmn:sequenceFlow id="F05" name="manage machines" sourceRef="U_add_cad" targetRef="U_manage" />
+    <bpmn:sequenceFlow id="F23" name="create" sourceRef="U_manage" targetRef="U_machine" />
+    <bpmn:sequenceFlow id="F25" name="delete" sourceRef="U_manage" targetRef="U_confirm" />
+    <bpmn:sequenceFlow id="F26" sourceRef="U_edit" targetRef="U_edited" />
+    <bpmn:sequenceFlow id="F27" sourceRef="U_confirm" targetRef="U_delete_gw" />
+    <bpmn:sequenceFlow id="F28" name="yes" sourceRef="U_delete_gw" targetRef="U_deleted" />
+    <bpmn:sequenceFlow id="F29" name="no" sourceRef="U_delete_gw" targetRef="U_kept" />
+    <bpmn:sequenceFlow id="F06" sourceRef="U_machine" targetRef="U_has_cad" />
+    <bpmn:sequenceFlow id="F07" name="yes" sourceRef="U_has_cad" targetRef="U_merge" />
+    <bpmn:sequenceFlow id="F08" name="no" sourceRef="U_has_cad" targetRef="U_created" />
+    <bpmn:sequenceFlow id="F09" sourceRef="U_file" targetRef="U_merge" />
+    <bpmn:sequenceFlow id="F10" sourceRef="U_merge" targetRef="U_upload" />
+    <bpmn:sequenceFlow id="F13" sourceRef="U_upload" targetRef="U_status" />
+    <bpmn:sequenceFlow id="F22" sourceRef="U_b_cancel" targetRef="U_upload_cancelled" />
+    <bpmn:sequenceFlow id="F14" sourceRef="U_status" targetRef="U_status_gw" />
+    <bpmn:sequenceFlow id="F15" name="failed" sourceRef="U_status_gw" targetRef="U_failed" />
+    <bpmn:sequenceFlow id="F16" name="processing" sourceRef="U_status_gw" targetRef="U_continues" />
+    <bpmn:sequenceFlow id="F17" name="ready" sourceRef="U_status_gw" targetRef="U_view" />
+    <bpmn:sequenceFlow id="F18" sourceRef="U_view" targetRef="U_browse" />
+    <bpmn:sequenceFlow id="F19" sourceRef="U_browse" targetRef="U_axis_q" />
+    <bpmn:sequenceFlow id="F20" sourceRef="U_select" targetRef="U_inspect" />
+    <bpmn:sequenceFlow id="F21" sourceRef="U_inspect" targetRef="U_done" />
+    <bpmn:endEvent id="U_continues" name="Import continues on server">
+      <bpmn:incoming>F16</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="U_machine" name="Create machine">
+      <bpmn:incoming>F23</bpmn:incoming>
+      <bpmn:outgoing>F06</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="F24" name="edit" sourceRef="U_manage" targetRef="U_edit" />
+    <bpmn:endEvent id="U_upload_cancelled" name="Import cancelled">
+      <bpmn:incoming>F22</bpmn:incoming>
+      <bpmn:messageEventDefinition id="U_upload_cancelled_def" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="U_failed" name="Import failed">
+      <bpmn:incoming>F15</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateCatchEvent id="U_status" name="Import status received">
+      <bpmn:incoming>F13</bpmn:incoming>
+      <bpmn:outgoing>F14</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="U_status_def" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="U_file" name="Choose CAD file">
+      <bpmn:incoming>F03</bpmn:incoming>
+      <bpmn:outgoing>F09</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="U_created" name="Machine created without CAD file">
+      <bpmn:incoming>F08</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="U_edited" name="Machine edited">
+      <bpmn:incoming>F26</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="U_kept" name="Deletion cancelled">
+      <bpmn:incoming>F29</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="U_deleted" name="Machine deleted">
+      <bpmn:incoming>F28</bpmn:incoming>
+      <bpmn:messageEventDefinition id="U_deleted_def" />
+    </bpmn:endEvent>
+    <bpmn:userTask id="U_open" name="Open machine list">
+      <bpmn:incoming>F01</bpmn:incoming>
+      <bpmn:outgoing>F02</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="U_delete_gw" name="Delete?">
+      <bpmn:incoming>F27</bpmn:incoming>
+      <bpmn:outgoing>F28</bpmn:outgoing>
+      <bpmn:outgoing>F29</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="U_confirm" name="Confirm deletion">
+      <bpmn:incoming>F25</bpmn:incoming>
+      <bpmn:outgoing>F27</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="U_manage" name="Create, edit or delete?">
+      <bpmn:incoming>F05</bpmn:incoming>
+      <bpmn:outgoing>F23</bpmn:outgoing>
+      <bpmn:outgoing>F24</bpmn:outgoing>
+      <bpmn:outgoing>F25</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="Activity_096zqlp" name="Select machine">
+      <bpmn:incoming>F02</bpmn:incoming>
+      <bpmn:outgoing>Flow_0bx92v8</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_0bx92v8" sourceRef="Activity_096zqlp" targetRef="U_add_cad" />
+    <bpmn:exclusiveGateway id="U_add_cad" name="Action?">
+      <bpmn:incoming>Flow_0bx92v8</bpmn:incoming>
+      <bpmn:outgoing>F03</bpmn:outgoing>
+      <bpmn:outgoing>F04</bpmn:outgoing>
+      <bpmn:outgoing>F05</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="U_edit" name="Edit machine">
+      <bpmn:incoming>F24</bpmn:incoming>
+      <bpmn:outgoing>F26</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="U_axis_q" name="3D model upright?">
+      <bpmn:incoming>F19</bpmn:incoming>
+      <bpmn:outgoing>F30</bpmn:outgoing>
+      <bpmn:outgoing>F31</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="U_axis_m">
+      <bpmn:incoming>F30</bpmn:incoming>
+      <bpmn:incoming>F32</bpmn:incoming>
+      <bpmn:outgoing>F33</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="F30" name="yes" sourceRef="U_axis_q" targetRef="U_axis_m" />
+    <bpmn:sequenceFlow id="F31" name="no" sourceRef="U_axis_q" targetRef="U_set_axis" />
+    <bpmn:sequenceFlow id="F32" sourceRef="U_set_axis" targetRef="U_axis_m" />
+    <bpmn:sequenceFlow id="F33" sourceRef="U_axis_m" targetRef="U_select" />
+    <bpmn:userTask id="U_set_axis" name="Set up axis of 3D model">
+      <bpmn:incoming>F31</bpmn:incoming>
+      <bpmn:outgoing>F32</bpmn:outgoing>
+    </bpmn:userTask>
+  </bpmn:process>
+  <bpmn:process id="Proc_knowledge" isExecutable="false">
+    <bpmn:exclusiveGateway id="K_new" name="New knowledge?">
+      <bpmn:incoming>G02</bpmn:incoming>
+      <bpmn:outgoing>G03</bpmn:outgoing>
+      <bpmn:outgoing>G04</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="K_type" name="Choose type and scope">
+      <bpmn:incoming>G03</bpmn:incoming>
+      <bpmn:outgoing>G05</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="K_enter" name="Enter or edit content">
+      <bpmn:incoming>Flow_1g2d7la</bpmn:incoming>
+      <bpmn:outgoing>G10</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="K_saved_gw" name="Saved?">
+      <bpmn:incoming>G12</bpmn:incoming>
+      <bpmn:outgoing>G13</bpmn:outgoing>
+      <bpmn:outgoing>G14</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="K_review" name="Review saved knowledge">
+      <bpmn:incoming>G13</bpmn:incoming>
+      <bpmn:outgoing>G16</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="K_done" name="Knowledge saved">
+      <bpmn:incoming>G16</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:startEvent id="K_start" name="User wants to add or edit knowledge">
+      <bpmn:outgoing>G01</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="K_save" name="Save knowledge">
+      <bpmn:incoming>G10</bpmn:incoming>
+      <bpmn:outgoing>G11</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="K_merge">
+      <bpmn:incoming>G05</bpmn:incoming>
+      <bpmn:incoming>G07</bpmn:incoming>
+      <bpmn:outgoing>G09</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_1g6u3x5">
+      <bpmn:incoming>G09</bpmn:incoming>
+      <bpmn:incoming>G15</bpmn:incoming>
+      <bpmn:outgoing>Flow_1g2d7la</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:boundaryEvent id="K_b_cancel" name="Cancel" attachedToRef="K_enter">
+      <bpmn:outgoing>G20</bpmn:outgoing>
+      <bpmn:conditionalEventDefinition id="K_b_cancel_def">
+        <bpmn:condition xsi:type="bpmn:tFormalExpression">user cancels editing</bpmn:condition>
+      </bpmn:conditionalEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="G01" sourceRef="K_start" targetRef="K_open" />
+    <bpmn:sequenceFlow id="G02" sourceRef="K_open" targetRef="K_new" />
+    <bpmn:sequenceFlow id="G03" name="yes" sourceRef="K_new" targetRef="K_type" />
+    <bpmn:sequenceFlow id="G04" name="no" sourceRef="K_new" targetRef="K_existing" />
+    <bpmn:sequenceFlow id="G05" sourceRef="K_type" targetRef="K_merge" />
+    <bpmn:sequenceFlow id="G06" sourceRef="K_existing" targetRef="K_action" />
+    <bpmn:sequenceFlow id="G07" name="edit" sourceRef="K_action" targetRef="K_merge" />
+    <bpmn:sequenceFlow id="G08" name="delete" sourceRef="K_action" targetRef="K_confirm" />
+    <bpmn:sequenceFlow id="Flow_1g2d7la" sourceRef="Gateway_1g6u3x5" targetRef="K_enter" />
+    <bpmn:sequenceFlow id="G10" sourceRef="K_enter" targetRef="K_save" />
+    <bpmn:sequenceFlow id="G11" sourceRef="K_save" targetRef="K_result" />
+    <bpmn:sequenceFlow id="G12" sourceRef="K_result" targetRef="K_saved_gw" />
+    <bpmn:sequenceFlow id="G13" name="yes" sourceRef="K_saved_gw" targetRef="K_review" />
+    <bpmn:sequenceFlow id="G14" name="no" sourceRef="K_saved_gw" targetRef="K_fix" />
+    <bpmn:sequenceFlow id="G16" sourceRef="K_review" targetRef="K_done" />
+    <bpmn:sequenceFlow id="G15" sourceRef="K_fix" targetRef="Gateway_1g6u3x5" />
+    <bpmn:sequenceFlow id="G09" sourceRef="K_merge" targetRef="Gateway_1g6u3x5" />
+    <bpmn:sequenceFlow id="G20" sourceRef="K_b_cancel" targetRef="K_cancelled" />
+    <bpmn:userTask id="K_fix" name="Fix or reconcile draft">
+      <bpmn:incoming>G14</bpmn:incoming>
+      <bpmn:outgoing>G15</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="K_cancelled" name="Editing cancelled">
+      <bpmn:incoming>G20</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="G17" sourceRef="K_confirm" targetRef="K_delete_gw" />
+    <bpmn:sequenceFlow id="G18" name="yes" sourceRef="K_delete_gw" targetRef="K_deleted" />
+    <bpmn:sequenceFlow id="G19" name="no" sourceRef="K_delete_gw" targetRef="K_kept" />
+    <bpmn:endEvent id="K_deleted" name="Knowledge deleted">
+      <bpmn:incoming>G18</bpmn:incoming>
+      <bpmn:messageEventDefinition id="K_deleted_def" />
+    </bpmn:endEvent>
+    <bpmn:endEvent id="K_kept" name="Deletion cancelled">
+      <bpmn:incoming>G19</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="K_confirm" name="Confirm deletion">
+      <bpmn:incoming>G08</bpmn:incoming>
+      <bpmn:outgoing>G17</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="K_delete_gw" name="Delete?">
+      <bpmn:incoming>G17</bpmn:incoming>
+      <bpmn:outgoing>G18</bpmn:outgoing>
+      <bpmn:outgoing>G19</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="K_action" name="Edit or delete?">
+      <bpmn:incoming>G06</bpmn:incoming>
+      <bpmn:outgoing>G07</bpmn:outgoing>
+      <bpmn:outgoing>G08</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="K_existing" name="Open existing knowledge">
+      <bpmn:incoming>G04</bpmn:incoming>
+      <bpmn:outgoing>G06</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:intermediateCatchEvent id="K_result" name="Save result received">
+      <bpmn:incoming>G11</bpmn:incoming>
+      <bpmn:outgoing>G12</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="K_result_def" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:userTask id="K_open" name="Open machine, group or instance">
+      <bpmn:incoming>G01</bpmn:incoming>
+      <bpmn:outgoing>G02</bpmn:outgoing>
+    </bpmn:userTask>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_cad_upload_user_flow">
+    <bpmndi:BPMNPlane id="Plane_cad_upload_user_flow" bpmnElement="Collab_cad_upload_user_flow">
+      <bpmndi:BPMNShape id="P_user_di" bpmnElement="P_user" isHorizontal="true">
+        <dc:Bounds x="160" y="40" width="3350" height="840" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_start_di" bpmnElement="U_start">
+        <dc:Bounds x="242" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="199" y="304" width="121" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_has_cad_di" bpmnElement="U_has_cad" isMarkerVisible="true">
+        <dc:Bounds x="1335" y="415" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1316" y="471" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_merge_di" bpmnElement="U_merge" isMarkerVisible="true">
+        <dc:Bounds x="1655" y="255" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_upload_di" bpmnElement="U_upload">
+        <dc:Bounds x="1800" y="240" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_status_gw_di" bpmnElement="U_status_gw" isMarkerVisible="true">
+        <dc:Bounds x="2155" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2125" y="243" width="50" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_view_di" bpmnElement="U_view" isMarkerVisible="true">
+        <dc:Bounds x="2335" y="255" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_browse_di" bpmnElement="U_browse">
+        <dc:Bounds x="2440" y="240" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_select_di" bpmnElement="U_select">
+        <dc:Bounds x="3010" y="240" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_inspect_di" bpmnElement="U_inspect">
+        <dc:Bounds x="3170" y="240" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_done_di" bpmnElement="U_done">
+        <dc:Bounds x="3372" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3351" y="304" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_continues_di" bpmnElement="U_continues">
+        <dc:Bounds x="3372" y="362" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3342" y="404" width="95" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_machine_di" bpmnElement="U_machine">
+        <dc:Bounds x="1160" y="400" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_upload_cancelled_di" bpmnElement="U_upload_cancelled">
+        <dc:Bounds x="1822" y="422" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1750" y="426" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_failed_di" bpmnElement="U_failed">
+        <dc:Bounds x="3372" y="472" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3330" y="514" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_status_di" bpmnElement="U_status">
+        <dc:Bounds x="2022" y="262" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2048" y="296" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_file_di" bpmnElement="U_file">
+        <dc:Bounds x="1490" y="240" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_created_di" bpmnElement="U_created">
+        <dc:Bounds x="1492" y="422" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1455" y="464" width="110" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_edited_di" bpmnElement="U_edited">
+        <dc:Bounds x="1492" y="542" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1472" y="584" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_kept_di" bpmnElement="U_kept">
+        <dc:Bounds x="1492" y="662" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1462" y="704" width="95" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_deleted_di" bpmnElement="U_deleted">
+        <dc:Bounds x="1492" y="782" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1460" y="763" width="100" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_open_di" bpmnElement="U_open">
+        <dc:Bounds x="320" y="240" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_delete_gw_di" bpmnElement="U_delete_gw" isMarkerVisible="true">
+        <dc:Bounds x="1335" y="655" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1340" y="633" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_confirm_di" bpmnElement="U_confirm">
+        <dc:Bounds x="900" y="640" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_manage_di" bpmnElement="U_manage" isMarkerVisible="true">
+        <dc:Bounds x="755" y="535" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="697" y="526" width="85" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_13mad7a" bpmnElement="Activity_096zqlp">
+        <dc:Bounds x="470" y="240" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_add_cad_di" bpmnElement="U_add_cad" isMarkerVisible="true">
+        <dc:Bounds x="635" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="612" y="243" width="37" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_edit_di" bpmnElement="U_edit">
+        <dc:Bounds x="1030" y="520" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_axis_q_di" bpmnElement="U_axis_q" isMarkerVisible="true">
+        <dc:Bounds x="2615" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2595" y="311" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_axis_m_di" bpmnElement="U_axis_m" isMarkerVisible="true">
+        <dc:Bounds x="2905" y="255" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_set_axis_di" bpmnElement="U_set_axis">
+        <dc:Bounds x="2730" y="120" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="U_b_cancel_di" bpmnElement="U_b_cancel">
+        <dc:Bounds x="1822" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1794" y="340" width="35" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="F01_di" bpmnElement="F01">
+        <di:waypoint x="278" y="280" />
+        <di:waypoint x="320" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F02_di" bpmnElement="F02">
+        <di:waypoint x="440" y="280" />
+        <di:waypoint x="470" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F03_di" bpmnElement="F03">
+        <di:waypoint x="685" y="280" />
+        <di:waypoint x="1490" y="280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="725" y="283" width="110" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F04_di" bpmnElement="F04">
+        <di:waypoint x="660" y="255" />
+        <di:waypoint x="660" y="100" />
+        <di:waypoint x="2360" y="100" />
+        <di:waypoint x="2360" y="255" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="726" y="103" width="108" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F05_di" bpmnElement="F05">
+        <di:waypoint x="660" y="305" />
+        <di:waypoint x="660" y="560" />
+        <di:waypoint x="755" y="560" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="647" y="390" width="85" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F23_di" bpmnElement="F23">
+        <di:waypoint x="780" y="535" />
+        <di:waypoint x="780" y="440" />
+        <di:waypoint x="1160" y="440" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="838" y="443" width="33" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F25_di" bpmnElement="F25">
+        <di:waypoint x="780" y="585" />
+        <di:waypoint x="780" y="680" />
+        <di:waypoint x="900" y="680" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="838" y="683" width="33" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F26_di" bpmnElement="F26">
+        <di:waypoint x="1150" y="560" />
+        <di:waypoint x="1492" y="560" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F27_di" bpmnElement="F27">
+        <di:waypoint x="1020" y="680" />
+        <di:waypoint x="1335" y="680" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F28_di" bpmnElement="F28">
+        <di:waypoint x="1360" y="705" />
+        <di:waypoint x="1360" y="800" />
+        <di:waypoint x="1492" y="800" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1422" y="803" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F29_di" bpmnElement="F29">
+        <di:waypoint x="1385" y="680" />
+        <di:waypoint x="1492" y="680" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1424" y="683" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F06_di" bpmnElement="F06">
+        <di:waypoint x="1280" y="440" />
+        <di:waypoint x="1335" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F07_di" bpmnElement="F07">
+        <di:waypoint x="1360" y="415" />
+        <di:waypoint x="1360" y="360" />
+        <di:waypoint x="1680" y="360" />
+        <di:waypoint x="1680" y="305" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1421" y="363" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F08_di" bpmnElement="F08">
+        <di:waypoint x="1385" y="440" />
+        <di:waypoint x="1492" y="440" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1424" y="443" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F09_di" bpmnElement="F09">
+        <di:waypoint x="1610" y="280" />
+        <di:waypoint x="1655" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F10_di" bpmnElement="F10">
+        <di:waypoint x="1705" y="280" />
+        <di:waypoint x="1800" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F13_di" bpmnElement="F13">
+        <di:waypoint x="1920" y="280" />
+        <di:waypoint x="2022" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F22_di" bpmnElement="F22">
+        <di:waypoint x="1840" y="338" />
+        <di:waypoint x="1840" y="422" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F14_di" bpmnElement="F14">
+        <di:waypoint x="2058" y="280" />
+        <di:waypoint x="2155" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F15_di" bpmnElement="F15">
+        <di:waypoint x="2180" y="305" />
+        <di:waypoint x="2180" y="490" />
+        <di:waypoint x="3372" y="490" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2230" y="493" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F16_di" bpmnElement="F16">
+        <di:waypoint x="2180" y="305" />
+        <di:waypoint x="2180" y="380" />
+        <di:waypoint x="3372" y="380" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2223" y="383" width="54" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F17_di" bpmnElement="F17">
+        <di:waypoint x="2205" y="280" />
+        <di:waypoint x="2335" y="280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2235" y="283" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F18_di" bpmnElement="F18">
+        <di:waypoint x="2385" y="280" />
+        <di:waypoint x="2440" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F19_di" bpmnElement="F19">
+        <di:waypoint x="2560" y="280" />
+        <di:waypoint x="2615" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F20_di" bpmnElement="F20">
+        <di:waypoint x="3130" y="280" />
+        <di:waypoint x="3170" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F21_di" bpmnElement="F21">
+        <di:waypoint x="3290" y="280" />
+        <di:waypoint x="3372" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F24_di" bpmnElement="F24">
+        <di:waypoint x="805" y="560" />
+        <di:waypoint x="1030" y="560" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="845" y="563" width="20" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0bx92v8_di" bpmnElement="Flow_0bx92v8">
+        <di:waypoint x="590" y="280" />
+        <di:waypoint x="635" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F30_di" bpmnElement="F30">
+        <di:waypoint x="2665" y="280" />
+        <di:waypoint x="2905" y="280" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2701" y="283" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F31_di" bpmnElement="F31">
+        <di:waypoint x="2640" y="255" />
+        <di:waypoint x="2640" y="160" />
+        <di:waypoint x="2730" y="160" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2703" y="163" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F32_di" bpmnElement="F32">
+        <di:waypoint x="2850" y="160" />
+        <di:waypoint x="2930" y="160" />
+        <di:waypoint x="2930" y="255" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F33_di" bpmnElement="F33">
+        <di:waypoint x="2955" y="280" />
+        <di:waypoint x="3010" y="280" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="P_system_di" bpmnElement="P_system" isHorizontal="true" bioc:stroke="#0d4372" bioc:fill="#bbdefb" color:background-color="#bbdefb" color:border-color="#0d4372">
+        <dc:Bounds x="160" y="990" width="3350" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="P_knowledge_di" bpmnElement="P_knowledge" isHorizontal="true">
+        <dc:Bounds x="160" y="1160" width="2240" height="620" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_new_di" bpmnElement="K_new" isMarkerVisible="true">
+        <dc:Bounds x="535" y="1365" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="500" y="1343" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_type_di" bpmnElement="K_type">
+        <dc:Bounds x="660" y="1350" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_enter_di" bpmnElement="K_enter">
+        <dc:Bounds x="1140" y="1350" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_saved_gw_di" bpmnElement="K_saved_gw" isMarkerVisible="true">
+        <dc:Bounds x="1655" y="1365" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1620" y="1425" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_review_di" bpmnElement="K_review">
+        <dc:Bounds x="1780" y="1350" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_done_di" bpmnElement="K_done">
+        <dc:Bounds x="2182" y="1372" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2140" y="1414" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_start_di" bpmnElement="K_start">
+        <dc:Bounds x="242" y="1372" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="209" y="1414" width="102" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_save_di" bpmnElement="K_save">
+        <dc:Bounds x="1320" y="1350" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_merge_di" bpmnElement="K_merge" isMarkerVisible="true">
+        <dc:Bounds x="965" y="1365" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1g6u3x5_di" bpmnElement="Gateway_1g6u3x5" isMarkerVisible="true">
+        <dc:Bounds x="1055" y="1365" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_fix_di" bpmnElement="K_fix">
+        <dc:Bounds x="1140" y="1220" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_cancelled_di" bpmnElement="K_cancelled">
+        <dc:Bounds x="2182" y="1482" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2140" y="1524" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_deleted_di" bpmnElement="K_deleted">
+        <dc:Bounds x="2182" y="1582" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2140" y="1623" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_kept_di" bpmnElement="K_kept">
+        <dc:Bounds x="2182" y="1692" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2155" y="1733" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_confirm_di" bpmnElement="K_confirm">
+        <dc:Bounds x="1780" y="1560" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_delete_gw_di" bpmnElement="K_delete_gw" isMarkerVisible="true">
+        <dc:Bounds x="1975" y="1575" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1940" y="1551" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_action_di" bpmnElement="K_action" isMarkerVisible="true">
+        <dc:Bounds x="855" y="1475" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="845" y="1453" width="71" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_existing_di" bpmnElement="K_existing">
+        <dc:Bounds x="660" y="1460" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_result_di" bpmnElement="K_result">
+        <dc:Bounds x="1532" y="1372" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1490" y="1414" width="120" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_open_di" bpmnElement="K_open">
+        <dc:Bounds x="350" y="1350" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="K_b_cancel_di" bpmnElement="K_b_cancel">
+        <dc:Bounds x="1212" y="1412" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1242" y="1453" width="35" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="G01_di" bpmnElement="G01">
+        <di:waypoint x="278" y="1390" />
+        <di:waypoint x="350" y="1390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G02_di" bpmnElement="G02">
+        <di:waypoint x="470" y="1390" />
+        <di:waypoint x="535" y="1390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G03_di" bpmnElement="G03">
+        <di:waypoint x="585" y="1390" />
+        <di:waypoint x="660" y="1390" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="620" y="1393" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G04_di" bpmnElement="G04">
+        <di:waypoint x="560" y="1415" />
+        <di:waypoint x="560" y="1500" />
+        <di:waypoint x="660" y="1500" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="620" y="1503" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G05_di" bpmnElement="G05">
+        <di:waypoint x="780" y="1390" />
+        <di:waypoint x="965" y="1390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G06_di" bpmnElement="G06">
+        <di:waypoint x="780" y="1500" />
+        <di:waypoint x="855" y="1500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G07_di" bpmnElement="G07">
+        <di:waypoint x="905" y="1500" />
+        <di:waypoint x="990" y="1500" />
+        <di:waypoint x="990" y="1415" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="961" y="1503" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G08_di" bpmnElement="G08">
+        <di:waypoint x="880" y="1525" />
+        <di:waypoint x="880" y="1600" />
+        <di:waypoint x="1780" y="1600" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="952" y="1603" width="35" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1g2d7la_di" bpmnElement="Flow_1g2d7la">
+        <di:waypoint x="1105" y="1390" />
+        <di:waypoint x="1140" y="1390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G10_di" bpmnElement="G10">
+        <di:waypoint x="1260" y="1390" />
+        <di:waypoint x="1320" y="1390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G11_di" bpmnElement="G11">
+        <di:waypoint x="1440" y="1390" />
+        <di:waypoint x="1532" y="1390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G12_di" bpmnElement="G12">
+        <di:waypoint x="1568" y="1390" />
+        <di:waypoint x="1655" y="1390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G13_di" bpmnElement="G13">
+        <di:waypoint x="1705" y="1390" />
+        <di:waypoint x="1780" y="1390" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1740" y="1393" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G14_di" bpmnElement="G14">
+        <di:waypoint x="1680" y="1365" />
+        <di:waypoint x="1680" y="1260" />
+        <di:waypoint x="1260" y="1260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1683" y="1283" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G16_di" bpmnElement="G16">
+        <di:waypoint x="1900" y="1390" />
+        <di:waypoint x="2182" y="1390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G15_di" bpmnElement="G15">
+        <di:waypoint x="1140" y="1260" />
+        <di:waypoint x="1080" y="1260" />
+        <di:waypoint x="1080" y="1365" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G09_di" bpmnElement="G09">
+        <di:waypoint x="1015" y="1390" />
+        <di:waypoint x="1055" y="1390" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G20_di" bpmnElement="G20">
+        <di:waypoint x="1230" y="1448" />
+        <di:waypoint x="1230" y="1500" />
+        <di:waypoint x="2182" y="1500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G17_di" bpmnElement="G17">
+        <di:waypoint x="1900" y="1600" />
+        <di:waypoint x="1975" y="1600" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G18_di" bpmnElement="G18">
+        <di:waypoint x="2025" y="1600" />
+        <di:waypoint x="2182" y="1600" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2070" y="1603" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="G19_di" bpmnElement="G19">
+        <di:waypoint x="2000" y="1625" />
+        <di:waypoint x="2000" y="1710" />
+        <di:waypoint x="2182" y="1710" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2070" y="1713" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="N_leave_di" bpmnElement="N_leave">
+        <dc:Bounds x="1930" y="160" width="251.69995639184629" height="57" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="N_machine_errors_di" bpmnElement="N_machine_errors">
+        <dc:Bounds x="1590" y="538" width="210" height="43" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="N_knowledge_errors_di" bpmnElement="N_knowledge_errors">
+        <dc:Bounds x="1760" y="1665" width="190" height="43" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="M01_di" bpmnElement="M01">
+        <di:waypoint x="380" y="990" />
+        <di:waypoint x="380" y="320" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="384" y="863" width="156" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M02_di" bpmnElement="M02">
+        <di:waypoint x="1220" y="480" />
+        <di:waypoint x="1220" y="990" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1231" y="863" width="57" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M03_di" bpmnElement="M03">
+        <di:waypoint x="1890" y="320" />
+        <di:waypoint x="1890" y="990" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1901" y="863" width="41" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M04_di" bpmnElement="M04">
+        <di:waypoint x="1840" y="458" />
+        <di:waypoint x="1840" y="990" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1790" y="863" width="44" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M05_di" bpmnElement="M05">
+        <di:waypoint x="2040" y="990" />
+        <di:waypoint x="2040" y="298" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2025" y="863" width="110" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M06_di" bpmnElement="M06">
+        <di:waypoint x="2500" y="990" />
+        <di:waypoint x="2500" y="320" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2500" y="863" width="105" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M07_di" bpmnElement="M07">
+        <di:waypoint x="3230" y="990" />
+        <di:waypoint x="3230" y="320" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3233" y="863" width="47" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M08_di" bpmnElement="M08">
+        <di:waypoint x="1090" y="600" />
+        <di:waypoint x="1090" y="990" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1099" y="863" width="62" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M09_di" bpmnElement="M09">
+        <di:waypoint x="1510" y="818" />
+        <di:waypoint x="1510" y="990" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1497" y="863" width="103" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M11_di" bpmnElement="M11">
+        <di:waypoint x="410" y="1050" />
+        <di:waypoint x="410" y="1350" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="410" y="1163" width="128" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M12_di" bpmnElement="M12">
+        <di:waypoint x="1380" y="1350" />
+        <di:waypoint x="1380" y="1050" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1372" y="1163" width="118" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M13_di" bpmnElement="M13">
+        <di:waypoint x="1550" y="1050" />
+        <di:waypoint x="1550" y="1372" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1556" y="1163" width="95" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M14_di" bpmnElement="M14">
+        <di:waypoint x="2218" y="1600" />
+        <di:waypoint x="2300" y="1600" />
+        <di:waypoint x="2300" y="1050" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2285" y="1163" width="110" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="M10_di" bpmnElement="M10">
+        <di:waypoint x="2790" y="200" />
+        <di:waypoint x="2790" y="990" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2797" y="863" width="45" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="A_errors_knowledge_di" bpmnElement="A_errors_knowledge">
+        <di:waypoint x="1840" y="1665" />
+        <di:waypoint x="1840" y="1640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="A_N_leave_di" bpmnElement="A_N_leave">
+        <di:waypoint x="2040" y="217" />
+        <di:waypoint x="2040" y="262" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="A_errors_created_di" bpmnElement="A_errors_created">
+        <di:waypoint x="1670" y="538" />
+        <di:waypoint x="1670" y="440" />
+        <di:waypoint x="1528" y="440" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="A_errors_edited_di" bpmnElement="A_errors_edited">
+        <di:waypoint x="1590" y="560" />
+        <di:waypoint x="1528" y="560" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="A_errors_deleted_di" bpmnElement="A_errors_deleted">
+        <di:waypoint x="1670" y="581" />
+        <di:waypoint x="1670" y="800" />
+        <di:waypoint x="1528" y="800" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
