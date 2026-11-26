@@ -3,21 +3,26 @@ from contextlib import asynccontextmanager
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 import pytest
-from sqlalchemy import CursorResult, Table, delete, func, insert, select, text
+from sqlalchemy import CursorResult, delete, func, insert, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 from test_pg import URL, create_fresh_tables, run_async
 
-from config.settings import DEFAULT_EMBEDDING_DIMENSIONS
+from config.settings import get_schema_settings
 from db import (
     CommonColumn,
     FactColumn,
+    FactModel,
     FactNodeColumn,
+    FactNodeModel,
     HypernodeColumn,
+    HypernodeModel,
+    ModelBase,
     RecordColumn,
+    RecordModel,
     TableName,
-    Tables,
     VectorColumn,
+    VectorModel,
 )
 from services import Lane, VectorKind
 
@@ -37,17 +42,18 @@ def to_id(text: str) -> UUID:
 
 
 @asynccontextmanager
-async def open_fresh_tables() -> AsyncGenerator[tuple[AsyncEngine, Tables]]:
+async def open_fresh_tables() -> AsyncGenerator[AsyncEngine]:
     engine: AsyncEngine = create_async_engine(URL)
     try:
-        yield engine, await create_fresh_tables(engine)
+        await create_fresh_tables(engine)
+        yield engine
     finally:
         await engine.dispose()
 
 
-async def add_record(conn: AsyncConnection, tables: Tables, record_id: str) -> None:
+async def add_record(conn: AsyncConnection, record_id: str) -> None:
     await conn.execute(
-        insert(tables.records).values(
+        insert(RecordModel).values(
             {
                 CommonColumn.ID: record_id,
                 RecordColumn.CLS: "AssemblyGroup",
@@ -59,9 +65,9 @@ async def add_record(conn: AsyncConnection, tables: Tables, record_id: str) -> N
     )
 
 
-async def add_fact(conn: AsyncConnection, tables: Tables, record_id: str) -> int:
+async def add_fact(conn: AsyncConnection, record_id: str) -> int:
     inserted: CursorResult = await conn.execute(
-        insert(tables.facts)
+        insert(FactModel)
         .values(
             {
                 CommonColumn.RECORD_ID: record_id,
@@ -71,16 +77,16 @@ async def add_fact(conn: AsyncConnection, tables: Tables, record_id: str) -> int
                 FactColumn.TEXT: "asdf",
             }
         )
-        .returning(tables.facts.c[CommonColumn.ID])
+        .returning(FactModel.id)
     )
     return inserted.scalar_one()
 
 
-async def add_hypernode(conn: AsyncConnection, tables: Tables, value: str) -> UUID:
+async def add_hypernode(conn: AsyncConnection, value: str) -> UUID:
     """Adds a ``NAME_KEY`` hypernode, its id is ``uuid5`` of key and ``value``."""
     node_id: UUID = to_id(f"{NAME_KEY}\x00{value}")
     await conn.execute(
-        insert(tables.hypernodes).values(
+        insert(HypernodeModel).values(
             {
                 CommonColumn.ID: node_id,
                 HypernodeColumn.KEY: NAME_KEY,
@@ -93,11 +99,9 @@ async def add_hypernode(conn: AsyncConnection, tables: Tables, value: str) -> UU
     return node_id
 
 
-async def add_membership(
-    conn: AsyncConnection, tables: Tables, fact_id: int, node_id: UUID
-) -> None:
+async def add_membership(conn: AsyncConnection, fact_id: int, node_id: UUID) -> None:
     await conn.execute(
-        insert(tables.fact_nodes).values(
+        insert(FactNodeModel).values(
             {
                 CommonColumn.LANE: Lane.FACT,
                 CommonColumn.NODE_ID: node_id,
@@ -108,9 +112,9 @@ async def add_membership(
     )
 
 
-async def add_vector(conn: AsyncConnection, tables: Tables, dimensions: int) -> None:
+async def add_vector(conn: AsyncConnection, dimensions: int) -> None:
     await conn.execute(
-        insert(tables.vectors).values(
+        insert(VectorModel).values(
             {
                 VectorColumn.KIND: VectorKind.VALUE,
                 CommonColumn.ID: to_id(f"vector {dimensions}"),
@@ -122,8 +126,8 @@ async def add_vector(conn: AsyncConnection, tables: Tables, dimensions: int) -> 
     )
 
 
-async def count_rows(conn: AsyncConnection, table: Table) -> int:
-    counted: CursorResult = await conn.execute(select(func.count()).select_from(table))
+async def count_rows(conn: AsyncConnection, model: type[ModelBase]) -> int:
+    counted: CursorResult = await conn.execute(select(func.count()).select_from(model))
     return counted.scalar_one()
 
 
@@ -138,51 +142,45 @@ async def get_index_definition(conn: AsyncConnection, name: str) -> str:
 
 def test_deleting_record_cascades_bound_facts_and_memberships():
     async def run_check() -> None:
-        async with open_fresh_tables() as (engine, tables), engine.begin() as conn:
+        async with open_fresh_tables() as engine, engine.begin() as conn:
             # add two records
             for record_id in (RECORD_ID, OTHER_RECORD_ID):
-                await add_record(conn, tables, record_id)
+                await add_record(conn, record_id)
 
             # add two facts cut from both records
-            fact_id: int = await add_fact(conn, tables, RECORD_ID)
-            other_fact_id: int = await add_fact(conn, tables, OTHER_RECORD_ID)
+            fact_id: int = await add_fact(conn, RECORD_ID)
+            other_fact_id: int = await add_fact(conn, OTHER_RECORD_ID)
 
             # add shared hypernode
-            node_id: UUID = await add_hypernode(conn, tables, "Input tray")
+            node_id: UUID = await add_hypernode(conn, "Input tray")
 
             # connect hypernode with facts
-            await add_membership(conn, tables, fact_id, node_id)
-            await add_membership(conn, tables, other_fact_id, node_id)
+            await add_membership(conn, fact_id, node_id)
+            await add_membership(conn, other_fact_id, node_id)
 
-            await conn.execute(
-                delete(tables.records).where(
-                    tables.records.c[CommonColumn.ID] == RECORD_ID
-                )
-            )
+            await conn.execute(delete(RecordModel).where(RecordModel.id == RECORD_ID))
 
-            assert await count_rows(conn, tables.facts) == 1
+            assert await count_rows(conn, FactModel) == 1
             # only shared hypernode remains
-            assert await count_rows(conn, tables.fact_nodes) == 1
-            assert await count_rows(conn, tables.hypernodes) == 1
+            assert await count_rows(conn, FactNodeModel) == 1
+            assert await count_rows(conn, HypernodeModel) == 1
 
     run_async(run_check)
 
 
 def test_cannot_delete_hypernode_in_use():
     async def run_check() -> None:
-        async with open_fresh_tables() as (engine, tables):
+        async with open_fresh_tables() as engine:
             async with engine.begin() as conn:
-                await add_record(conn, tables, RECORD_ID)
-                fact_id: int = await add_fact(conn, tables, RECORD_ID)
-                node_id: UUID = await add_hypernode(conn, tables, "Input tray")
-                await add_membership(conn, tables, fact_id, node_id)
+                await add_record(conn, RECORD_ID)
+                fact_id: int = await add_fact(conn, RECORD_ID)
+                node_id: UUID = await add_hypernode(conn, "Input tray")
+                await add_membership(conn, fact_id, node_id)
 
             with pytest.raises(IntegrityError):
                 async with engine.begin() as conn:
                     await conn.execute(
-                        delete(tables.hypernodes).where(
-                            tables.hypernodes.c[CommonColumn.ID] == node_id
-                        )
+                        delete(HypernodeModel).where(HypernodeModel.id == node_id)
                     )
 
     run_async(run_check)
@@ -190,20 +188,21 @@ def test_cannot_delete_hypernode_in_use():
 
 def test_vectors_embedding_size():
     async def run_check() -> None:
-        async with open_fresh_tables() as (engine, tables):
+        dimensions: int = get_schema_settings().embedding_dimensions
+        async with open_fresh_tables() as engine:
             async with engine.begin() as conn:
-                await add_vector(conn, tables, DEFAULT_EMBEDDING_DIMENSIONS)
+                await add_vector(conn, dimensions)
 
             with pytest.raises(DBAPIError):
                 async with engine.begin() as conn:
-                    await add_vector(conn, tables, DEFAULT_EMBEDDING_DIMENSIONS - 1)
+                    await add_vector(conn, dimensions - 1)
 
     run_async(run_check)
 
 
 def test_all_vector_kinds_have_cosine_hnsw_index():
     async def run_check() -> None:
-        async with open_fresh_tables() as (engine, _), engine.connect() as conn:
+        async with open_fresh_tables() as engine, engine.connect() as conn:
             for kind in VectorKind:
                 definition: str = await get_index_definition(
                     conn, f"{TableName.VECTORS}_{kind}_hnsw"
@@ -217,7 +216,7 @@ def test_all_vector_kinds_have_cosine_hnsw_index():
 
 def test_only_lexical_hypernode_values_have_trigram_index():
     async def run_check() -> None:
-        async with open_fresh_tables() as (engine, _), engine.connect() as conn:
+        async with open_fresh_tables() as engine, engine.connect() as conn:
             definition: str = await get_index_definition(
                 conn, f"{TableName.HYPERNODES}_value_trgm"
             )

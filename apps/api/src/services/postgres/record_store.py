@@ -2,30 +2,28 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
-from typing import Any, override
+from typing import override
 
 from sqlalchemy import (
-    Column,
     ColumnElement,
-    RowMapping,
+    Row,
     Select,
     Table,
     Text,
     cast,
     delete,
     func,
-    literal_column,
     select,
 )
 from sqlalchemy.dialects.postgresql import Insert, insert
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql.dml import ReturningDelete
 
-from db.names import CommonColumn, LinkColumn, RecordColumn, SystemColumn
-from db.tables import Tables
-from services import JsonValue, Link, Record, RecordLinkedError, RecordStore
+from db.models import LinkModel, RecordModel
+from db.names import CommonColumn, LinkColumn, RecordColumn
+from services import JsonValue, Link, Record, RecordLinkedError, RecordStore, Tx
 from services.postgres.shared import Conditions, Statements
-from services.postgres.transaction import PgTx, get_batches, get_transaction
+from services.postgres.transaction import get_batches, get_transaction
 from services.records import ERROR_STILL_LINKED
 
 
@@ -47,19 +45,17 @@ class PgRecordStore(RecordStore):
 
     def __init__(
         self,
-        engine: AsyncEngine,
-        tables: Tables,
+        sessions: async_sessionmaker[AsyncSession],
         identity_property_names: Mapping[str, Sequence[str]] | None = None,
     ):
         """
         Args:
-            engine: asyncio engine.
-            tables: from ``define_tables()``.
+            sessions: opens a session for calls without ``tx``.
             identity_property_names: record class -> names of its identity properties.
         """
-        self.engine: AsyncEngine = engine
-        self.table: Table = tables.records
-        self.links: Table = tables.record_links
+        self.sessions: async_sessionmaker[AsyncSession] = sessions
+        self.table: Table = RecordModel.get_table()
+        self.links: Table = LinkModel.get_table()
         self.identity_property_names: dict[str, list[str]] = {
             cls: list(prop_names)
             for cls, prop_names in (identity_property_names or {}).items()
@@ -67,28 +63,28 @@ class PgRecordStore(RecordStore):
 
     @override
     async def save_records(
-        self, records: Sequence[Record], tx: PgTx | None = None
+        self, records: Sequence[Record], tx: Tx | None = None
     ) -> None:
         if not records:
             return
-        async with get_transaction(self.engine, tx) as conn:
-            await conn.execute(
+        async with get_transaction(self.sessions, tx) as session:
+            await session.execute(
                 self._build_upsert(), [self._to_row(rec) for rec in records]
             )
-            await self._replace_links(conn, records)
+            await self._replace_links(session, records)
 
     @override
-    async def get_record(self, record_id: str, tx: PgTx | None = None) -> Record | None:
-        async with get_transaction(self.engine, tx) as conn:
+    async def get_record(self, record_id: str, tx: Tx | None = None) -> Record | None:
+        async with get_transaction(self.sessions, tx) as session:
             found: list[Record] = await self._fetch_records(
-                conn, self.table.c[CommonColumn.ID] == record_id
+                session, RecordModel.id == record_id
             )
         return found[0] if found else None
 
     @override
-    async def delete_record(self, record_id: str, tx: PgTx | None = None) -> bool:
-        async with get_transaction(self.engine, tx) as conn:
-            linking_ids: list[str] = await self._get_linking_ids(conn, record_id)
+    async def delete_record(self, record_id: str, tx: Tx | None = None) -> bool:
+        async with get_transaction(self.sessions, tx) as session:
+            linking_ids: list[str] = await self._get_linking_ids(session, record_id)
             if linking_ids:
                 raise RecordLinkedError(
                     ERROR_STILL_LINKED.format(
@@ -97,23 +93,21 @@ class PgRecordStore(RecordStore):
                 )
 
             # delete outgoing links, including self links
-            own_links_condition: ColumnElement[bool] = (
-                self.links.c[CommonColumn.RECORD_ID] == record_id
-            )
-            await conn.execute(delete(self.links).where(own_links_condition))
+            own_links_condition: ColumnElement[bool] = LinkModel.record_id == record_id
+            await session.execute(delete(self.links).where(own_links_condition))
 
             # delete record row
-            deleted: ReturningDelete[Any] = (
+            deleted: ReturningDelete[str] = (
                 delete(self.table)
-                .where(self.table.c[CommonColumn.ID] == record_id)
-                .returning(self.table.c[CommonColumn.ID])
+                .where(RecordModel.id == record_id)
+                .returning(RecordModel.id)
             )
-            return (await conn.execute(deleted)).first() is not None
+            return (await session.execute(deleted)).first() is not None
 
     @override
-    async def get_all_records(self, tx: PgTx | None = None) -> list[Record]:
-        async with get_transaction(self.engine, tx) as conn:
-            return await self._fetch_records(conn)
+    async def get_all_records(self, tx: Tx | None = None) -> list[Record]:
+        async with get_transaction(self.sessions, tx) as session:
+            return await self._fetch_records(session)
 
     @override
     async def query_records(
@@ -121,139 +115,134 @@ class PgRecordStore(RecordStore):
         query: str,
         cls: str | None = None,
         limit: int | None = None,
-        tx: PgTx | None = None,
+        tx: Tx | None = None,
     ) -> list[tuple[Record, float]]:
-        graph_text: ColumnElement[str] = cast(self.table.c[RecordColumn.GRAPH], Text)
+        graph_text: ColumnElement[str] = cast(RecordModel.graph, Text)
         similarity: ColumnElement[float] = func.similarity(graph_text, query)
         condition: ColumnElement[bool] = similarity > 0
 
-        async with get_transaction(self.engine, tx) as conn:
+        async with get_transaction(self.sessions, tx) as session:
             if cls is not None:
                 return await self._fetch_records_by_similarity(
-                    conn,
-                    self.table.c[RecordColumn.CLS] == cls,
+                    session,
+                    RecordModel.cls == cls,
                     condition,
                     order=similarity,
                     limit=limit,
                 )
             return await self._fetch_records_by_similarity(
-                conn, condition, order=similarity, limit=limit
+                session, condition, order=similarity, limit=limit
             )
 
     async def _fetch_records_by_similarity(
         self,
-        conn: PgTx,
+        session: Tx,
         *conditions: ColumnElement[bool],
-        order: ColumnElement[Any],
+        order: ColumnElement[float],
         limit: int | None = None,
     ) -> list[tuple[Record, float]]:
-        stmt: Select = (
-            select(
-                *(self.table.c[col] for col in self.COLUMNS),
-                self._get_version_column(),
-                order.label("similarity"),
-            )
+        stmt: Select[RecordModel, float] = Statements.overwrite_loaded(
+            select(RecordModel, order.label("similarity"))
             .where(*conditions)
             .order_by(order.desc())
         )
         if limit is not None:
             stmt = stmt.limit(limit)
-        rows: Sequence[RowMapping] = (await conn.execute(stmt)).mappings().all()
-        records: list[Record] = await self._rows_to_records(conn, rows)
-        return [(record, row["similarity"]) for row, record in zip(rows, records)]
+        rows: Sequence[Row[RecordModel, float]] = (await session.execute(stmt)).all()
+        records: list[Record] = await self._rows_to_records(
+            session, [row_model for row_model, _ in rows]
+        )
+        return [(record, similarity) for (_, similarity), record in zip(rows, records)]
 
     @override
     async def get_records(
-        self, record_ids: Sequence[str], tx: PgTx | None = None
+        self, record_ids: Sequence[str], tx: Tx | None = None
     ) -> list[Record]:
         found: list[Record] = []
-        async with get_transaction(self.engine, tx) as conn:
+        async with get_transaction(self.sessions, tx) as session:
             for batch in get_batches(list(record_ids)):
                 found += await self._fetch_records(
-                    conn, Conditions.match_any(self.table.c[CommonColumn.ID], batch)
+                    session, Conditions.match_any(RecordModel.id, batch)
                 )
         return found
 
     @override
     @asynccontextmanager
-    async def open_transaction(self, tx: PgTx | None = None) -> AsyncGenerator[PgTx]:
-        async with get_transaction(self.engine, tx) as conn:
-            yield conn
+    async def open_transaction(self, tx: Tx | None = None) -> AsyncGenerator[Tx]:
+        async with get_transaction(self.sessions, tx) as session:
+            yield session
 
     @override
-    async def get_ontology_versions(self, tx: PgTx | None = None) -> dict[str, int]:
-        version: Column[Any] = self.table.c[RecordColumn.ONTOLOGY_VERSION]
-        stmt: Select[Any, int] = select(version, func.count()).group_by(version)
-        async with get_transaction(self.engine, tx) as conn:
-            return {v: count for v, count in (await conn.execute(stmt)).all()}
+    async def get_ontology_versions(self, tx: Tx | None = None) -> dict[str, int]:
+        stmt: Select[str, int] = select(
+            RecordModel.ontology_version, func.count()
+        ).group_by(RecordModel.ontology_version)
+        async with get_transaction(self.sessions, tx) as session:
+            return {v: count for v, count in (await session.execute(stmt)).all()}
 
     @override
     async def get_linking_records(
-        self, target_ids: Sequence[str], tx: PgTx | None = None
+        self, target_ids: Sequence[str], tx: Tx | None = None
     ) -> list[Record]:
         found: dict[str, Record] = {}
-        async with get_transaction(self.engine, tx) as conn:
+        async with get_transaction(self.sessions, tx) as session:
             for batch in get_batches(list(target_ids)):
-                linking_id_query: Select[Any] = select(
-                    self.links.c[CommonColumn.RECORD_ID]
-                ).where(Conditions.match_any(self.links.c[LinkColumn.TARGET_ID], batch))
+                linking_id_query: Select[str] = select(LinkModel.record_id).where(
+                    Conditions.match_any(LinkModel.target_id, batch)
+                )
                 records: list[Record] = await self._fetch_records(
-                    conn, self.table.c[CommonColumn.ID].in_(linking_id_query)
+                    session, RecordModel.id.in_(linking_id_query)
                 )
                 found.update((rec.id, rec) for rec in records)
         return [found[rec_id] for rec_id in sorted(found)]
 
     @override
-    async def get_records_to_review(self, tx: PgTx | None = None) -> list[Record]:
-        async with get_transaction(self.engine, tx) as conn:
-            return await self._fetch_records(
-                conn, self.table.c[RecordColumn.REVIEW] != ""
-            )
+    async def get_records_to_review(self, tx: Tx | None = None) -> list[Record]:
+        async with get_transaction(self.sessions, tx) as session:
+            return await self._fetch_records(session, RecordModel.review != "")
 
     @override
     async def get_records_by_class(
-        self, cls: str, tx: PgTx | None = None
+        self, cls: str, tx: Tx | None = None
     ) -> list[Record]:
-        async with get_transaction(self.engine, tx) as conn:
-            return await self._fetch_records(
-                conn, self.table.c[RecordColumn.CLS] == cls
-            )
+        async with get_transaction(self.sessions, tx) as session:
+            return await self._fetch_records(session, RecordModel.cls == cls)
 
     @override
-    async def lock_record(self, record_id: str, tx: PgTx) -> str | None:
-        stmt: Select[Any] = (
-            select(self._get_version_column())
-            .where(self.table.c[CommonColumn.ID] == record_id)
+    async def lock_record(self, record_id: str, tx: Tx) -> str | None:
+        stmt: Select[str] = (
+            select(RecordModel.version)
+            .where(RecordModel.id == record_id)
             .with_for_update()
         )
-        async with get_transaction(self.engine, tx) as conn:
-            return (await conn.execute(stmt)).scalar_one_or_none()
+        async with get_transaction(self.sessions, tx) as session:
+            return await session.scalar(stmt)
 
     @override
     async def find_record_ids(
-        self, cls: str, text: str, tx: PgTx | None = None
+        self, cls: str, text: str, tx: Tx | None = None
     ) -> list[str]:
-        stmt: Select[Any] = (
-            select(self.table.c[CommonColumn.ID])
+        stmt: Select[str] = (
+            select(RecordModel.id)
             .where(
-                self.table.c[RecordColumn.CLS] == cls,
-                self.table.c[RecordColumn.IDENTITY_VALUES].contains([text.casefold()]),
+                RecordModel.cls == cls,
+                RecordModel.identity_values.contains([text.casefold()]),
             )
-            .order_by(self.table.c[CommonColumn.ID])
+            .order_by(RecordModel.id)
         )
-        async with get_transaction(self.engine, tx) as conn:
-            return list((await conn.execute(stmt)).scalars())
+        async with get_transaction(self.sessions, tx) as session:
+            return list(await session.scalars(stmt))
 
     def _build_upsert(self) -> Insert:
         """Returns an update-or-insert action."""
         stmt: Insert = insert(self.table)
-        replaced: dict[str, ColumnElement[Any]] = {
+        replaced: dict[str, ColumnElement[object]] = {
             col: stmt.excluded[col]
             for col in (*self.COLUMNS, RecordColumn.IDENTITY_VALUES)
             if col != CommonColumn.ID
         }
         return stmt.on_conflict_do_update(
-            index_elements=[self.table.c[CommonColumn.ID]],
+            index_elements=[RecordModel.id],
             set_={**replaced, RecordColumn.UPDATED_AT: func.now()},
         )
 
@@ -277,17 +266,17 @@ class PgRecordStore(RecordStore):
             values += [str(item).casefold() for item in items if item is not None]
         return list(dict.fromkeys(values))
 
-    async def _replace_links(self, conn: PgTx, records: Sequence[Record]) -> None:
+    async def _replace_links(self, session: Tx, records: Sequence[Record]) -> None:
         """Updates links of ``records``, in link order. ``records`` may be thousands."""
         # delete old links
         await Statements.delete_matching(
-            conn, self.links.c[CommonColumn.RECORD_ID], [rec.id for rec in records]
+            session, self.links, LinkModel.record_id, [rec.id for rec in records]
         )
 
         # insert new links
         rows: list[dict[str, object]] = self._to_link_rows(records)
         if rows:
-            await conn.execute(Statements.build_unnest_insert(self.links, rows))
+            await session.execute(Statements.build_unnest_insert(self.links, rows))
 
     @staticmethod
     def _to_link_rows(records: Sequence[Record]) -> list[dict[str, object]]:
@@ -303,79 +292,62 @@ class PgRecordStore(RecordStore):
             for position, link in enumerate(rec.links)
         ]
 
-    async def _get_linking_ids(self, conn: PgTx, record_id: str) -> list[str]:
+    async def _get_linking_ids(self, session: Tx, record_id: str) -> list[str]:
         """Returns sorted ids of records that link to ``record_id``, excluding ``record_id``."""
-        stmt: Select[Any] = select(self.links.c[CommonColumn.RECORD_ID]).where(
-            self.links.c[LinkColumn.TARGET_ID] == record_id,
-            self.links.c[CommonColumn.RECORD_ID] != record_id,
+        stmt: Select[str] = select(LinkModel.record_id).where(
+            LinkModel.target_id == record_id,
+            LinkModel.record_id != record_id,
         )
-        return sorted(set((await conn.execute(stmt)).scalars()))
+        return sorted(set(await session.scalars(stmt)))
 
-    def _select_records(self) -> Select:
+    def _select_records(self) -> Select[RecordModel]:
         """Returns select statement for all record columns, sorted by id."""
-        return select(
-            *(self.table.c[col] for col in self.COLUMNS), self._get_version_column()
-        ).order_by(self.table.c[CommonColumn.ID])
-
-    def _get_version_column(self) -> ColumnElement[str]:
-        """Returns the row's ``xmin`` as text. Postgres sets it with every write of the row."""
-        xmin: ColumnElement[Any] = literal_column(
-            f"{self.table.name}.{SystemColumn.XMIN}"
-        )
-        return cast(xmin, Text).label(SystemColumn.XMIN)
+        return Statements.overwrite_loaded(select(RecordModel).order_by(RecordModel.id))
 
     async def _fetch_records(
-        self, conn: PgTx, *conditions: ColumnElement[bool]
+        self, session: Tx, *conditions: ColumnElement[bool]
     ) -> list[Record]:
         """Returns records matching all ``conditions`` sorted by id. Returns all records if ``conditions`` is empty."""
-        stmt: Select = self._select_records().where(*conditions)
-        rows: Sequence[RowMapping] = (await conn.execute(stmt)).mappings().all()
-        return await self._rows_to_records(conn, rows)
+        stmt: Select[RecordModel] = self._select_records().where(*conditions)
+        rows: Sequence[RecordModel] = (await session.scalars(stmt)).all()
+        return await self._rows_to_records(session, rows)
 
     async def _rows_to_records(
-        self, conn: PgTx, rows: Sequence[RowMapping]
+        self, session: Tx, rows: Sequence[RecordModel]
     ) -> list[Record]:
         """Converts rows to records with their links."""
-        record_ids: list[str] = [row[CommonColumn.ID] for row in rows]
-        links: dict[str, list[Link]] = await self._fetch_links(conn, record_ids)
-        return [
-            self._to_record(row, links.get(rec_id, []))
-            for row, rec_id in zip(rows, record_ids)
-        ]
+        record_ids: list[str] = [row.id for row in rows]
+        links: dict[str, list[Link]] = await self._fetch_links(session, record_ids)
+        return [self._to_record(row, links.get(row.id, [])) for row in rows]
 
     async def _fetch_links(
-        self, conn: PgTx, record_ids: Sequence[str]
+        self, session: Tx, record_ids: Sequence[str]
     ) -> dict[str, list[Link]]:
         """Returns map of record id -> its links in order."""
         links: dict[str, list[Link]] = {}
         for batch in get_batches(list(record_ids)):
-            stmt: Select[Any, Any, Any] = (
+            stmt: Select[str, str, str] = (
                 select(
-                    self.links.c[CommonColumn.RECORD_ID],
-                    self.links.c[LinkColumn.PROPERTY_NAME],
-                    self.links.c[LinkColumn.TARGET_ID],
+                    LinkModel.record_id,
+                    LinkModel.property_name,
+                    LinkModel.target_id,
                 )
-                .where(
-                    Conditions.match_any(self.links.c[CommonColumn.RECORD_ID], batch)
-                )
-                .order_by(
-                    self.links.c[CommonColumn.RECORD_ID],
-                    self.links.c[CommonColumn.POSITION],
-                )
+                .where(Conditions.match_any(LinkModel.record_id, batch))
+                .order_by(LinkModel.record_id, LinkModel.position)
             )
-            for record_id, prop_name, target_id in await conn.execute(stmt):
+            for record_id, prop_name, target_id in await session.execute(stmt):
                 links.setdefault(record_id, []).append(Link(prop_name, target_id))
         return links
 
     @staticmethod
-    def _to_record(row: RowMapping, links: list[Link]) -> Record:
+    def _to_record(row: RecordModel, links: list[Link]) -> Record:
         return Record(
-            row[CommonColumn.ID],
-            row[RecordColumn.CLS],
-            row[RecordColumn.GRAPH],
-            row[RecordColumn.INPUT],
-            row[RecordColumn.ONTOLOGY_VERSION],
-            tuple(links),
-            row[RecordColumn.REVIEW],
-            row[SystemColumn.XMIN],
+            id=row.id,
+            cls=row.cls,
+            graph=row.graph,
+            input=row.input,
+            ontology_version=row.ontology_version,
+            links=tuple(links),
+            review=row.review,
+            version=row.version,
         )

@@ -1,5 +1,11 @@
 from db.model_base import ModelBase as ModelBase
-from db.model_base import get_tables as get_tables
+from db.models import FactModel as FactModel
+from db.models import FactNodeModel as FactNodeModel
+from db.models import HypernodeModel as HypernodeModel
+from db.models import LinkModel as LinkModel
+from db.models import RecordModel as RecordModel
+from db.models import UploadModel as UploadModel
+from db.models import VectorModel as VectorModel
 from db.names import PROCESSING_INDEX as PROCESSING_INDEX
 from db.names import STATUS_CHECK as STATUS_CHECK
 from db.names import UP_AXIS_CHECK as UP_AXIS_CHECK
@@ -14,5 +20,3 @@ from db.names import UpAxis as UpAxis
 from db.names import UploadColumn as UploadColumn
 from db.names import UploadStatus as UploadStatus
 from db.names import VectorColumn as VectorColumn
-from db.tables import Tables as Tables
-from db.tables import define_tables as define_tables

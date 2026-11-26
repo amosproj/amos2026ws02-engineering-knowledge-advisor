@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     engine: AsyncEngine = create_engine(settings)
     app.state.sessions = create_sessionmaker(engine)
-    app.state.ograg = create_ograg_service(settings, engine)
+    app.state.ograg = create_ograg_service(settings, app.state.sessions)
     app.state.llm = create_llm_service(settings)
     app.state.catalog = create_catalog_service(settings, app.state.ograg)
     try:

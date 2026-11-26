@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from config.settings import (
     DEFAULT_EMBEDDING_DIMENSIONS,
+    SchemaSettings,
     SearchSettings,
     Settings,
     get_settings,
@@ -120,14 +121,14 @@ def test_embedding_dim_defaults_to_embedding_model(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.delenv("API_EMBEDDING_DIMENSIONS", raising=False)
-    assert Settings().embedding_dimensions == DEFAULT_EMBEDDING_DIMENSIONS  # pyright: ignore[reportCallIssue]
+    assert SchemaSettings().embedding_dimensions == DEFAULT_EMBEDDING_DIMENSIONS
 
 
 def test_embedding_dim_come_from_env(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setenv("API_EMBEDDING_DIMENSIONS", "1024")
-    assert Settings().embedding_dimensions == 1024  # pyright: ignore[reportCallIssue]
+    assert SchemaSettings().embedding_dimensions == 1024
 
 
 @pytest.mark.parametrize("dimensions", ["0", "-42", "asdf"])
@@ -136,7 +137,7 @@ def test_embedding_dim_must_be_positive(
 ):
     monkeypatch.setenv("API_EMBEDDING_DIMENSIONS", dimensions)
     with pytest.raises(ValidationError):
-        Settings()  # pyright: ignore[reportCallIssue]
+        SchemaSettings()
 
 
 def test_search_settings_have_defaults():

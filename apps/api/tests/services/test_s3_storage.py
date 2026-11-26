@@ -1,11 +1,11 @@
 from collections.abc import Generator, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 from boto3.exceptions import S3UploadFailedError
+from botocore.config import Config
 from botocore.exceptions import ClientError, EndpointConnectionError
 from pydantic import SecretStr
 
@@ -147,10 +147,16 @@ def test_the_upload_form_points_to_the_public_url(
 ):
     client.generate_presigned_post.return_value = {"url": "x", "fields": {"key": "k"}}
     assert storage.create_upload_form("k", 3) == ("/storage/bucket", {"key": "k"})
-    conditions: dict[str, Any] = client.generate_presigned_post.call_args.kwargs[
+    conditions: list[object] = client.generate_presigned_post.call_args.kwargs[
         "Conditions"
     ]
     assert ["content-length-range", 3, 3] in conditions
+
+
+def test_upload_form_without_fields_raises(storage: S3ObjectStorage, client: MagicMock):
+    client.generate_presigned_post.return_value = {"url": "x"}
+    with pytest.raises(ObjectStorageError):
+        storage.create_upload_form("k", 3)
 
 
 def test_uploading_a_file_uses_the_managed_upload(
@@ -230,9 +236,9 @@ def test_the_model_sits_in_the_cad_file_folder():
 
 
 def test_links_are_signed_with_signature_version_4(monkeypatch: pytest.MonkeyPatch):
-    configs: list[Any] = []
+    configs: list[Config] = []
 
-    def client(*_: object, config: Any, **__: object) -> MagicMock:  # noqa: ANN401
+    def client(*_: object, config: Config, **__: object) -> MagicMock:
         configs.append(config)
         return MagicMock()
 
@@ -248,4 +254,5 @@ def test_links_are_signed_with_signature_version_4(monkeypatch: pytest.MonkeyPat
             s3_public_url="/storage/",
         )
     )
-    assert configs[0].signature_version == "s3v4"
+    # botocore's stubs declare signature_version only as arg of Config
+    assert vars(configs[0])["signature_version"] == "s3v4"

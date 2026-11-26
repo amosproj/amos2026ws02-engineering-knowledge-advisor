@@ -1,6 +1,6 @@
 """Creates the records table and their links.
 
-Generated from ``db.tables``.
+Generated from ``db.models``.
 
 Revision ID: 0001
 Revises:

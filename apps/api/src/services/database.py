@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
+from sqlalchemy.ext.asyncio import AsyncSession
 
-type Tx = Any
-"""Unit of work (e.g. ``AsyncSession``), passed to stores. ``None``: no transaction."""
+type Tx = AsyncSession
+"""Unit of work (``AsyncSession``), passed to stores. ``None``: no transaction."""
 
 
 class ConflictError(RuntimeError):

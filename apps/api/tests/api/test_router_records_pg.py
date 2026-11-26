@@ -19,8 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from api.router_files import v1_files_router
 from api.router_records import v1_records_router
-from config.settings import DEFAULT_EMBEDDING_DIMENSIONS
-from db import ModelBase, TableName, get_tables
+from db import ModelBase, TableName
 from db.session import create_sessionmaker
 from handler.exception_handler import register
 from handler.service_exception_handler import register as register_service
@@ -100,7 +99,6 @@ class FakeStorage(ObjectStorage):
 @pytest.fixture
 def sync_engine() -> Iterator[Engine]:
     engine: Engine = create_engine(URL)
-    get_tables(DEFAULT_EMBEDDING_DIMENSIONS)
     with engine.begin() as conn:
         for name in TableName:
             conn.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
@@ -126,14 +124,13 @@ def client(storage: FakeStorage) -> Iterator[TestClient]:
         app.state.ograg = OgRagService(
             ontology,
             PgRecordStore(
-                engine,
-                get_tables(DEFAULT_EMBEDDING_DIMENSIONS),
+                app.state.sessions,
                 identity_property_names=ontology.get_identity_property_names(),
             ),
         )
         app.state.catalog = CatalogService(
             app.state.ograg,
-            PgUploadStore(get_tables(DEFAULT_EMBEDDING_DIMENSIONS)),
+            PgUploadStore(),
             storage,
         )
         try:

@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import Mapping
-from typing import Any, cast
+from typing import cast
 
 import pytest
 from sqlalchemy import Column, Integer, MetaData, Select, String, Table, select
@@ -8,9 +8,9 @@ from sqlalchemy.dialects.postgresql import Insert, psycopg
 from sqlalchemy.sql import ClauseElement
 from sqlalchemy.sql.compiler import SQLCompiler
 
+from services import Tx
 from services.postgres import transaction
 from services.postgres.shared import Conditions, Statements
-from services.postgres.transaction import PgTx
 
 TABLE: Table = Table(
     "items",
@@ -20,7 +20,7 @@ TABLE: Table = Table(
 )
 # more values than the 65535 parameters Postgres allows per statement
 MANY_IDS: list[str] = [f"R-{n}" for n in range(70_000)]
-ROWS: list[dict[str, Any]] = [
+ROWS: list[dict[str, str | int]] = [
     {"id": rec_id, "position": position} for position, rec_id in enumerate(MANY_IDS)
 ]
 FEW_IDS: list[str] = ["R-1", "R-2", "R-3", "R-4", "R-5"]
@@ -41,13 +41,13 @@ def compile_statement(stmt: ClauseElement) -> SQLCompiler:
 
 
 def compile_where(values: list[str]) -> SQLCompiler:
-    stmt: Select[Any] = select(TABLE.c.id).where(
+    stmt: Select[str] = select(TABLE.c.id).where(
         Conditions.match_any(TABLE.c.id, values)
     )
     return compile_statement(stmt)
 
 
-def compile_insert(rows: list[dict[str, Any]]) -> SQLCompiler:
+def compile_insert(rows: list[dict[str, str | int]]) -> SQLCompiler:
     return compile_statement(Statements.build_unnest_insert(TABLE, rows))
 
 
@@ -70,7 +70,7 @@ def test_match_any_sql_is_the_same_for_every_list_length():
 
 
 @pytest.mark.parametrize("rows", [ROWS[:1], ROWS])
-def test_unnest_insert_sends_one_array_per_column(rows: list[dict[str, Any]]):
+def test_unnest_insert_sends_one_array_per_column(rows: list[dict[str, str | int]]):
     compiled: SQLCompiler = compile_insert(rows)
     params: Mapping[str, object] = compiled.params
     sql: str = str(compiled)
@@ -109,7 +109,7 @@ def test_unnest_insert_refuses_no_rows():
 def test_delete_matching_runs_one_delete_per_batch(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(transaction, "BATCH_SIZE", 2)
     conn = RecordingConnection()
-    asyncio.run(Statements.delete_matching(cast(PgTx, conn), TABLE.c.id, FEW_IDS))
+    asyncio.run(Statements.delete_matching(cast(Tx, conn), TABLE, TABLE.c.id, FEW_IDS))
     compiled: list[SQLCompiler] = [compile_statement(stmt) for stmt in conn.statements]
     assert {str(statement) for statement in compiled} == {
         "DELETE FROM items WHERE items.id = ANY (%(param_1)s::VARCHAR[])"
@@ -123,5 +123,5 @@ def test_delete_matching_runs_one_delete_per_batch(monkeypatch: pytest.MonkeyPat
 
 def test_delete_matching_runs_nothing_without_values():
     conn = RecordingConnection()
-    asyncio.run(Statements.delete_matching(cast(PgTx, conn), TABLE.c.id, []))
+    asyncio.run(Statements.delete_matching(cast(Tx, conn), TABLE, TABLE.c.id, []))
     assert conn.statements == []

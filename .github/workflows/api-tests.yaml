@@ -95,5 +95,5 @@ jobs:
         run: |
           psql -d postgres -c "CREATE DATABASE migrate"
           uv run --no-sync alembic upgrade head
-          # fails if tables.py and migrations differ
+          # fails if models.py and migrations differ
           uv run --no-sync alembic check

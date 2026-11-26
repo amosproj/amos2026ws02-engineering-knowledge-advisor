@@ -65,7 +65,7 @@ async def run() -> None:
     engine: AsyncEngine = create_engine(settings)
     sessions: async_sessionmaker[AsyncSession] = create_sessionmaker(engine)
     catalog: CatalogService = create_catalog_service(
-        settings, create_ograg_service(settings, engine)
+        settings, create_ograg_service(settings, sessions)
     )
     heartbeat: Heartbeat = Heartbeat(HEARTBEAT_FILE)
     next_cleanup: float = 0.0

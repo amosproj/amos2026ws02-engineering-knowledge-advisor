@@ -12,8 +12,8 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import Engine, MetaData, create_engine, pool
 
-from config.settings import Settings, get_settings
-from db import ModelBase, get_tables
+from config.settings import get_settings
+from db.models import ModelBase  # registers models
 from db.session import get_database_url
 
 config = context.config
@@ -22,9 +22,7 @@ if config.config_file_name is not None:
 
 target_metadata: MetaData = ModelBase.metadata
 
-settings: Settings = get_settings()
-get_tables(settings.embedding_dimensions)  # registers tables on the metadata
-URL: str = config.get_main_option("sqlalchemy.url") or get_database_url(settings)
+URL: str = config.get_main_option("sqlalchemy.url") or get_database_url(get_settings())
 
 
 def run_migrations_offline() -> None:
