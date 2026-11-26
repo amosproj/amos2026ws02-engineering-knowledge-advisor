@@ -4,6 +4,7 @@ from typing import Any, override
 import pytest
 from fakes import MemoryRecordStore, build_ontology_with, load_ontology, make_service
 from helpers import assert_mentions
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from services import ConflictError, JsonValue, Record, Tx, UnstorableValueError
 from services.ograg.service import (
@@ -424,4 +425,4 @@ async def test_a_conflict_is_retried_in_the_services_own_transaction():
 async def test_a_conflict_in_the_callers_transaction_is_raised_at_once():
     service = OgRagService(load_ontology(), FlakyStore(failures=1))
     with pytest.raises(ConflictError):
-        await service.upsert_record(MACHINE_ID, MACHINE, tx="your session")
+        await service.upsert_record(MACHINE_ID, MACHINE, tx=AsyncSession())

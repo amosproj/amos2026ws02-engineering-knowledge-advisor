@@ -55,7 +55,7 @@ uv run --project apps/api pytest                  # tests only
 uv run --project apps/api --env-file .env pytest  # tests only (with env vars)
 ```
 
-Postgres tests `tests/test_pg.py` run only when the environment variable `API_TEST_DATABASE_URL` is set. Test database is wiped on test run.
+Postgres tests `tests/services/postgres/test_pg.py` run only when the environment variable `API_TEST_DATABASE_URL` is set. Test database is wiped on test run.
 
 ## Database
 
@@ -67,7 +67,8 @@ uv run --project apps/api alembic -c apps/api/alembic.ini revision --autogenerat
 uv run --project apps/api alembic -c apps/api/alembic.ini check                                       # models and migrations agree
 ```
 
-Table, column, index and constraint names live in `src/db/names.py`. Tables live in `src/db/tables.py`.
+Table, column, index and constraint names live in `src/db/names.py`. Tables live in `src/db/models.py` with one declarative model per table.
+Enums define names for columns, tables, indices, row-dict keys. Model attributes are for queries.
 
 The `ograg_*` tables hold the OG-RAG hypergraph derived from `records`. Their vector size is `API_EMBEDDING_DIMENSIONS` (default 768 for `intfloat/multilingual-e5-base`). Changing it after the table has been created requires a migration of the vector column and its indexes. The hypergraph tables are not a backup priority.
 
@@ -75,8 +76,9 @@ Text columns: `String` (`varchar` without a length) for ids and short values, `T
 
 To rename a table or column:
 1. Change the enum value in `db/names.py`.
-2. Add a new revision that renames (`op.alter_column(table, old, new_column_name=new)`, `op.rename_table(old, new)`). Autogenerate writes DROP + ADD, which loses the data.
-3. Run `alembic check`.
+2. Rename the model attribute in `db/models.py` and its uses in queries.
+3. Add a new revision that renames (`op.alter_column(table, old, new_column_name=new)`, `op.rename_table(old, new)`). Autogenerate writes DROP + ADD, which loses the data.
+4. Run `alembic check`.
 
 ## Knowledge Records
 

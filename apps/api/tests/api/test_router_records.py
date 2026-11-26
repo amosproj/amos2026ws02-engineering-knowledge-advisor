@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from helpers import assert_mentions
 from httpx2 import Response
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.router_files import v1_files_router
 from api.router_records import v1_records_router
@@ -25,7 +26,7 @@ PROBLEM_JSON: str = "application/problem+json"
 FASTAPI_DEFAULT_200: str = (
     "Successful Response"  # description FastAPI uses if none is given
 )
-SESSION: str = "the request's session"
+SESSION = AsyncSession()
 RECORDS_URL: str = "/api/v1/records"
 MACHINE_ID: str = "RC-01"
 GROUP_ID: str = "AG-1"
@@ -78,7 +79,7 @@ def app(service: OgRagService, catalog: CatalogService) -> FastAPI:
     app.state.ograg = service
     app.state.catalog = catalog
 
-    async def session() -> AsyncGenerator[str]:
+    async def session() -> AsyncGenerator[AsyncSession]:
         yield SESSION
 
     app.dependency_overrides[get_session] = session

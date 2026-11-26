@@ -2,6 +2,7 @@ import asyncio
 import os
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from enum import StrEnum
 from typing import Any
 
@@ -12,7 +13,7 @@ from fastapi.testclient import TestClient
 from helpers import assert_mentions, recreate_tables
 from httpx2 import Response
 from record_store_checks import CHECK_IDS, CHECKS, IDENTITY_PROPERTY_NAMES, Check
-from sqlalchemy import MetaData, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -20,8 +21,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from api.router_records import v1_records_router
-from config.settings import DEFAULT_EMBEDDING_DIMENSIONS
-from db import TableName, Tables, define_tables
+from db import RecordModel, TableName
 from db.session import create_sessionmaker
 from handler.exception_handler import register
 from handler.service_exception_handler import register as register_service
@@ -53,6 +53,8 @@ GROUP_ID: str = "AG-1"
 ORPHAN_ID: str = "AG-2"  # links to a machine that does not exist
 MISSING_MACHINE_ID: str = "RC-09"  # machine the orphan links to
 UNSTORABLE_NAME: str = "nul \x00 byte"
+REVIEW: str = "Review."
+OTHER_REVIEW: str = "Other review."
 MACHINE: dict[str, Any] = {
     "@type": "Machine",
     "identifier": MACHINE_ID,
@@ -82,17 +84,16 @@ def run_async(check: Callable[[], Coroutine[object, object, None]]) -> None:
     asyncio.run(check(), loop_factory=asyncio.SelectorEventLoop)
 
 
-async def create_fresh_tables(engine: AsyncEngine) -> Tables:
-    tables: Tables = define_tables(DEFAULT_EMBEDDING_DIMENSIONS, MetaData())
+async def create_fresh_tables(engine: AsyncEngine) -> None:
     async with engine.begin() as conn:
-        await recreate_tables(conn, tables)
-    return tables
+        await recreate_tables(conn)
 
 
-def create_service_on(engine: AsyncEngine, tables: Tables) -> OgRagService:
+def create_service_on(engine: AsyncEngine) -> OgRagService:
     ontology: Ontology = load_ontology()
     store = PgRecordStore(
-        engine, tables, identity_property_names=ontology.get_identity_property_names()
+        create_sessionmaker(engine),
+        identity_property_names=ontology.get_identity_property_names(),
     )
     return OgRagService(ontology, store)
 
@@ -140,12 +141,49 @@ def test_record_store_contract_on_postgres(check: Check):
     async def run_check() -> None:
         engine: AsyncEngine = create_async_engine(URL)
         try:
-            tables: Tables = await create_fresh_tables(engine)
+            await create_fresh_tables(engine)
             await check(
                 PgRecordStore(
-                    engine, tables, identity_property_names=IDENTITY_PROPERTY_NAMES
+                    create_sessionmaker(engine),
+                    identity_property_names=IDENTITY_PROPERTY_NAMES,
                 )
             )
+        finally:
+            await engine.dispose()
+
+    run_async(run_check)
+
+
+def test_read_after_write_in_one_session_returns_written_record():
+    async def run_check() -> None:
+        engine: AsyncEngine = create_async_engine(URL)
+        await create_fresh_tables(engine)
+        service: OgRagService = create_service_on(engine)
+        try:
+            async with AsyncSession(engine) as session, session.begin():
+                await service.upsert_record(MACHINE_ID, MACHINE, tx=session)
+                first: Record | None = await service.store.get_record(
+                    MACHINE_ID, tx=session
+                )
+                assert first is not None
+
+                held: RecordModel | None = await session.get(RecordModel, MACHINE_ID)
+                await service.store.save_records(
+                    [replace(first, review=REVIEW)], tx=session
+                )
+                second: Record | None = await service.store.get_record(
+                    MACHINE_ID, tx=session
+                )
+                await service.store.save_records(
+                    [replace(first, review=OTHER_REVIEW)], tx=session
+                )
+                found: list[tuple[Record, float]] = await service.store.query_records(
+                    "Robot cell", tx=session
+                )
+            assert held is not None
+            assert second is not None
+            assert second.review == REVIEW
+            assert [rec.review for rec, _ in found] == [OTHER_REVIEW]
         finally:
             await engine.dispose()
 
@@ -155,14 +193,15 @@ def test_record_store_contract_on_postgres(check: Check):
 def test_writes_join_the_callers_transaction_and_roll_back_with_it():
     async def run_check() -> None:
         engine: AsyncEngine = create_async_engine(URL)
-        service: OgRagService = create_service_on(
-            engine, await create_fresh_tables(engine)
-        )
+        await create_fresh_tables(engine)
+        service: OgRagService = create_service_on(engine)
         try:
-            # In an AsyncConnection: visible inside, gone after the rollback.
-            async with engine.connect() as conn, conn.begin() as transaction:
-                await service.upsert_record(MACHINE_ID, MACHINE, tx=conn)
-                assert await service.store.get_record(MACHINE_ID, tx=conn) is not None
+            # In an AsyncSession: visible inside, gone after the rollback.
+            async with AsyncSession(engine) as session, session.begin() as transaction:
+                await service.upsert_record(MACHINE_ID, MACHINE, tx=session)
+                assert (
+                    await service.store.get_record(MACHINE_ID, tx=session) is not None
+                )
                 assert (
                     await service.store.get_record(MACHINE_ID) is None
                 )  # not committed
@@ -205,9 +244,8 @@ def test_writes_join_the_callers_transaction_and_roll_back_with_it():
 def test_two_cad_files_written_at_once_take_one_place():
     async def run_check() -> None:
         engine: AsyncEngine = create_async_engine(URL)
-        service: OgRagService = create_service_on(
-            engine, await create_fresh_tables(engine)
-        )
+        await create_fresh_tables(engine)
+        service: OgRagService = create_service_on(engine)
         cad_file: dict[str, Any] = {
             "@type": "CadFile",
             "name": "cell.step",
@@ -236,9 +274,8 @@ def test_two_cad_files_written_at_once_take_one_place():
 def test_two_roots_written_at_once_take_one_place(batch_first: bool):
     async def run_check() -> None:
         engine: AsyncEngine = create_async_engine(URL)
-        service: OgRagService = create_service_on(
-            engine, await create_fresh_tables(engine)
-        )
+        await create_fresh_tables(engine)
+        service: OgRagService = create_service_on(engine)
         root: dict[str, Any] = {
             "@type": "AssemblyInstance",
             "name": "Root",
@@ -271,9 +308,9 @@ def test_two_roots_written_at_once_take_one_place(batch_first: bool):
 def test_an_import_waits_for_its_cad_file_to_move_to_another_machine():
     async def run_check() -> None:
         engine: AsyncEngine = create_async_engine(URL)
-        tables: Tables = await create_fresh_tables(engine)
-        service: OgRagService = create_service_on(engine, tables)
-        catalog = CatalogService(service, PgUploadStore(tables), MemoryStorage())
+        await create_fresh_tables(engine)
+        service: OgRagService = create_service_on(engine)
+        catalog = CatalogService(service, PgUploadStore(), MemoryStorage())
         cad_file: dict[str, Any] = {"@type": "CadFile", "name": "cell.step"}
         model = CadModel(
             source_name="cell.step",
@@ -321,15 +358,13 @@ def test_the_records_api_commits_or_rolls_back_with_the_request():
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         engine: AsyncEngine = create_async_engine(URL)
         app.state.sessions = create_sessionmaker(engine)
-        tables: Tables = await create_fresh_tables(engine)
-        service: OgRagService = create_service_on(engine, tables)
+        await create_fresh_tables(engine)
+        service: OgRagService = create_service_on(engine)
         # the parents of the linked item
         await service.upsert_record(MACHINE_ID, MACHINE)
         await service.upsert_record(GROUP_ID, GROUP)
         app.state.ograg = service
-        app.state.catalog = CatalogService(
-            service, PgUploadStore(tables), MemoryStorage()
-        )
+        app.state.catalog = CatalogService(service, PgUploadStore(), MemoryStorage())
         yield
         await engine.dispose()
 

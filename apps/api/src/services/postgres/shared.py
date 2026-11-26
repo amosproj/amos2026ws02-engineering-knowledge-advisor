@@ -1,11 +1,11 @@
 from collections.abc import Mapping, Sequence
-from typing import Any
 
 from sqlalchemy import (
     ARRAY,
     BindParameter,
     Column,
     ColumnElement,
+    Executable,
     Table,
     TableValuedAlias,
     any_,
@@ -15,15 +15,19 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.dialects.postgresql import Insert, insert
+from sqlalchemy.orm import QueryableAttribute
 
-from services.postgres.transaction import PgTx, get_batches
+from services import Tx
+from services.postgres.transaction import get_batches
 
 ERROR_NO_ROWS: str = "no rows to insert"
 
 
 class Conditions:
     @staticmethod
-    def match_any[T](column: Column[T], values: Sequence[T]) -> ColumnElement[bool]:
+    def match_any[T](
+        column: QueryableAttribute[T] | ColumnElement[T], values: Sequence[T]
+    ) -> ColumnElement[bool]:
         """Returns a ``column = ANY(:values)`` condition.
 
         ``column = ANY(:values)`` sends one array param.
@@ -34,13 +38,19 @@ class Conditions:
             column: column to compare.
             values: values to match, may be thousands.
         """
+        expression: ColumnElement[T] = column.expression
         values_param: BindParameter = bindparam(
-            key=None, value=list(values), type_=ARRAY(column.type)
+            key=None, value=list(values), type_=ARRAY(expression.type)
         )
-        return column == any_(values_param)
+        return expression == any_(values_param)
 
 
 class Statements:
+    @staticmethod
+    def overwrite_loaded[S: Executable](stmt: S) -> S:
+        """Returns ``stmt`` set to overwrite objects the session already loaded (``populate_existing``)."""
+        return stmt.execution_options(populate_existing=True)
+
     @staticmethod
     def build_unnest_insert(
         table: Table, rows: Sequence[Mapping[str, object]]
@@ -61,8 +71,8 @@ class Statements:
         if not rows:
             raise ValueError(ERROR_NO_ROWS)
 
-        columns: list[Column[Any]] = [table.c[name] for name in rows[0]]
-        arrays: list[BindParameter[Any]] = [
+        columns: list[Column[object]] = [table.c[name] for name in rows[0]]
+        arrays: list[BindParameter[Sequence[object]]] = [
             bindparam(
                 key=None, value=[row[col.name] for row in rows], type_=ARRAY(col.type)
             )
@@ -77,16 +87,20 @@ class Statements:
 
     @staticmethod
     async def delete_matching(
-        conn: PgTx, column: Column[Any], values: Sequence[str]
+        session: Tx,
+        table: Table,
+        column: QueryableAttribute[str] | ColumnElement[str],
+        values: Sequence[str],
     ) -> None:
-        """Deletes rows from ``column``'s table if row's ``column`` holds one of ``values``.
+        """Deletes rows from ``table`` if row's ``column`` holds one of ``values``.
 
         Args:
-            conn: connection of current transaction.
+            session: session of current transaction.
+            table: table to delete from.
             column: column to match.
             values: values to match, may be thousands.
         """
         for batch in get_batches(values):
-            await conn.execute(
-                delete(column.table).where(Conditions.match_any(column, batch))
+            await session.execute(
+                delete(table).where(Conditions.match_any(column, batch))
             )

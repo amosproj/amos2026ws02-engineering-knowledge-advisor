@@ -1,7 +1,7 @@
 from sqlalchemy import text as sql
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from db import TableName, Tables
+from db import ModelBase, TableName
 
 EXTENSIONS: tuple[str, ...] = ("vector", "pg_trgm")
 S3_ENV: dict[str, str] = {
@@ -22,10 +22,10 @@ def assert_mentions(text: str, *words: str) -> None:
     assert not missing, f"{missing} not in {text!r}"
 
 
-async def recreate_tables(conn: AsyncConnection, tables: Tables) -> None:
-    """Drops all tables of ``TableName`` and creates ``tables`` with all extensions."""
+async def recreate_tables(conn: AsyncConnection) -> None:
+    """Drops all tables of ``TableName`` and creates ``ModelBase`` tables with all extensions."""
     for name in TableName:
         await conn.execute(sql(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
     for extension in EXTENSIONS:
         await conn.execute(sql(f"CREATE EXTENSION IF NOT EXISTS {extension}"))
-    await conn.run_sync(tables.metadata.create_all)
+    await conn.run_sync(ModelBase.metadata.create_all)

@@ -118,7 +118,6 @@ class Settings(BaseSettings):
     database_url: SecretStr | None = None
 
     ontology_path: Path
-    embedding_dimensions: int = Field(default=DEFAULT_EMBEDDING_DIMENSIONS, gt=0)
     search: SearchSettings = Field(default_factory=SearchSettings)
 
     s3_endpoint_url: str
@@ -177,6 +176,23 @@ class Settings(BaseSettings):
         }
 
 
+class SchemaSettings(BaseSettings):
+    """Settings the db models are built with. Read when db models are imported.
+
+    Attributes:
+        embedding_dimensions: embedding model vector dimensionality.
+    """
+
+    model_config = Settings.model_config
+
+    embedding_dimensions: int = Field(default=DEFAULT_EMBEDDING_DIMENSIONS, gt=0)
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()  # pyright: ignore[reportCallIssue]
+
+
+@lru_cache
+def get_schema_settings() -> SchemaSettings:
+    return SchemaSettings()

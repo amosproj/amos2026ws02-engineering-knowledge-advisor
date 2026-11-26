@@ -2,8 +2,9 @@ from typing import Any
 
 import pytest
 from fakes import build_ontology_with, make_catalog, make_service
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from services import JsonValue, Link, Record, Tx
+from services import JsonValue, Link, Record
 from services.cad.model import BoundingBox, CadDefinition, CadModel, CadOccurrence
 from services.catalog import CatalogService, TreeNode
 from services.catalog.records import (
@@ -27,7 +28,7 @@ from services.uploads import UploadStatus
 pytestmark = pytest.mark.anyio
 
 # the in-memory store ignores transactions
-TX: Tx | None = None
+TX = AsyncSession()
 ITEM_ID: str = "KI-1"
 # a second parent link of CAD files: to an assembly group
 PART_OF_GROUP: dict[str, Any] = {

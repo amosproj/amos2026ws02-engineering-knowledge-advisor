@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, override
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from services import Record, RecordLinkedError, RecordStore, Tx, UnstorableValueError
 from services.catalog import CatalogService
 from services.object_storage import ObjectStorage, StoredObject
@@ -105,7 +107,7 @@ class MemoryRecordStore(RecordStore):
             return
         before = dict(self.rows)
         try:
-            yield None
+            yield AsyncSession()
         except BaseException:
             self.rows = before  # roll back
             raise

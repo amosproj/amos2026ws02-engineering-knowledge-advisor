@@ -6,9 +6,7 @@ from datetime import timedelta
 from typing import override
 
 from sqlalchemy import (
-    Column,
     ColumnElement,
-    RowMapping,
     Table,
     delete,
     func,
@@ -20,9 +18,9 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from db.models import UploadModel
 from db.names import UploadColumn
-from db.tables import Tables
-from services.postgres.shared import Conditions
+from services.postgres.shared import Conditions, Statements
 from services.uploads import (
     LockTimeoutError,
     UpAxis,
@@ -43,8 +41,8 @@ ERROR_LOCK_TIMEOUT: str = "a row stayed locked longer than {timeout}"
 class PgUploadStore(UploadStore):
     """Upload state in the ``uploads`` table. Every method runs in the caller's ``AsyncSession``."""
 
-    def __init__(self, tables: Tables) -> None:
-        self.table: Table = tables.uploads
+    def __init__(self) -> None:
+        self.table: Table = UploadModel.get_table()
 
     @override
     @asynccontextmanager
@@ -77,10 +75,10 @@ class PgUploadStore(UploadStore):
             UploadColumn.CREATED_AT: func.now(),
             UploadColumn.UPDATED_AT: func.now(),
         }
-        row: RowMapping | None = (
-            (
-                await tx.execute(
-                    insert(self.table)
+        row: UploadModel | None = (
+            await tx.scalars(
+                Statements.overwrite_loaded(
+                    insert(UploadModel)
                     .values(
                         {
                             UploadColumn.FILE_ID: file_id,
@@ -90,26 +88,22 @@ class PgUploadStore(UploadStore):
                     )
                     # a file in processing or ready is kept
                     .on_conflict_do_update(
-                        index_elements=[self._get_file_id_column()],
+                        index_elements=[UploadModel.file_id],
                         set_=restarted,
                         where=Conditions.match_any(
-                            self.table.c[UploadColumn.STATUS],
+                            UploadModel.status,
                             [UploadStatus.UPLOADING, UploadStatus.FAILED],
                         ),
                     )
-                    .returning(*self.table.c)
+                    .returning(UploadModel)
                 )
             )
-            .mappings()
-            .first()
-        )
+        ).first()
         return None if row is None else _to_upload(row)
 
     @override
     async def delete_upload(self, file_id: str, tx: AsyncSession) -> None:
-        await tx.execute(
-            delete(self.table).where(self._get_file_id_column() == file_id)
-        )
+        await tx.execute(delete(self.table).where(UploadModel.file_id == file_id))
 
     @override
     async def get_uploads(
@@ -117,17 +111,15 @@ class PgUploadStore(UploadStore):
     ) -> dict[str, Upload]:
         if not file_ids:
             return {}
-        rows: Sequence[RowMapping] = (
-            (
-                await tx.execute(
-                    select(self.table).where(
-                        Conditions.match_any(self._get_file_id_column(), file_ids)
+        rows: Sequence[UploadModel] = (
+            await tx.scalars(
+                Statements.overwrite_loaded(
+                    select(UploadModel).where(
+                        Conditions.match_any(UploadModel.file_id, file_ids)
                     )
                 )
             )
-            .mappings()
-            .all()
-        )
+        ).all()
         uploads: list[Upload] = [_to_upload(row) for row in rows]
         return {upload.file_id: upload for upload in uploads}
 
@@ -138,12 +130,12 @@ class PgUploadStore(UploadStore):
         status: UploadStatus = (
             UploadStatus.PROCESSING if error_code is None else UploadStatus.FAILED
         )
-        row: RowMapping | None = (
-            (
-                await tx.execute(
-                    update(self.table)
+        row: UploadModel | None = (
+            await tx.scalars(
+                Statements.overwrite_loaded(
+                    update(UploadModel)
                     .where(
-                        self._get_file_id_column() == file_id,
+                        UploadModel.file_id == file_id,
                         self._has_status(UploadStatus.UPLOADING),
                     )
                     .values(
@@ -152,28 +144,22 @@ class PgUploadStore(UploadStore):
                             UploadColumn.ERROR_CODE: error_code,
                         }
                     )
-                    .returning(*self.table.c)
+                    .returning(UploadModel)
                 )
             )
-            .mappings()
-            .first()
-        )
+        ).first()
         return None if row is None else _to_upload(row)
 
     @override
     async def lock_next_to_process(self, tx: AsyncSession) -> Upload | None:
-        row: RowMapping | None = (
-            (
-                await tx.execute(
-                    select(self.table)
-                    .where(self._has_status(UploadStatus.PROCESSING))
-                    .order_by(self.table.c[UploadColumn.UPDATED_AT])
-                    .limit(1)
-                    .with_for_update(skip_locked=True)
-                )
+        row: UploadModel | None = await tx.scalar(
+            Statements.overwrite_loaded(
+                select(UploadModel)
+                .where(self._has_status(UploadStatus.PROCESSING))
+                .order_by(UploadModel.updated_at)
+                .limit(1)
+                .with_for_update(skip_locked=True)
             )
-            .mappings()
-            .first()
         )
         return None if row is None else _to_upload(row)
 
@@ -213,37 +199,33 @@ class PgUploadStore(UploadStore):
     async def set_up_axis(
         self, file_id: str, up_axis: UpAxis, tx: AsyncSession
     ) -> Upload | None:
-        row: RowMapping | None = (
-            (
-                await tx.execute(
-                    update(self.table)
+        row: UploadModel | None = (
+            await tx.scalars(
+                Statements.overwrite_loaded(
+                    update(UploadModel)
                     .where(
-                        self._get_file_id_column() == file_id,
+                        UploadModel.file_id == file_id,
                         self._has_status(UploadStatus.READY),
                     )
                     .values(
                         {
                             UploadColumn.UP_AXIS: up_axis,
                             # keeps the last status change
-                            UploadColumn.UPDATED_AT: self.table.c[
-                                UploadColumn.UPDATED_AT
-                            ],
+                            UploadColumn.UPDATED_AT: UploadModel.updated_at,
                         }
                     )
-                    .returning(*self.table.c)
+                    .returning(UploadModel)
                 )
             )
-            .mappings()
-            .first()
-        )
+        ).first()
         return None if row is None else _to_upload(row)
 
     @override
     async def move_to_back(self, file_id: str, tx: AsyncSession) -> None:
         locked_id: str | None = await tx.scalar(
-            select(self._get_file_id_column())
+            select(UploadModel.file_id)
             .where(
-                self._get_file_id_column() == file_id,
+                UploadModel.file_id == file_id,
                 self._has_status(UploadStatus.PROCESSING),
             )
             .with_for_update(skip_locked=True)
@@ -257,7 +239,7 @@ class PgUploadStore(UploadStore):
     ) -> list[str]:
         return list(
             await tx.scalars(
-                select(self._get_file_id_column()).where(*self._is_abandoned(max_age))
+                select(UploadModel.file_id).where(*self._is_abandoned(max_age))
             )
         )
 
@@ -265,19 +247,15 @@ class PgUploadStore(UploadStore):
     async def lock_abandoned(
         self, file_id: str, max_age: timedelta, tx: AsyncSession
     ) -> Upload | None:
-        row: RowMapping | None = (
-            (
-                await tx.execute(
-                    select(self.table)
-                    .where(
-                        self._get_file_id_column() == file_id,
-                        *self._is_abandoned(max_age),
-                    )
-                    .with_for_update(skip_locked=True)
+        row: UploadModel | None = await tx.scalar(
+            Statements.overwrite_loaded(
+                select(UploadModel)
+                .where(
+                    UploadModel.file_id == file_id,
+                    *self._is_abandoned(max_age),
                 )
+                .with_for_update(skip_locked=True)
             )
-            .mappings()
-            .first()
         )
         return None if row is None else _to_upload(row)
 
@@ -287,45 +265,40 @@ class PgUploadStore(UploadStore):
             return set()
         return set(
             await tx.scalars(
-                select(self._get_file_id_column()).where(
-                    Conditions.match_any(self._get_file_id_column(), file_ids),
-                    self.table.c[UploadColumn.STATUS] != UploadStatus.FAILED,
+                select(UploadModel.file_id).where(
+                    Conditions.match_any(UploadModel.file_id, file_ids),
+                    UploadModel.status != UploadStatus.FAILED,
                 )
             )
         )
 
-    def _get_file_id_column(self) -> Column[str]:
-        return self.table.c[UploadColumn.FILE_ID]
-
     def _has_status(self, status: UploadStatus) -> ColumnElement[bool]:
-        return self.table.c[UploadColumn.STATUS] == status
+        return UploadModel.status == status
 
     def _is_abandoned(self, max_age: timedelta) -> tuple[ColumnElement[bool], ...]:
         return (
             self._has_status(UploadStatus.UPLOADING),
-            self.table.c[UploadColumn.CREATED_AT] < func.now() - max_age,
+            UploadModel.created_at < func.now() - max_age,
         )
 
     async def _set_values(
         self, file_id: str, values: dict[UploadColumn, object], tx: AsyncSession
     ) -> None:
         await tx.execute(
-            update(self.table)
-            .where(self._get_file_id_column() == file_id)
-            .values(values)
+            update(self.table).where(UploadModel.file_id == file_id).values(values)
         )
 
 
-def _to_upload(row: RowMapping) -> Upload:
+def _to_upload(row: UploadModel) -> Upload:
     return Upload(
-        file_id=row[UploadColumn.FILE_ID],
-        status=UploadStatus(row[UploadColumn.STATUS]),
-        error_code=row[UploadColumn.ERROR_CODE],
-        source_key=row[UploadColumn.SOURCE_KEY],
-        size_bytes=row[UploadColumn.SIZE_BYTES],
-        created_at=row[UploadColumn.CREATED_AT],
-        updated_at=row[UploadColumn.UPDATED_AT],
-        model_key=row[UploadColumn.MODEL_KEY],
-        preview_key=row[UploadColumn.PREVIEW_KEY],
-        up_axis=UpAxis(row[UploadColumn.UP_AXIS]),
+        file_id=row.file_id,
+        status=UploadStatus(row.status),
+        error_code=row.error_code,
+        source_key=row.source_key,
+        size_bytes=row.size_bytes,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+        model_key=row.model_key,
+        preview_key=row.preview_key,
+        up_axis=UpAxis(row.up_axis),
     )

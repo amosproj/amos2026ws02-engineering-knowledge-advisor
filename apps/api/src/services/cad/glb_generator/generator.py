@@ -1,6 +1,5 @@
 import re
 from pathlib import Path
-from typing import Any
 
 from OCP.BRepMesh import BRepMesh_IncrementalMesh
 from OCP.collections import (
@@ -15,8 +14,18 @@ from OCP.TCollection import TCollection_AsciiString
 from OCP.TDocStd import TDocStd_Document
 from OCP.XCAFDoc import XCAFDoc_DocumentTool, XCAFDoc_ShapeTool
 
+from services import JsonObject, JsonValue
 from services.cad.errors import GlbGenerationError
-from services.cad.glb_generator.glb_file import read_glb, write_glb
+from services.cad.glb_generator.glb_file import (
+    ensure_list,
+    ensure_object,
+    get_int,
+    get_ints,
+    get_objects,
+    get_str,
+    read_glb,
+    write_glb,
+)
 from services.cad.model import CadModel, CadOccurrence
 from services.cad.xde import document_length_unit
 
@@ -111,23 +120,26 @@ def _write(document: TDocStd_Document, path: Path) -> None:
         raise GlbGenerationError(f"Open CASCADE could not write {path.name}")
 
 
-def _set_ids(gltf: dict[str, Any], occurrences: list[CadOccurrence]) -> None:
+def _set_ids(gltf: JsonObject, occurrences: list[CadOccurrence]) -> None:
     """Names each node after its occurrence and adds the ids, matched by the path of label entries.
 
     Raises:
         GlbGenerationError: an occurrence has no node.
     """
     by_id: dict[str, CadOccurrence] = {occ.id: occ for occ in occurrences}
-    nodes: list[dict[str, Any]] = gltf.get("nodes", [])
+    nodes: list[JsonObject] = get_objects(gltf, "nodes")
     roots: list[int] = [
-        index for scene in gltf.get("scenes", []) for index in scene.get("nodes", [])
+        index
+        for scene in get_objects(gltf, "scenes")
+        for index in get_ints(scene, "nodes")
     ]
     pending: list[tuple[int, str | None]] = [(index, None) for index in roots]
     while pending:
         index, parent_path = pending.pop()
-        node: dict[str, Any] = nodes[index]
-        match: re.Match[str] | None = ENTRY_SUFFIX.match(node.get("name", ""))
-        product: str = match.group(1) if match else node.get("name", "")
+        node: JsonObject = nodes[index]
+        name: str = get_str(node, "name")
+        match: re.Match[str] | None = ENTRY_SUFFIX.match(name)
+        product: str = match.group(1) if match else name
         path: str | None = None
         if match:
             entry: str = match.group(2)
@@ -140,38 +152,39 @@ def _set_ids(gltf: dict[str, Any], occurrences: list[CadOccurrence]) -> None:
         else:
             node["name"] = product or UNNAMED
             node.pop("extras", None)
-        pending += [(child, path) for child in node.get("children", [])]
+        pending += [(child, path) for child in get_ints(node, "children")]
     if by_id:
         raise GlbGenerationError(
             f"{len(by_id)} occurrences have no glTF node, e.g. {next(iter(by_id))}"
         )
 
 
-def _drop_points_and_lines(gltf: dict[str, Any]) -> None:
+def _drop_points_and_lines(gltf: JsonObject) -> None:
     """Unlinks the meshes of free vertices and edges: invisible, but viewers pick them and select the wrong part."""
-    meshes: list[dict[str, Any]] = gltf.get("meshes", [])
-    for node in gltf.get("nodes", []):
-        if "mesh" in node and not any(
-            primitive.get("mode", TRIANGLES) == TRIANGLES
-            for primitive in meshes[node["mesh"]]["primitives"]
+    meshes: list[JsonObject] = get_objects(gltf, "meshes")
+    for node in get_objects(gltf, "nodes"):
+        mesh_index: int | None = get_int(node, "mesh")
+        if mesh_index is not None and not any(
+            get_int(primitive, "mode") in (None, TRIANGLES)
+            for primitive in get_objects(meshes[mesh_index], "primitives")
         ):
             del node["mesh"]
 
 
-def _make_matte(gltf: dict[str, Any]) -> None:
+def _make_matte(gltf: JsonObject) -> None:
     """glTF defaults to fully metallic, which renders almost black without an environment map.
 
     Primitives without a material (parts without a color) get a grey one.
     """
-    materials: list[dict[str, Any]] = gltf.setdefault("materials", [])
-    for material in materials:
-        material.setdefault("pbrMetallicRoughness", {}).setdefault(
+    materials: list[JsonValue] = ensure_list(gltf, "materials")
+    for material in get_objects(gltf, "materials"):
+        ensure_object(material, "pbrMetallicRoughness").setdefault(
             "metallicFactor", 0.0
         )
-    uncolored: list[dict[str, Any]] = [
+    uncolored: list[JsonObject] = [
         primitive
-        for mesh in gltf.get("meshes", [])
-        for primitive in mesh["primitives"]
+        for mesh in get_objects(gltf, "meshes")
+        for primitive in get_objects(mesh, "primitives")
         if "material" not in primitive
     ]
     if uncolored:

@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 from pgvector.sqlalchemy import Vector
 
-from config.settings import get_settings
+from config.settings import get_schema_settings
 
 VECTOR_KINDS: tuple[str, ...] = ("key", "value")
 
@@ -64,7 +64,9 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("model", sa.String(), nullable=False),
         sa.Column(
-            "embedding", Vector(get_settings().embedding_dimensions), nullable=False
+            "embedding",
+            Vector(get_schema_settings().embedding_dimensions),
+            nullable=False,
         ),
         sa.PrimaryKeyConstraint("kind", "id"),
     )

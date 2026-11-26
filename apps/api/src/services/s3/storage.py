@@ -2,7 +2,7 @@ import time
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from urllib.parse import SplitResult, urlsplit
 
 import boto3
@@ -35,6 +35,7 @@ UPLOAD_FORM_EXPIRES_SECONDS: int = 3600
 UPLOAD_CONTENT_TYPE: str = "application/octet-stream"
 DELETE_BATCH_SIZE: int = 1000
 DOWNLOAD_URL_EXPIRES_SECONDS: int = 300
+ERROR_NO_FORM_FIELDS: str = "the signed upload form has no fields"
 
 
 @contextmanager
@@ -97,7 +98,7 @@ class S3ObjectStorage(ObjectStorage):
 
     def create_upload_form(self, key: str, size: int) -> tuple[str, dict[str, str]]:
         with _storage_errors():
-            form: dict[str, Any] = self._client.generate_presigned_post(
+            form: dict[str, object] = self._client.generate_presigned_post(
                 Bucket=self._bucket,
                 Key=key,
                 Fields={"Content-Type": UPLOAD_CONTENT_TYPE},
@@ -107,7 +108,12 @@ class S3ObjectStorage(ObjectStorage):
                 ],
                 ExpiresIn=UPLOAD_FORM_EXPIRES_SECONDS,
             )
-        return self._public_url, form["fields"]
+        fields: object = form.get("fields")
+        if not isinstance(fields, dict):
+            raise ObjectStorageError(ERROR_NO_FORM_FIELDS)
+        return self._public_url, {
+            str(name): str(value) for name, value in fields.items()
+        }
 
     def upload_file(
         self,

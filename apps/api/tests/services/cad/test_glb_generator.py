@@ -1,48 +1,82 @@
-from collections.abc import Iterator
+import struct
+from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Any
 
 import pytest
 from OCP.TDF import TDF_Label
 from step_documents import DocumentBuilder, box, point
 
+from services import JsonObject, JsonValue
 from services.cad.errors import GlbGenerationError
 from services.cad.glb_generator import GlbGenerator, generator
-from services.cad.glb_generator.glb_file import read_glb, write_glb
+from services.cad.glb_generator.glb_file import (
+    HEADER_SIZE,
+    JSON_CHUNK,
+    MAGIC,
+    VERSION,
+    get_int,
+    get_ints,
+    get_objects,
+    get_str,
+    read_glb,
+    write_glb,
+)
 from services.cad.model import CadModel, CadOccurrence
 from services.cad.step_parser import StepParser
 
-type Node = dict[str, Any]
+type Node = JsonObject
 
 
 def parse(builder: DocumentBuilder, tmp_path: Path) -> CadModel:
     return StepParser().parse(builder.write_step(tmp_path / "model.step"))
 
 
-def generate(model: CadModel, tmp_path: Path) -> dict[str, Any]:
+def generate(model: CadModel, tmp_path: Path) -> JsonObject:
     output: Path = tmp_path / "model.glb"
     GlbGenerator().generate(model, output)
     return read_glb(output)[0]
 
 
-def walk(gltf: dict[str, Any]) -> Iterator[tuple[Node, Node | None]]:
+def get_object(container: Mapping[str, JsonValue], key: str) -> JsonObject:
+    value: JsonValue = container.get(key)
+    assert isinstance(value, dict), key
+    return value
+
+
+def get_numbers(container: Mapping[str, JsonValue], key: str) -> list[float]:
+    value: JsonValue = container.get(key)
+    assert isinstance(value, list), key
+    numbers: list[float] = [item for item in value if isinstance(item, int | float)]
+    assert len(numbers) == len(value), key
+    return numbers
+
+
+def get_occurrence_id(node: Node) -> str:
+    return get_str(get_object(node, "extras"), "occurrenceId")
+
+
+def get_primitives(gltf: JsonObject, node: Node) -> list[JsonObject]:
+    mesh_index: int | None = get_int(node, "mesh")
+    if mesh_index is None:
+        return []
+    return get_objects(get_objects(gltf, "meshes")[mesh_index], "primitives")
+
+
+def walk(gltf: JsonObject) -> Iterator[tuple[Node, Node | None]]:
     """Every node with its parent, from the scene's roots."""
+    nodes: list[Node] = get_objects(gltf, "nodes")
     pending: list[tuple[int, Node | None]] = [
-        (index, None) for index in gltf["scenes"][0]["nodes"]
+        (index, None) for index in get_ints(get_objects(gltf, "scenes")[0], "nodes")
     ]
     while pending:
         index, parent = pending.pop()
-        node: Node = gltf["nodes"][index]
+        node: Node = nodes[index]
         yield node, parent
-        pending += [(child, node) for child in node.get("children", [])]
+        pending += [(child, node) for child in get_ints(node, "children")]
 
 
-def occurrence_nodes(gltf: dict[str, Any]) -> dict[str, Node]:
-    return {
-        node["extras"]["occurrenceId"]: node
-        for node, _ in walk(gltf)
-        if "extras" in node
-    }
+def occurrence_nodes(gltf: JsonObject) -> dict[str, Node]:
+    return {get_occurrence_id(node): node for node, _ in walk(gltf) if "extras" in node}
 
 
 def gripper() -> DocumentBuilder:
@@ -62,12 +96,12 @@ def gripper() -> DocumentBuilder:
 def test_node_tree_mirrors_occurrences(tmp_path: Path):
     model: CadModel = parse(gripper(), tmp_path)
 
-    gltf: dict[str, Any] = generate(model, tmp_path)
+    gltf: JsonObject = generate(model, tmp_path)
 
     links: set[tuple[str, str | None]] = {
         (
-            node["extras"]["occurrenceId"],
-            None if parent is None else parent["extras"]["occurrenceId"],
+            get_occurrence_id(node),
+            None if parent is None else get_occurrence_id(parent),
         )
         for node, parent in walk(gltf)
     }
@@ -87,18 +121,18 @@ def test_every_node_has_its_occurrence_id_and_its_name(tmp_path: Path):
 def test_repeated_part_shares_its_geometry_with_distinct_occurrence_ids(tmp_path: Path):
     model: CadModel = parse(gripper(), tmp_path)
 
-    gltf: dict[str, Any] = generate(model, tmp_path)
+    gltf: JsonObject = generate(model, tmp_path)
 
     screws: list[Node] = [
         node for node in occurrence_nodes(gltf).values() if node["name"] == "Screw"
     ]
     assert len(screws) == 3
-    assert len({node["extras"]["occurrenceId"] for node in screws}) == 3
+    assert len({get_occurrence_id(node) for node in screws}) == 3
     # the writer repeats the mesh entry, but its geometry is stored once
-    positions: set[int] = {
-        primitive["attributes"]["POSITION"]
+    positions: set[int | None] = {
+        get_int(get_object(primitive, "attributes"), "POSITION")
         for node in screws
-        for primitive in gltf["meshes"][node["mesh"]]["primitives"]
+        for primitive in get_primitives(gltf, node)
     }
     assert len(positions) == 1
 
@@ -126,36 +160,36 @@ def test_points_lose_their_mesh_and_keep_the_ids_above_them(tmp_path: Path):
     builder.add(cell, markers)
     model: CadModel = parse(builder, tmp_path)
 
-    gltf: dict[str, Any] = generate(model, tmp_path)
+    gltf: JsonObject = generate(model, tmp_path)
 
     assert set(occurrence_nodes(gltf)) == {occ.id for occ in model.occurrences}
     assert "Markers" in [occ.name for occ in model.occurrences]
     nodes: list[Node] = [node for node, _ in walk(gltf)]
     assert all("mesh" not in node for node in nodes if node["name"] == "Marker")
     assert all(
-        primitive.get("mode", 4) == 4
+        get_int(primitive, "mode") in (None, 4)
         for node in nodes
-        if "mesh" in node
-        for primitive in gltf["meshes"][node["mesh"]]["primitives"]
+        for primitive in get_primitives(gltf, node)
     )
 
 
 def test_parts_without_color_get_a_matte_material(tmp_path: Path):
-    gltf: dict[str, Any] = generate(parse(gripper(), tmp_path), tmp_path)
+    gltf: JsonObject = generate(parse(gripper(), tmp_path), tmp_path)
 
+    materials: list[JsonObject] = get_objects(gltf, "materials")
     for node, _ in walk(gltf):
-        for primitive in (
-            gltf["meshes"][node["mesh"]]["primitives"] if "mesh" in node else []
-        ):
-            material: dict[str, Any] = gltf["materials"][primitive["material"]]
-            assert material["pbrMetallicRoughness"]["metallicFactor"] == 0
+        for primitive in get_primitives(gltf, node):
+            material_index: int | None = get_int(primitive, "material")
+            assert material_index is not None
+            material: JsonObject = materials[material_index]
+            assert get_object(material, "pbrMetallicRoughness")["metallicFactor"] == 0
 
 
 def test_non_ascii_names_survive(tmp_path: Path):
     builder = DocumentBuilder()
     builder.part("Stückliste Ø6", box())
 
-    gltf: dict[str, Any] = generate(parse(builder, tmp_path), tmp_path)
+    gltf: JsonObject = generate(parse(builder, tmp_path), tmp_path)
 
     assert [node["name"] for node, _ in walk(gltf)] == ["Stückliste Ø6"]
 
@@ -164,12 +198,16 @@ def test_geometry_is_in_meters(tmp_path: Path):
     builder = DocumentBuilder()
     builder.part("Plate", box(10))
 
-    gltf: dict[str, Any] = generate(parse(builder, tmp_path), tmp_path)
+    gltf: JsonObject = generate(parse(builder, tmp_path), tmp_path)
 
-    (mesh,) = gltf["meshes"]
-    (primitive,) = mesh["primitives"]
-    accessor: dict[str, Any] = gltf["accessors"][primitive["attributes"]["POSITION"]]
-    for low, high in zip(accessor["min"], accessor["max"], strict=True):
+    (mesh,) = get_objects(gltf, "meshes")
+    (primitive,) = get_objects(mesh, "primitives")
+    position: int | None = get_int(get_object(primitive, "attributes"), "POSITION")
+    assert position is not None
+    accessor: JsonObject = get_objects(gltf, "accessors")[position]
+    for low, high in zip(
+        get_numbers(accessor, "min"), get_numbers(accessor, "max"), strict=True
+    ):
         assert high - low == pytest.approx(0.01)
 
 
@@ -185,7 +223,7 @@ def test_a_newline_in_a_name_keeps_the_ids_below_it():
         CadOccurrence("0:1:1:1", "0:1:1:1", None, "Line1\nLine2", None),
         CadOccurrence("0:1:1:1/0:1:1:1:1", "0:1:1:2", "0:1:1:1", "Plate", None),
     ]
-    gltf: dict[str, Any] = {
+    gltf: JsonObject = {
         "scenes": [{"nodes": [0]}],
         "nodes": [
             {"name": "Line1\nLine2 [0:1:1:1]", "children": [1]},
@@ -195,7 +233,7 @@ def test_a_newline_in_a_name_keeps_the_ids_below_it():
 
     generator._set_ids(gltf, occurrences)  # pyright: ignore[reportPrivateUsage]
 
-    assert [node.get("extras", {}).get("occurrenceId") for node in gltf["nodes"]] == [
+    assert [get_occurrence_id(node) for node in get_objects(gltf, "nodes")] == [
         "0:1:1:1",
         "0:1:1:1/0:1:1:1:1",
     ]
@@ -206,13 +244,35 @@ def test_an_occurrence_without_a_node_raises():
         CadOccurrence("0:1:1:1", "0:1:1:1", None, "Cell", None),
         CadOccurrence("0:1:1:1/0:1:1:1:1", "0:1:1:2", "0:1:1:1", "Plate", None),
     ]
-    gltf: dict[str, Any] = {
+    gltf: JsonObject = {
         "scenes": [{"nodes": [0]}],
         "nodes": [{"name": "Cell [0:1:1:1]"}],
     }
 
     with pytest.raises(GlbGenerationError):
         generator._set_ids(gltf, occurrences)  # pyright: ignore[reportPrivateUsage]
+
+
+def test_json_chunk_that_is_not_object_raises(tmp_path: Path):
+    text: bytes = b"[]  "
+    body: bytes = struct.pack("<II", len(text), JSON_CHUNK) + text
+    path: Path = tmp_path / "model.glb"
+    path.write_bytes(
+        MAGIC + struct.pack("<II", VERSION, HEADER_SIZE + len(body)) + body
+    )
+    with pytest.raises(GlbGenerationError):
+        read_glb(path)
+
+
+@pytest.mark.parametrize(
+    "container",
+    [{"nodes": 5}, {"nodes": [5]}, {"nodes": [{"children": ["0"]}]}],
+    ids=["no list", "no objects", "no integers"],
+)
+def test_malformed_gltf_raises(container: JsonObject):
+    with pytest.raises(GlbGenerationError):
+        for node in get_objects(container, "nodes"):
+            get_ints(node, "children")
 
 
 def test_rewriting_the_json_keeps_the_binary_chunk(tmp_path: Path):

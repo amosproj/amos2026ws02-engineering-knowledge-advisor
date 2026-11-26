@@ -4,11 +4,10 @@ from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 
 from sqlalchemy.exc import DataError, DBAPIError
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from services import ConflictError, UnstorableValueError
+from services import ConflictError, Tx, UnstorableValueError
 
-type PgTx = AsyncSession | AsyncConnection
 BATCH_SIZE: int = 10_000
 UNSTORABLE: str = "failed to store"
 SQL_STATE: dict[
@@ -42,8 +41,10 @@ def _get_first_line(exc: BaseException | None) -> str:
 
 
 @asynccontextmanager
-async def get_transaction(engine: AsyncEngine, tx: PgTx | None) -> AsyncGenerator[PgTx]:
-    """Returns passed transaction, or opens a new connection.
+async def get_transaction(
+    sessions: async_sessionmaker[AsyncSession], tx: Tx | None
+) -> AsyncGenerator[Tx]:
+    """Returns passed transaction, or opens a new session.
 
     Raises:
         UnstorableValueError: SQLSTATE class 22xxx data exception, or text the driver cannot encode.
@@ -53,8 +54,8 @@ async def get_transaction(engine: AsyncEngine, tx: PgTx | None) -> AsyncGenerato
         if tx is not None:
             yield tx
         else:
-            async with engine.begin() as conn:
-                yield conn
+            async with sessions() as session, session.begin():
+                yield session
 
     except UnicodeEncodeError as exc:
         raise UnstorableValueError(ERROR_BROKEN_CHARACTER) from exc

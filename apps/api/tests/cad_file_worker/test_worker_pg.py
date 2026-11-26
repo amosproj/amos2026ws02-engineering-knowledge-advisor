@@ -15,7 +15,6 @@ from pathlib import Path
 import pytest
 from fakes import load_ontology
 from helpers import recreate_tables
-from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -28,8 +27,6 @@ from cad_file_worker import cleanup, processing
 from cad_file_worker.cleanup import delete_orphan_objects, expire_abandoned_uploads
 from cad_file_worker.conversion import Conversion
 from cad_file_worker.processing import process_next_cad_upload
-from config.settings import DEFAULT_EMBEDDING_DIMENSIONS
-from db import Tables, define_tables
 from logger import logger
 from services import Record
 from services.cad.errors import PreviewError
@@ -211,22 +208,23 @@ def run_async(check: Callable[[], Coroutine[object, object, None]]) -> None:
 async def open_worker() -> AsyncGenerator[Worker]:
     """Fresh tables with a machine."""
     engine: AsyncEngine = create_async_engine(URL)
-    tables: Tables = define_tables(DEFAULT_EMBEDDING_DIMENSIONS, MetaData())
+    sessions: async_sessionmaker[AsyncSession] = async_sessionmaker(
+        engine, expire_on_commit=False
+    )
     try:
         async with engine.begin() as conn:
-            await recreate_tables(conn, tables)
+            await recreate_tables(conn)
         ontology: Ontology = load_ontology()
         ograg = OgRagService(
             ontology,
             PgRecordStore(
-                engine,
-                tables,
+                sessions,
                 identity_property_names=ontology.get_identity_property_names(),
             ),
         )
         worker = Worker(
-            async_sessionmaker(engine, expire_on_commit=False),
-            CatalogService(ograg, PgUploadStore(tables), ContentStorage()),
+            sessions,
+            CatalogService(ograg, PgUploadStore(), ContentStorage()),
         )
         yield worker
     finally:
